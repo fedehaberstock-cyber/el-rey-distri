@@ -123,11 +123,8 @@
 <div id="root"><div class="loading">Cargando…</div></div>
 
 <script type="module">
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { supabase } from './src/supabase.js';
 
-const SUPA_URL = 'https://rqbpzmkcwxruzszbtsjv.supabase.co';
-const SUPA_KEY = 'sb_publishable_tdI7VSKRcEqhaTVY0ipprA_umkrtiQb';
-const supabase = createClient(SUPA_URL, SUPA_KEY);
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
 const { data: { session } } = await supabase.auth.getSession();
