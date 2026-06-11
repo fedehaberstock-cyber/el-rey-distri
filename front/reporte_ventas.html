@@ -176,14 +176,14 @@ async function cargarPedidos() {
   const { data, error } = await supabase
     .from('pedidos')
     .select(`
-      id, fecha_pedido, estado, descuento,
+      id, fecha, estado, descuento,
       usuarios!pedidos_usuario_id_fkey(nombre),
       pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, productos(nombre))
     `)
     .eq('empresa_id', usuario.empresa_id)
     .eq('estado', 'entregado')
-    .gte('fecha_pedido', hace180)
-    .order('fecha_pedido', { ascending: false });
+    .gte('fecha', hace180)
+    .order('fecha', { ascending: false });
 
   if (error) {
     document.getElementById('root').innerHTML =
@@ -202,7 +202,7 @@ function totalPedido(p) {
 }
 
 function pedidosFiltrados() {
-  return todosPedidos.filter(p => p.fecha_pedido >= desde && p.fecha_pedido <= hasta);
+  return todosPedidos.filter(p => p.fecha >= desde && p.fecha <= hasta);
 }
 
 // ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
@@ -290,7 +290,7 @@ function renderChart(pf) {
     return;
   }
   const porDia = dias.map(f => ({
-    f, total: pf.filter(p => p.fecha_pedido === f).reduce((s, p) => s + totalPedido(p), 0)
+    f, total: pf.filter(p => p.fecha === f).reduce((s, p) => s + totalPedido(p), 0)
   }));
   const max = Math.max(...porDia.map(d => d.total), 1);
   const mostrar = (i, total) => total <= 10 || i % (Math.ceil(total / 7)) === 0;
