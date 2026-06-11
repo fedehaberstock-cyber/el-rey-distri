@@ -255,7 +255,7 @@ function renderHome(){
 
   const perms = getPermisos();
   const esAdmin = u.rol === 'admin'
-    || Object.values(perms).some(n => ['editar','admin'].includes(n));
+    || Object.values(perms).some(n => n && n !== 'ninguno');
   if (esAdmin) renderHomeAdmin();
   else         renderHomePreventista();
 }
