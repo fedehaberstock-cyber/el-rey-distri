@@ -162,7 +162,7 @@ async function cargarBoleta() {
       id, total, saldo_anterior, total_a_cobrar, estado, fecha,
       pedidos (
         id, descuento, observaciones,
-        usuarios(nombre),
+        usuarios!pedidos_usuario_id_fkey(nombre),
         clientes(nombre, direccion, telefono),
         pedido_items(
           cantidad, precio_unit, descuento, es_bulto, u_por_bulto,
