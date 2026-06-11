@@ -202,7 +202,10 @@ function totalPedido(p) {
 }
 
 function pedidosFiltrados() {
-  return todosPedidos.filter(p => p.fecha >= desde && p.fecha <= hasta);
+  return todosPedidos.filter(p => {
+    const d = (p.fecha || '').slice(0, 10);
+    return d >= desde && d <= hasta;
+  });
 }
 
 // ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
