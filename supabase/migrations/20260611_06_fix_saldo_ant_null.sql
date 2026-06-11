@@ -85,9 +85,9 @@ begin
       v_u_bulto   := coalesce((item->>'u_por_bulto')::integer, 1);
 
       insert into pedido_items
-        (pedido_id, producto_id, cantidad, precio_unit, descuento, es_bulto, u_por_bulto)
+        (empresa_id, pedido_id, producto_id, cantidad, precio_unit, descuento, es_bulto, u_por_bulto)
       values
-        (v_pedido_id, v_prod_id, v_cantidad, v_precio, v_desc_item, v_es_bulto, v_u_bulto);
+        (v_empresa_id, v_pedido_id, v_prod_id, v_cantidad, v_precio, v_desc_item, v_es_bulto, v_u_bulto);
 
       insert into mov_stock
         (empresa_id, producto_id, tipo, cantidad, referencia, referencia_tipo, usuario_id)
