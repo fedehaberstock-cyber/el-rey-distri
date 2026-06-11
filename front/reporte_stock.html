@@ -145,7 +145,7 @@ async function cargarTodo() {
     { data: ingresoItems, error: errI },
   ] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, costo, precio_lista, updated_at, proveedores(nombre)')
+      .select('id, nombre, categoria, costo, precio, updated_at, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id)
       .eq('activo', true)
       .order('nombre'),
@@ -182,7 +182,7 @@ async function cargarTodo() {
     cat: p.categoria || 'Sin categoría',
     prov: p.proveedores?.nombre || 'Sin proveedor',
     costo: p.costo || 0,
-    precio: p.precio_lista || 0,
+    precio: p.precio || 0,
     stock: stockMap[p.id] ?? 0,
     ultimo_ingreso: ingresoMap[p.id] || null,
     ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,

@@ -168,7 +168,7 @@ async function cargarTodo() {
       .eq('empresa_id', usuario.empresa_id)
       .order('nombre'),
     supabase.from('mov_cuenta')
-      .select('id, cliente_id, usuario_id, tipo, monto, descripcion, fecha, forma_pago')
+      .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, referencia_tipo')
       .eq('empresa_id', usuario.empresa_id)
       .order('fecha', { ascending: false }),
   ]);
@@ -316,7 +316,7 @@ function renderDetalle() {
       ${movsCli.length ? movsCli.map(m => `
         <div class="mov-row">
           <div>
-            <div class="desc">${m.descripcion || (m.tipo === 'cargo' ? 'Cargo' : 'Pago')}</div>
+            <div class="desc">${m.referencia_tipo ? m.referencia_tipo.charAt(0).toUpperCase() + m.referencia_tipo.slice(1) : (m.tipo === 'cargo' ? 'Cargo' : 'Pago')}</div>
             <div class="fecha">${fmtF(m.fecha)}</div>
           </div>
           <div class="monto ${m.tipo === 'cargo' ? 'cargo' : 'pago'}">
