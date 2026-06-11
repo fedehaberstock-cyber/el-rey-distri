@@ -121,21 +121,11 @@
 
 <script type="module">
 import { supabase } from './src/supabase.js';
-
+import { requireSession, tienePermiso } from './src/auth.js';
 
 // ── AUTH GUARD ────────────────────────────────────────────────────────────
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) { location.href = './login_home.html'; }
-
-const { data: usuario } = await supabase
-  .from('usuarios')
-  .select('id, nombre, email, rol, empresa_id')
-  .eq('auth_id', session.user.id)
-  .single();
-
-if (!usuario || usuario.rol !== 'admin') {
-  location.href = './login_home.html';
-}
+const { usuario } = await requireSession();
+if (!tienePermiso('usuarios_permisos', 'admin')) { location.href = './login_home.html'; }
 
 // ── MÓDULOS ───────────────────────────────────────────────────────────────
 const secciones = [

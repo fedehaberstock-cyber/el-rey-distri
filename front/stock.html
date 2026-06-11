@@ -181,15 +181,13 @@
 
 <script type="module">
 import { supabase } from './src/supabase.js';
+import { requireSession, tienePermiso } from './src/auth.js';
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) { location.href = './login_home.html'; }
-const { data: usuario } = await supabase
-  .from('usuarios').select('id, nombre, rol, empresa_id').eq('auth_id', session.user.id).single();
-if (!usuario) { location.href = './login_home.html'; }
+const { usuario } = await requireSession();
+if (!tienePermiso('stock') && !tienePermiso('reportes_stock')) { location.href = './login_home.html'; }
 
-const puedeAjustar = usuario.rol === 'admin' || usuario.rol === 'deposito';
+const puedeAjustar = tienePermiso('stock', 'editar');
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 const ars     = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);

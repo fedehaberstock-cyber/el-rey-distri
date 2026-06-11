@@ -129,7 +129,7 @@
 
 <script type="module">
 import { supabase } from './src/supabase.js'
-import { requireSession } from './src/auth.js'
+import { requireSession, tienePermiso } from './src/auth.js'
 import { ars as arsFmt, fechaCorta, mostrarError } from './src/utils.js'
 
 // expongo handlers a onclick inline
@@ -506,6 +506,7 @@ function irNuevo()          { nuevoForm={nombre:'',dir:'',tel:''}; vista='nuevo'
 // ── ARRANQUE ──────────────────────────────────────────────────────────
 async function arrancar(){
   await requireSession();
+  if (!tienePermiso('clientes')) { location.href = './login_home.html'; return; }
   render();   // muestra "Cargando…"
   await cargarClientes();
   render();

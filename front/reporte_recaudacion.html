@@ -123,21 +123,11 @@
 
 <script type="module">
 import { supabase } from './src/supabase.js';
-
+import { requireSession, tienePermiso } from './src/auth.js';
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) { location.href = './login_home.html'; }
-
-const { data: usuario } = await supabase
-  .from('usuarios').select('id, nombre, rol, empresa_id').eq('auth_id', session.user.id).single();
-if (!usuario) { location.href = './login_home.html'; }
-
-if (usuario.rol !== 'admin') {
-  const { data: perm } = await supabase.from('permisos')
-    .select('nivel').eq('usuario_id', usuario.id).eq('modulo', 'recaudacion').single();
-  if (!perm || perm.nivel === 'ninguno') { location.href = './login_home.html'; }
-}
+const { usuario } = await requireSession();
+if (!tienePermiso('recaudacion')) { location.href = './login_home.html'; }
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 const ars  = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
