@@ -259,23 +259,37 @@ function renderHome(){
 }
 
 // ── HOME ADMIN ─────────────────────────────────────────────────────────
-function renderHomeAdmin(){
+async function renderHomeAdmin(){
   const box = document.getElementById('home-content');
-  box.innerHTML = `
-    <div class="sec-title">Alertas</div>
-    ${ALERTAS.map(a=>`
-      <div class="alert-banner ${a.tipo}">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10 2L2 17h16L10 2zM10 8v4M10 14v.01"/>
-        </svg>
-        ${a.msg}
-      </div>`).join('')}
+  const u = usuarioActual;
 
-    <div class="sec-title" style="margin-top:16px">Resumen de hoy</div>
+  // Resumen de hoy: pedidos de hoy + deudores
+  const hoy = new Date().toISOString().slice(0, 10);
+  const [pedResp, deuResp] = await Promise.all([
+    supabase.from('pedidos')
+      .select('id, pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto)')
+      .eq('empresa_id', u.empresa_id)
+      .in('estado', ['confirmado', 'entregado'])
+      .gte('fecha', hoy + 'T00:00:00')
+      .lte('fecha', hoy + 'T23:59:59'),
+    supabase.from('saldo_actual')
+      .select('cliente_id, saldo')
+      .gt('saldo', 0),
+  ]);
+
+  const pedidos = pedResp.data || [];
+  const totalHoy = pedidos.reduce((s, p) =>
+    s + (p.pedido_items || []).reduce((si, it) =>
+      si + it.cantidad * it.precio_unit * (1 - (it.descuento||0)/100), 0), 0);
+  const arsHoy = new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(totalHoy);
+  const deudores = (deuResp.data || []).length;
+
+  box.innerHTML = `
+    <div class="sec-title">Resumen de hoy</div>
     <div class="quick-stats">
-      <div class="qs"><div class="num gold">$284k</div><div class="lbl">Vendido hoy</div></div>
-      <div class="qs"><div class="num">8</div><div class="lbl">Pedidos</div></div>
-      <div class="qs"><div class="num red">5</div><div class="lbl">Deudores</div></div>
+      <div class="qs"><div class="num gold">${arsHoy}</div><div class="lbl">Vendido hoy</div></div>
+      <div class="qs"><div class="num">${pedidos.length}</div><div class="lbl">Pedidos</div></div>
+      <div class="qs"><div class="num red">${deudores}</div><div class="lbl">Deudores</div></div>
     </div>
 
     <div class="sec-title">Operaciones</div>
