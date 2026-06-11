@@ -220,26 +220,53 @@
 <input type="file" id="file-foto"   accept="image/*" onchange="onFotoChange(event)">
 <input type="file" id="file-logo"   accept="image/*" onchange="onLogoChange(event)">
 
-<script>
-// ── DATOS ──────────────────────────────────────────────────────────────
-const categorias = ['Farmacia','Limpieza','Perfumería','Kiosco','Bebé','Mate','Tinturas','Bolsas'];
+<script type="module">
+import { supabase } from './src/supabase.js';
 
-let productos = [
-  {id:'p1', nombre:'Actron 400 X10',         cat:'Farmacia',   precio:7200,  foto:null},
-  {id:'p2', nombre:'Tafirol 1g X8',           cat:'Farmacia',   precio:6200,  foto:null},
-  {id:'p3', nombre:'Ala Matic 800g',           cat:'Limpieza',   precio:3800,  foto:'https://images.unsplash.com/photo-1584304198673-d2b2e5dffe38?w=300&q=80'},
-  {id:'p4', nombre:'Sedal Shampoo 190ml',      cat:'Perfumería', precio:3300,  foto:'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=300&q=80'},
-  {id:'p5', nombre:'Lav. Ayudin 1L',           cat:'Limpieza',   precio:2200,  foto:null},
-  {id:'p6', nombre:'OCB Blanco X1',            cat:'Kiosco',     precio:2500,  foto:null},
-  {id:'p7', nombre:'Pañal Babysec M 8u',       cat:'Bebé',       precio:11200, foto:'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=300&q=80'},
-  {id:'p8', nombre:'Crema Hinds 250ml',        cat:'Perfumería', precio:4400,  foto:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=300&q=80'},
-  {id:'p9', nombre:'Kit Tintura Nantyr 5.0',   cat:'Tinturas',   precio:6800,  foto:null},
-  {id:'p10',nombre:'Det. Magistral 300ml',      cat:'Limpieza',   precio:2800,  foto:null},
-  {id:'p11',nombre:'Esponja Acero Make 30g',    cat:'Limpieza',   precio:1800,  foto:null},
-  {id:'p12',nombre:'Bolsa Consorcio 60x90 10u', cat:'Bolsas',     precio:3600,  foto:null},
-];
+// ── AUTH ───────────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login_home.html'; }
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, empresa_id').eq('auth_id', session.user.id).single();
+if (!usuario) { location.href = './login_home.html'; }
+
+// ── DATOS ──────────────────────────────────────────────────────────────
+let productos = [];
+let categorias = [];
+
+async function cargarProductos() {
+  const { data, error } = await supabase
+    .from('productos')
+    .select('id, nombre, categoria, precio, foto_url, activo')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('activo', true)
+    .order('nombre');
+  if (error) { console.error('[catalogo]', error.message); return; }
+  productos = (data || []).map(p => ({
+    id: p.id,
+    nombre: p.nombre,
+    cat: p.categoria || 'Sin categoría',
+    precio: p.precio || 0,
+    foto: p.foto_url || null,
+  }));
+  categorias = [...new Set(productos.map(p => p.cat))].sort();
+}
 
 // ── CONFIG CATÁLOGO ────────────────────────────────────────────────────
+window._setCat = (c) => { config.filtroCat = c; render(); };
+window._setPorPagina = (n) => { config.porPagina = n; render(); };
+window._togglePrecio = () => { config.mostrarPrecio = !config.mostrarPrecio; render(); };
+window._setTab = (t) => { tab = t; render(); };
+window._abrirPanel = (id) => { panelProd = id; panelFotoTemp = productos.find(p=>p.id===id)?.foto ?? null; render(); };
+window._cerrarPanel = () => { panelProd = null; render(); };
+window._quitarFoto = () => { panelFotoTemp = null; rerenderPanel(); };
+window._guardarProd = (id) => guardarProd(id);
+window._setPrecio = (id, v) => { const p = getProd(id); if(p) p.precio = +v; };
+window._setCatProd = (id, v) => { const p = getProd(id); if(p) p.cat = v; };
+window.generarCatalogo = generarCatalogo;
+window.actualizarPreview = actualizarPreview;
+window.rerenderPanel = rerenderPanel;
+
 let config = {
   empresa:    'Distribuidora El Rey',
   subtitulo:  'Alta Gracia, Córdoba · Tel: 351-000-0000',
@@ -270,8 +297,8 @@ function render(){
       </div>
     </div>
     <div class="tabs">
-      <div class="tab ${tab==='productos'?'active':''}" onclick="tab='productos';render()">Productos</div>
-      <div class="tab ${tab==='catalogo'?'active':''}" onclick="tab='catalogo';render()">Catálogo</div>
+      <div class="tab ${tab==='productos'?'active':''}" onclick="window._setTab('productos')">Productos</div>
+      <div class="tab ${tab==='catalogo'?'active':''}" onclick="window._setTab('catalogo')">Catálogo</div>
     </div>`;
 
   if(tab==='productos') renderProductos(el);
@@ -293,7 +320,7 @@ function renderProductos(el){
   productos.forEach(p=>{
     const card = document.createElement('div');
     card.className='prod-thumb';
-    card.onclick = ()=>{ panelProd=p.id; panelFotoTemp=p.foto; render(); };
+    card.onclick = ()=>{ window._abrirPanel(p.id); };
     card.innerHTML=`
       <div class="img-wrap">
         ${p.foto
@@ -361,13 +388,13 @@ function renderCatalogo(el){
         <div class="qty-selector">
           ${[2,4,6,8,12].map(n=>`
             <button class="qty-btn ${config.porPagina===n?'sel':''}"
-              onclick="config.porPagina=${n};render()">${n}</button>`).join('')}
+              onclick="window._setPorPagina(${n})">${n}</button>`).join('')}
         </div>
       </div>
       <div class="config-row">
         <div class="config-lbl">Mostrar precio</div>
         <button class="toggle ${config.mostrarPrecio?'on':'off'}"
-          onclick="config.mostrarPrecio=!config.mostrarPrecio;render()"></button>
+          onclick="window._togglePrecio()"></button>
       </div>
     </div>
 
@@ -377,7 +404,7 @@ function renderCatalogo(el){
       <div class="filter-chips">
         ${cats.map(c=>`
           <div class="fchip ${config.filtroCat===c?'sel':''}"
-            onclick="config.filtroCat='${c}';render()">
+            onclick="window._setCat('${c}')">
             ${c==='todas'?'Todas las categorías':c}
           </div>`).join('')}
       </div>
@@ -392,7 +419,7 @@ function renderCatalogo(el){
   bar.className='bar';
   bar.innerHTML=`
     <div class="bar-2">
-      <button class="ghost" onclick="tab='productos';render()">← Productos</button>
+      <button class="ghost" onclick="window._setTab('productos')">← Productos</button>
       <button class="bar-btn" onclick="generarCatalogo()">🖨 Exportar PDF</button>
     </div>`;
   el.appendChild(bar);
@@ -503,22 +530,22 @@ function renderPanel(el){
       </div>
       ${panelFotoTemp?`
         <div class="foto-actions">
-          <button class="foto-btn" onclick="panelFotoTemp=null;rerenderPanel()">🗑 Quitar</button>
+          <button class="foto-btn" onclick="window._quitarFoto()">🗑 Quitar</button>
           <button class="foto-btn gold" onclick="document.getElementById('file-foto').click()">📷 Cambiar</button>
         </div>`:''}
 
       <label class="fl" style="margin-top:16px">Precio de venta</label>
       <input class="field" type="number" value="${p.precio}"
-        oninput="getProd('${p.id}').precio=+this.value">
+        oninput="window._setPrecio('${p.id}', this.value)">
 
       <label class="fl">Categoría</label>
-      <select class="field" onchange="getProd('${p.id}').cat=this.value">
+      <select class="field" onchange="window._setCatProd('${p.id}', this.value)">
         ${categorias.map(c=>`<option ${c===p.cat?'selected':''}>${c}</option>`).join('')}
       </select>
 
       <div class="panel-btns">
-        <button class="cancel" onclick="panelProd=null;render()">Cancelar</button>
-        <button class="bar-btn" onclick="guardarProd('${p.id}')">Guardar</button>
+        <button class="cancel" onclick="window._cerrarPanel()">Cancelar</button>
+        <button class="bar-btn" onclick="window._guardarProd('${p.id}')">Guardar</button>
       </div>
     </div>`;
 
@@ -533,9 +560,10 @@ function rerenderPanel(){
 
 function getProd(id){ return productos.find(p=>p.id===id); }
 
-function guardarProd(id){
+async function guardarProd(id){
   const p=getProd(id);
   if(panelFotoTemp!==undefined) p.foto=panelFotoTemp;
+  await supabase.from('productos').update({ precio: p.precio, categoria: p.cat }).eq('id', id);
   panelProd=null; panelFotoTemp=null; render();
 }
 
@@ -573,6 +601,8 @@ function generarCatalogo(){
   }
 }
 
+document.getElementById('root').innerHTML = '<div style="padding:48px 18px;text-align:center;color:var(--ink-soft)">Cargando…</div>';
+await cargarProductos();
 render();
 </script>
 </body>
