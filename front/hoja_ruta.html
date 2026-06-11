@@ -269,13 +269,13 @@ async function cargarTodo() {
     .select('id, qr_token, estado')
     .eq('empresa_id', usuario.empresa_id)
     .eq('fecha', HOY)
+    .neq('estado', 'cerrada')
     .limit(1)
   if (e3) throw e3
 
   if (hojas?.length) {
     hojaId  = hojas[0].id
     qrToken = hojas[0].qr_token
-    if (hojas[0].estado === 'cerrada') confirmado = true
   } else {
     const { data: nueva, error: e4 } = await supabase
       .from('hojas_ruta')
