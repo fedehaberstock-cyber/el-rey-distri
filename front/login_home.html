@@ -256,6 +256,7 @@ function renderHome(){
   const perms = getPermisos();
   const esAdmin = u.rol === 'admin'
     || Object.values(perms).some(n => n && n !== 'ninguno');
+  console.log('[home] rol=', u.rol, 'perms=', perms, 'esAdmin=', esAdmin);
   if (esAdmin) renderHomeAdmin();
   else         renderHomePreventista();
 }
