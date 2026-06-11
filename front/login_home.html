@@ -253,9 +253,11 @@ function renderHome(){
   const badgeEl = document.getElementById('sync-badge');
   if (badgeEl) mountStatusBadge(badgeEl);
 
-  if(u.rol==='admin')       renderHomeAdmin();
-  else if(u.rol==='preventista') renderHomePreventista();
-  else                           renderHomeDeposito();
+  const perms = getPermisos();
+  const esAdmin = u.rol === 'admin'
+    || Object.values(perms).some(n => ['editar','admin'].includes(n));
+  if (esAdmin) renderHomeAdmin();
+  else         renderHomePreventista();
 }
 
 // ── HOME ADMIN ─────────────────────────────────────────────────────────
