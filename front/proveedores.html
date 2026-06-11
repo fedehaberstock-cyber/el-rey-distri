@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Proveedores</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:100px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .add-btn{background:none;border:none;color:var(--gold);font-size:28px;
+    line-height:1;cursor:pointer;padding:0}
+
+  .search-wrap{padding:14px 18px 8px;position:sticky;top:57px;background:var(--paper);z-index:10}
+  .search-input{width:100%;padding:12px 14px 12px 40px;border:1px solid var(--line);
+    border-radius:12px;background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:12px center}
+  .search-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .list{padding:0 18px}
+  .prov-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px}
+  .prov-card:active{filter:brightness(.98)}
+  .prov-icon{width:40px;height:40px;border-radius:10px;background:var(--gold-lt);
+    display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .prov-info{flex:1;min-width:0}
+  .prov-info .nm{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prov-info .sub{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .prov-arr{color:var(--ink-soft);font-size:18px}
+  .inactive{opacity:.45}
+
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .empty{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+
+  /* PANEL */
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:24px 20px 32px;width:100%;max-height:90vh;overflow-y:auto}
+  .panel .handle{width:36px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 18px}
+  .panel h3{font-size:18px;font-weight:700;margin-bottom:18px}
+  .fl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .fl:first-of-type{margin-top:0}
+  .field{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .panel-btns{display:flex;gap:10px;margin-top:20px}
+  .bar-btn{flex:2;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .cancel{flex:1;padding:15px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:15px;font-weight:600;cursor:pointer;
+    color:var(--ink);font-family:inherit}
+  .del-btn{width:100%;padding:13px;border:1px solid var(--red-tx);border-radius:12px;
+    background:var(--red-bg);color:var(--red-tx);font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:10px}
+  .err-msg{color:var(--red-tx);font-size:13px;margin-top:8px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .prov-card,.panel{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js';
+
+// ── AUTH ───────────────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login_home.html'; }
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, empresa_id, rol').eq('auth_id', session.user.id).single();
+if (!usuario) { location.href = './login_home.html'; }
+if (usuario.rol !== 'admin') { location.href = './login_home.html'; }
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let proveedores = [];
+let busqueda    = '';
+let panelId     = null;   // null = cerrado, 'nuevo' = nuevo, uuid = editar
+let form        = { nombre: '', dias_objetivo: 30, dias_reorden: '', activo: true };
+let errMsg      = '';
+let saving      = false;
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargar() {
+  const { data, error } = await supabase
+    .from('proveedores')
+    .select('id, nombre, dias_objetivo, dias_reorden, activo')
+    .eq('empresa_id', usuario.empresa_id)
+    .order('nombre');
+  if (error) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error: ${error.message}</div>`; return;
+  }
+  proveedores = data || [];
+  render();
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root');
+  const q  = busqueda.trim().toLowerCase();
+  const lista = proveedores.filter(p =>
+    !q || p.nombre.toLowerCase().includes(q)
+  );
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Proveedores</small></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+        <button class="add-btn" onclick="window._nuevo()" title="Nuevo proveedor">＋</button>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <input class="search-input" placeholder="Buscar proveedor…" value="${busqueda}"
+        oninput="window._setBusq(this.value)" autocomplete="off">
+    </div>
+    <div class="list">
+      ${lista.length ? lista.map(p => `
+        <div class="prov-card ${p.activo ? '' : 'inactive'}" onclick="window._editar('${p.id}')">
+          <div class="prov-icon">🏭</div>
+          <div class="prov-info">
+            <div class="nm">${p.nombre}</div>
+            <div class="sub">Reorden: ${p.dias_reorden ?? '—'} días · Objetivo: ${p.dias_objetivo} días${p.activo ? '' : ' · Inactivo'}</div>
+          </div>
+          <div class="prov-arr">›</div>
+        </div>`).join('')
+      : `<div class="empty">${q ? 'Sin resultados.' : 'Sin proveedores todavía.'}</div>`}
+    </div>`;
+
+  if (panelId !== null) renderPanel(el);
+}
+
+function renderPanel(el) {
+  const esNuevo = panelId === 'nuevo';
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) window._cerrar(); };
+  ov.innerHTML = `
+    <div class="panel">
+      <div class="handle"></div>
+      <h3>${esNuevo ? 'Nuevo proveedor' : 'Editar proveedor'}</h3>
+
+      <label class="fl">Nombre</label>
+      <input class="field" type="text" value="${form.nombre}"
+        placeholder="Ej: Unilever" oninput="window._setForm('nombre', this.value)">
+
+      <div class="row2">
+        <div>
+          <label class="fl">Días objetivo</label>
+          <input class="field" type="number" inputmode="numeric" value="${form.dias_objetivo}"
+            placeholder="30" oninput="window._setForm('dias_objetivo', this.value)">
+        </div>
+        <div>
+          <label class="fl">Días reorden</label>
+          <input class="field" type="number" inputmode="numeric" value="${form.dias_reorden}"
+            placeholder="7" oninput="window._setForm('dias_reorden', this.value)">
+        </div>
+      </div>
+
+      ${!esNuevo ? `
+        <label class="fl">Estado</label>
+        <select class="field" onchange="window._setForm('activo', this.value === 'true')">
+          <option value="true"  ${form.activo ? 'selected' : ''}>Activo</option>
+          <option value="false" ${!form.activo ? 'selected' : ''}>Inactivo</option>
+        </select>` : ''}
+
+      ${errMsg ? `<div class="err-msg">${errMsg}</div>` : ''}
+
+      <div class="panel-btns">
+        <button class="cancel" onclick="window._cerrar()">Cancelar</button>
+        <button class="bar-btn" onclick="window._guardar()" ${saving ? 'disabled' : ''}>
+          ${saving ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+      ${!esNuevo ? `<button class="del-btn" onclick="window._desactivar()">
+        ${form.activo ? 'Desactivar proveedor' : 'Reactivar proveedor'}
+      </button>` : ''}
+    </div>`;
+  el.appendChild(ov);
+}
+
+// ── ACCIONES ───────────────────────────────────────────────────────────────
+async function guardar() {
+  if (!form.nombre.trim()) { errMsg = 'El nombre es obligatorio.'; render(); return; }
+  saving = true; errMsg = ''; render();
+
+  const payload = {
+    nombre:         form.nombre.trim(),
+    dias_objetivo:  parseInt(form.dias_objetivo) || 30,
+    dias_reorden:   form.dias_reorden !== '' ? parseInt(form.dias_reorden) : null,
+    activo:         form.activo,
+  };
+
+  let error;
+  if (panelId === 'nuevo') {
+    ({ error } = await supabase.from('proveedores')
+      .insert({ ...payload, empresa_id: usuario.empresa_id }));
+  } else {
+    ({ error } = await supabase.from('proveedores')
+      .update(payload).eq('id', panelId));
+  }
+
+  saving = false;
+  if (error) { errMsg = error.message; render(); return; }
+  panelId = null;
+  await cargar();
+}
+
+async function desactivar() {
+  if (panelId === 'nuevo') return;
+  const nuevoEstado = !form.activo;
+  await supabase.from('proveedores').update({ activo: nuevoEstado }).eq('id', panelId);
+  panelId = null;
+  await cargar();
+}
+
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._setBusq  = v  => { busqueda = v; render(); };
+window._nuevo    = () => {
+  form = { nombre: '', dias_objetivo: 30, dias_reorden: '', activo: true };
+  errMsg = ''; panelId = 'nuevo'; render();
+};
+window._editar   = id => {
+  const p = proveedores.find(x => x.id === id);
+  if (!p) return;
+  form = { nombre: p.nombre, dias_objetivo: p.dias_objetivo, dias_reorden: p.dias_reorden ?? '', activo: p.activo };
+  errMsg = ''; panelId = id; render();
+};
+window._cerrar      = () => { panelId = null; render(); };
+window._setForm     = (k, v) => { form[k] = v; };
+window._guardar     = () => guardar();
+window._desactivar  = () => desactivar();
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargar();
+</script>
+</body>
+</html>
