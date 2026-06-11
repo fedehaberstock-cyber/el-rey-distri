@@ -8,68 +8,81 @@
 <style>
   :root{
     --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
-    --line:#E4DECF; --line-soft:#EEEADD;
-    --gold:#A9760E; --gold-dk:#8A5F09;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
     --green-bg:#E7F0E8; --green-tx:#2C6B3F;
     --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
-    --red-bg:#F6E5E2; --red-tx:#A8392B;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
     --card:#FFFFFF;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{background:var(--paper);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     font-size:16px;line-height:1.4}
-  body{max-width:480px;margin:0 auto}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
 
+  /* HEADER */
   .hdr{display:flex;align-items:center;justify-content:space-between;
     padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
     position:sticky;top:0;z-index:20}
-  .brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.02em}
-  .crown{color:var(--gold);font-size:20px;line-height:1}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
   .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
     letter-spacing:.06em;text-transform:uppercase}
   .back{display:flex;align-items:center;gap:6px;background:none;border:none;
-    font-size:16px;font-weight:600;color:var(--gold);cursor:pointer;padding:0}
+    font-size:16px;font-weight:600;color:var(--gold);cursor:pointer;padding:0;font-family:inherit}
   .back svg{width:20px;height:20px}
-  .hdr-title{font-size:17px;font-weight:600;flex:1;text-align:center}
-  .hdr-right{min-width:60px;display:flex;justify-content:flex-end}
 
-  /* BUSCADOR + FILTROS */
-  .sticky-top{position:sticky;top:57px;background:var(--paper);z-index:10;
-    padding:12px 18px 8px;border-bottom:1px solid var(--line-soft)}
-  .search-input{width:100%;padding:12px 14px 12px 40px;border:1px solid var(--line);
-    border-radius:12px;background:var(--card);font-size:16px;font-family:inherit;color:var(--ink);
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='8' cy='8' r='5'/><path d='M14 14l-3-3'/></svg>");
-    background-repeat:no-repeat;background-position:13px center;margin-bottom:10px}
+  /* TABS PRINCIPALES */
+  .main-tabs{display:flex;border-bottom:2px solid var(--line);background:var(--paper);
+    position:sticky;top:57px;z-index:19;overflow-x:auto}
+  .main-tab{flex:1;min-width:80px;padding:12px 8px;text-align:center;font-size:13px;
+    font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;
+    margin-bottom:-2px;white-space:nowrap}
+  .main-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  /* FILTROS */
+  .filters{padding:12px 18px 8px;background:var(--paper);
+    position:sticky;top:104px;z-index:18;border-bottom:1px solid var(--line-soft)}
+  .search-input{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);
+    margin-bottom:8px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:12px center}
   .search-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
-  .tabs{display:flex;gap:8px}
-  .tab{padding:7px 14px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;
-    border:1px solid var(--line);background:var(--card);color:var(--ink-soft)}
-  .tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    white-space:nowrap;cursor:pointer;flex-shrink:0}
+  .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
   /* BANNER NEGATIVOS */
-  .neg-banner{margin:14px 18px 0;padding:12px 14px;background:var(--red-bg);
+  .neg-banner{margin:12px 18px 0;padding:12px 14px;background:var(--red-bg);
     border-radius:12px;display:flex;align-items:center;gap:10px;font-size:14px;
     color:var(--red-tx);font-weight:600;cursor:pointer}
-  .neg-banner span{font-size:20px}
 
   /* LISTA */
-  .prod-list{padding:14px 18px 120px}
-  .prod-row{display:flex;align-items:center;gap:12px;background:var(--card);
-    border:1px solid var(--line);border-radius:14px;padding:14px 16px;
-    margin-bottom:10px;cursor:pointer}
-  .prod-row:active{background:var(--line-soft)}
-  .prod-info{flex:1;min-width:0}
-  .prod-info .nm{font-size:15px;font-weight:600;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .prod-info .sub{font-size:13px;color:var(--ink-soft);margin-top:2px}
-  .stock-badge{min-width:44px;text-align:center;padding:7px 10px;border-radius:10px;
-    font-size:16px;font-weight:700}
-  .stock-badge.neg{background:var(--red-bg);color:var(--red-tx)}
-  .stock-badge.zero{background:var(--red-bg);color:var(--red-tx)}
+  .list{padding:12px 18px 100px}
+  .prod-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px;cursor:pointer}
+  .prod-card:active{filter:brightness(.98)}
+  .prod-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .prod-card .nm{font-size:15px;font-weight:600;flex:1}
+  .prod-card .arr{color:var(--ink-soft);font-size:18px;align-self:center}
+  .stock-badge{padding:5px 10px;border-radius:8px;font-size:15px;font-weight:700;white-space:nowrap}
+  .stock-badge.neg {background:var(--red-bg);  color:var(--red-tx)}
+  .stock-badge.zero{background:var(--red-bg);  color:var(--red-tx)}
   .stock-badge.bajo{background:var(--amber-bg);color:var(--amber-tx)}
-  .stock-badge.ok{background:transparent;color:var(--ink);border:1px solid var(--line)}
-  .arr{color:var(--ink-soft);font-size:18px}
+  .stock-badge.ok  {background:transparent;    color:var(--ink);border:1px solid var(--line)}
+  .prod-card .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px}
+  .meta-tag{font-size:12px;color:var(--ink-soft);font-weight:500}
+  .meta-tag b{color:var(--ink);font-weight:600}
+  .alert-row{display:flex;align-items:center;gap:6px;margin-top:8px;
+    padding:7px 10px;border-radius:8px;font-size:12px;font-weight:600}
+  .alert-row.critical{background:var(--red-bg);color:var(--red-tx)}
+  .alert-row.warn{background:var(--amber-bg);color:var(--amber-tx)}
+  .alert-row svg{width:14px;height:14px;flex-shrink:0}
 
   /* DETALLE */
   .det-body{padding-bottom:130px}
@@ -78,15 +91,11 @@
   .stock-hero .lbl{font-size:11px;font-weight:600;letter-spacing:.08em;
     text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
   .stock-num{font-size:52px;font-weight:700;letter-spacing:-.03em;line-height:1}
-  .stock-num.neg{color:var(--red-tx)}
-  .stock-num.zero{color:var(--red-tx)}
-  .stock-num.bajo{color:var(--amber-tx)}
-  .stock-num.ok{color:var(--ink)}
+  .stock-num.neg{color:var(--red-tx)} .stock-num.zero{color:var(--red-tx)}
+  .stock-num.bajo{color:var(--amber-tx)} .stock-num.ok{color:var(--ink)}
   .stock-status{font-size:14px;font-weight:600;margin-top:6px}
-  .stock-status.neg{color:var(--red-tx)}
-  .stock-status.zero{color:var(--red-tx)}
-  .stock-status.bajo{color:var(--amber-tx)}
-  .stock-status.ok{color:var(--green-tx)}
+  .stock-status.neg{color:var(--red-tx)} .stock-status.zero{color:var(--red-tx)}
+  .stock-status.bajo{color:var(--amber-tx)} .stock-status.ok{color:var(--green-tx)}
   .det-meta{margin:0 18px 18px;display:flex;flex-direction:column;gap:7px}
   .det-meta .row{font-size:14px;color:var(--ink-soft)}
   .det-meta .row b{color:var(--ink);font-weight:600}
@@ -99,11 +108,27 @@
   .mov .left .desc{font-size:15px;font-weight:500}
   .mov .left .fecha{font-size:12px;color:var(--ink-soft);margin-top:2px}
   .mov .cant{font-size:15px;font-weight:700}
-  .mov .cant.pos{color:var(--green-tx)}
-  .mov .cant.neg-m{color:var(--red-tx)}
-  .no-movs{color:var(--ink-soft);font-size:14px;padding:8px 0}
+  .mov .cant.pos{color:var(--green-tx)} .mov .cant.neg-m{color:var(--red-tx)}
 
-  /* BARRA */
+  /* KPIs RESUMEN */
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px 4px}
+  .sum-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px;text-align:center}
+  .sum-card .num{font-size:28px;font-weight:700;line-height:1}
+  .sum-card .num.red{color:var(--red-tx)} .sum-card .num.amber{color:var(--amber-tx)}
+  .sum-card .lbl{font-size:12px;color:var(--ink-soft);font-weight:500;margin-top:4px}
+  .rank-item{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px}
+  .rank-item .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .rank-item .nm{font-size:15px;font-weight:600;flex:1}
+  .rank-item .val{font-size:14px;font-weight:700;color:var(--ink-soft);white-space:nowrap}
+  .bar-track{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:999px;background:var(--gold)}
+  .bar-fill.red{background:var(--red-tx)} .bar-fill.amber{background:var(--amber-tx)}
+  .section-lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);padding:14px 18px 6px}
+
+  /* BARRA FIJA */
   .bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
     background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
   .bar-btn{width:100%;padding:15px;border:none;border-radius:14px;background:var(--gold);
@@ -115,7 +140,7 @@
     background:var(--card);font-size:16px;font-weight:600;color:var(--ink);
     cursor:pointer;font-family:inherit}
 
-  /* PANEL */
+  /* PANEL MODAL */
   .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
     display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
   .panel{background:var(--paper);border-radius:22px 22px 0 0;
@@ -140,44 +165,94 @@
   .prod-results .pr-row:last-child{border-bottom:none}
   .prod-results .pr-row:active{background:var(--line-soft)}
 
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .empty{text-align:center;padding:40px 10px;color:var(--ink-soft);font-size:15px}
+
   @media(prefers-reduced-motion:no-preference){
-    .prod-row,.panel{animation:fd .15s ease}
+    .prod-card,.rank-item,.panel{animation:fd .15s ease}
     @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   }
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div class="loading">Cargando…</div></div>
 
 <script type="module">
-import { supabase } from './src/supabase.js'
-import { requireSession, tienePermiso } from './src/auth.js'
-import { fechaCorta, mostrarError } from './src/utils.js'
+import { supabase } from './src/supabase.js';
 
-const { usuario } = await requireSession()
-const puedeAjustar = usuario.rol === 'admin' || usuario.rol === 'deposito' || tienePermiso('stock', 'editar')
+// ── AUTH ───────────────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login_home.html'; }
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, nombre, rol, empresa_id').eq('auth_id', session.user.id).single();
+if (!usuario) { location.href = './login_home.html'; }
 
-let productos = []   // [{id, nombre, cat, proveedor, stock}]
-let movs = []        // movimientos del producto seleccionado
+const puedeAjustar = usuario.rol === 'admin' || usuario.rol === 'deposito';
 
-async function cargarProductos() {
-  const [{ data: prods, error: e1 }, { data: stocks, error: e2 }] = await Promise.all([
+// ── HELPERS ────────────────────────────────────────────────────────────────
+const ars     = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+const HOY     = new Date();
+const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 9999;
+const claseStock  = n => n < 0 ? 'neg' : n === 0 ? 'zero' : n <= 5 ? 'bajo' : 'ok';
+const labelStock  = n => n < 0 ? 'Negativo' : n === 0 ? 'Sin stock' : n <= 5 ? 'Stock bajo' : 'Normal';
+const fmtFecha    = s => s ? s.slice(0,10).split('-').reverse().join('/') : '—';
+const DIAS_ALERTA = 45;
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let productos  = [];
+let movs       = [];
+let tab        = 'stock';
+let vista      = 'lista';   // 'lista' | 'detalle'
+let prodSelId  = null;
+let filtroGrupo = 'todo';
+let agrupar    = 'cat';
+let busqueda   = '';
+let panelOpen  = null;      // 'ingreso' | 'ajuste' | null
+let pInput     = { prodId: '', busq: '', cant: '', motivo: '' };
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargarTodo() {
+  const [
+    { data: prods, error: errP },
+    { data: stocks },
+    { data: ingresoItems },
+  ] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, proveedores(nombre)')
-      .eq('empresa_id', usuario.empresa_id)
-      .eq('activo', true)
-      .order('nombre'),
-    supabase.from('stock_actual').select('producto_id, stock')
-  ])
-  if (e1) throw e1; if (e2) throw e2
-  const mapStock = new Map((stocks||[]).map(s => [s.producto_id, Number(s.stock)]))
-  productos = (prods||[]).map(p => ({
+      .select('id, nombre, categoria, costo, precio, updated_at, proveedores(nombre)')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('stock_actual').select('producto_id, stock'),
+    supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
+  ]);
+
+  if (errP) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error al cargar productos: ${errP.message}</div>`;
+    return;
+  }
+
+  const stockMap = {};
+  for (const s of (stocks || [])) stockMap[s.producto_id] = s.stock ?? 0;
+
+  const ingresoMap = {};
+  for (const ii of (ingresoItems || [])) {
+    const f = ii.ingresos?.fecha;
+    if (f && (!ingresoMap[ii.producto_id] || f > ingresoMap[ii.producto_id]))
+      ingresoMap[ii.producto_id] = f;
+  }
+
+  productos = (prods || []).map(p => ({
     id: p.id,
     nombre: p.nombre,
-    cat: p.categoria || '—',
-    proveedor: p.proveedores?.nombre || '—',
-    stock: mapStock.get(p.id) ?? 0,
-  }))
+    cat: p.categoria || 'Sin categoría',
+    prov: p.proveedores?.nombre || 'Sin proveedor',
+    costo: p.costo || 0,
+    precio: p.precio || 0,
+    stock: stockMap[p.id] ?? 0,
+    ultimo_ingreso: ingresoMap[p.id] || null,
+    ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
+  }));
 }
 
 async function cargarMovs(prodId) {
@@ -186,63 +261,19 @@ async function cargarMovs(prodId) {
     .select('id, tipo, cantidad, referencia_tipo, fecha, usuarios(nombre)')
     .eq('producto_id', prodId)
     .order('fecha', { ascending: false })
-    .limit(50)
-  if (error) { mostrarError(error.message); movs = []; return }
-  movs = (data||[]).map(m => ({
-    id: m.id,
-    prodId,
+    .limit(50);
+  if (error) { movs = []; return; }
+  movs = (data || []).map(m => ({
     tipo: m.tipo,
     cant: Number(m.cantidad),
     desc: m.referencia_tipo || m.tipo,
-    fecha: (m.fecha || '').slice(0,10),
-    usuario: m.usuarios?.nombre || '',
-  }))
+    fecha: (m.fecha || '').slice(0, 10),
+  }));
 }
 
-
-// ── ESTADO ────────────────────────────────────────────────────────────
-let vista      = 'lista';
-let filtro     = 'todo';
-let busqueda   = '';
-let prodSelId  = null;
-let panelOpen  = null;   // 'ingreso' | 'ajuste' | null
-let pInput     = { prodId:'', busq:'', cant:'', motivo:'' };
-let nextId     = 200;
-
-// ── HELPERS ───────────────────────────────────────────────────────────
-const stockDe = id => { const p = productos.find(x=>x.id===id); return p ? p.stock : 0 };
-const claseStock = n => n < 0 ? 'neg' : n === 0 ? 'zero' : n <= 5 ? 'bajo' : 'ok';
-const labelStock = n => n < 0 ? 'Negativo' : n === 0 ? 'Sin stock' : n <= 5 ? 'Stock bajo' : 'Normal';
-const fmtFecha = s => { const [y,mo,d]=s.split('-'); return `${d}/${mo}/${y}`; };
-const hoy = () => new Date().toISOString().slice(0,10);
-
-// ── RENDER ────────────────────────────────────────────────────────────
-function render(){
-  document.getElementById('root').innerHTML = '';
-  if(vista==='lista')   renderLista();
-  else                  renderDetalle();
-  if(panelOpen)         renderPanel();
-}
-
-// ── LISTA ─────────────────────────────────────────────────────────────
-function renderLista(){
-  const negativos = productos.filter(p=>stockDe(p.id)<0);
-  const q = busqueda.trim().toLowerCase();
-
-  let lista = productos.filter(p=>{
-    if(q && !p.nombre.toLowerCase().includes(q) && !p.cat.toLowerCase().includes(q)
-         && !p.proveedor.toLowerCase().includes(q)) return false;
-    const s = stockDe(p.id);
-    if(filtro==='bajo')     return s >= 0 && s <= 5;
-    if(filtro==='negativo') return s < 0;
-    return true;
-  });
-  // ordenar: negativos primero, luego bajo, luego ok
-  lista.sort((a,b)=>{
-    const sa=stockDe(a.id), sb=stockDe(b.id);
-    if(sa<0 && sb>=0) return -1; if(sb<0 && sa>=0) return 1;
-    return sa-sb;
-  });
+// ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
+function render() {
+  if (vista === 'detalle') { renderDetalle(); return; }
 
   const el = document.getElementById('root');
   el.innerHTML = `
@@ -250,172 +281,325 @@ function renderLista(){
       <div class="brand"><span class="crown">&#9818;</span>
         <div>El Rey<small>Stock</small></div>
       </div>
-      <div class="hdr-right"></div>
+      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+        onclick="location.href='./login_home.html'">Inicio ›</button>
     </div>
-    <div class="sticky-top">
-      <input class="search-input" placeholder="Buscar producto…" value="${busqueda}"
-        oninput="busqueda=this.value;render()" autocomplete="off">
-      <div class="tabs">
-        <div class="tab ${filtro==='todo'?'active':''}"     onclick="filtro='todo';render()">Todo</div>
-        <div class="tab ${filtro==='bajo'?'active':''}"     onclick="filtro='bajo';render()">Bajo ≤5</div>
-        <div class="tab ${filtro==='negativo'?'active':''}" onclick="filtro='negativo';render()">Negativos</div>
-      </div>
-    </div>
-    ${negativos.length && filtro!=='negativo'
-      ? `<div class="neg-banner" onclick="filtro='negativo';render()">
-           <span>&#9888;</span>${negativos.length} producto${negativos.length>1?'s':''} con stock negativo &nbsp;›
-         </div>` : ''}
-    <div class="prod-list">
-      ${lista.length ? lista.map(p=>{
-        const s=stockDe(p.id), cl=claseStock(s);
-        return `<div class="prod-row" onclick="irDetalle('${p.id}')">
-          <div class="prod-info">
-            <div class="nm">${p.nombre}</div>
-            <div class="sub">${p.proveedor} · ${p.cat}</div>
-          </div>
-          <div class="stock-badge ${cl}">${s}</div>
-          <div class="arr">›</div>
-        </div>`;
-      }).join('') : `<div style="text-align:center;padding:40px 10px;color:var(--ink-soft);font-size:15px">Sin resultados.</div>`}
+    <div class="main-tabs">
+      ${[['stock','Stock'],['sin_ingreso','Sin ingreso'],['precio','Precios'],['resumen','Resumen']].map(([id,lbl]) =>
+        `<div class="main-tab ${tab===id?'active':''}" onclick="window._setTab('${id}')">${lbl}</div>`
+      ).join('')}
     </div>`;
 
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  bar.innerHTML = puedeAjustar
-    ? `<button class="bar-btn" onclick="abrirPanel('ingreso',null)">Registrar ingreso</button>`
-    : '';
-  el.appendChild(bar);
+  if (tab === 'stock')           renderTabStock(el);
+  else if (tab === 'sin_ingreso') renderTabSinIngreso(el);
+  else if (tab === 'precio')      renderTabPrecio(el);
+  else                            renderTabResumen(el);
+
+  if (panelOpen) renderPanel();
 }
 
-// ── DETALLE ───────────────────────────────────────────────────────────
-function renderDetalle(){
-  const p = productos.find(x=>x.id===prodSelId);
-  const s = stockDe(p.id);
-  const cl = claseStock(s);
-  const movsP = [...movs].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+// ── TAB STOCK ──────────────────────────────────────────────────────────────
+function renderTabStock(el) {
+  const gs = grupos();
+  const negativos = productos.filter(p => p.stock < 0);
+  el.innerHTML += `
+    <div class="filters">
+      <input class="search-input" placeholder="Buscar producto…" value="${busqueda}"
+        oninput="window._setBusqueda(this.value)" autocomplete="off">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <div class="chip ${agrupar==='cat'?'active':''}" onclick="window._setAgrupar('cat')">Por categoría</div>
+        <div class="chip ${agrupar==='prov'?'active':''}" onclick="window._setAgrupar('prov')">Por proveedor</div>
+      </div>
+      <div class="chips">
+        ${gs.map((g,i) => `<div class="chip ${filtroGrupo===g?'active':''}"
+          onclick="window._setFiltroGrupo(${i})">${g==='todo'?'Todos':g}</div>`).join('')}
+      </div>
+    </div>
+    ${negativos.length ? `<div class="neg-banner" onclick="window._setBannerNeg()">
+      ⚠ ${negativos.length} producto${negativos.length>1?'s':''} con stock negativo ›
+    </div>` : ''}
+    <div id="stock-list" class="list"></div>`;
+  window._gruposCache = gs;
+  renderStockList();
+
+  if (puedeAjustar) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = `<button class="bar-btn" onclick="window._abrirPanel('ingreso',null)">Registrar ingreso</button>`;
+    el.appendChild(bar);
+  }
+}
+
+function renderStockList() {
+  const box = document.getElementById('stock-list'); if (!box) return;
+  let lista = prodsFiltrados().sort((a, b) => a.stock - b.stock);
+  if (!lista.length) { box.innerHTML = `<div class="empty">Sin resultados.</div>`; return; }
+  box.innerHTML = lista.map(p => {
+    const cl = claseStock(p.stock);
+    const diI = diasDesde(p.ultimo_ingreso);
+    const alertaI = diI >= DIAS_ALERTA;
+    return `<div class="prod-card" onclick="window._irDetalle('${p.id}')">
+      <div class="top">
+        <span class="nm">${p.nombre}</span>
+        <span class="stock-badge ${cl}">${p.stock}</span>
+        <span class="arr">›</span>
+      </div>
+      <div class="meta">
+        <span class="meta-tag">${p.cat}</span>
+        <span class="meta-tag">·</span>
+        <span class="meta-tag">${p.prov}</span>
+        <span class="meta-tag">·</span>
+        <span class="meta-tag">Costo <b>${ars(p.costo)}</b></span>
+      </div>
+      ${alertaI ? `<div class="alert-row ${diI>60?'critical':'warn'}">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 2L2 17h16L10 2zM10 8v4M10 14v.01"/>
+        </svg>
+        Sin ingreso hace <b>${diI===9999?'siempre':diI+' días'}</b>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── DETALLE ────────────────────────────────────────────────────────────────
+function renderDetalle() {
+  const p = productos.find(x => x.id === prodSelId);
+  if (!p) { vista = 'lista'; render(); return; }
+  const cl = claseStock(p.stock);
+  const tipos = { ingreso:'Ingreso', venta:'Venta', ajuste:'Ajuste', devolucion:'Devolución' };
 
   const el = document.getElementById('root');
   el.innerHTML = `
     <div class="hdr">
-      <button class="back" onclick="irLista()">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2">
-          <path d="M12 5l-5 5 5 5"/>
-        </svg>
+      <button class="back" onclick="window._irLista()">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5l-5 5 5 5"/></svg>
+        Stock
       </button>
-      <span class="hdr-title" style="font-size:15px">${p.nombre}</span>
-      <div class="hdr-right"></div>
     </div>
     <div class="det-body">
       <div class="stock-hero">
-        <div class="lbl">Stock actual</div>
-        <div class="stock-num ${cl}">${s}</div>
-        <div class="stock-status ${cl}">${labelStock(s)}</div>
+        <div class="lbl">${p.nombre}</div>
+        <div class="stock-num ${cl}">${p.stock}</div>
+        <div class="stock-status ${cl}">${labelStock(p.stock)}</div>
       </div>
       <div class="det-meta">
-        <div class="row">Proveedor: <b>${p.proveedor}</b></div>
         <div class="row">Categoría: <b>${p.cat}</b></div>
+        <div class="row">Proveedor: <b>${p.prov}</b></div>
+        <div class="row">Costo: <b>${ars(p.costo)}</b> · Precio: <b>${ars(p.precio)}</b></div>
+        <div class="row">Último ingreso: <b>${fmtFecha(p.ultimo_ingreso)}</b></div>
       </div>
-      <div class="sec-lbl">Movimientos</div>
+      <div class="sec-lbl">Movimientos recientes</div>
       <div class="movs">
-        ${movsP.length ? movsP.map(m=>{
+        ${movs.length ? movs.map(m => {
           const pos = m.cant > 0;
-          const tipos = {ingreso:'Ingreso',venta:'Venta',ajuste:'Ajuste',devolucion:'Devolución'};
           return `<div class="mov">
             <div class="left">
-              <div class="desc">${tipos[m.tipo]||m.tipo} — ${m.desc}</div>
+              <div class="desc">${tipos[m.tipo]||m.tipo}${m.desc && m.desc!==m.tipo?' — '+m.desc:''}</div>
               <div class="fecha">${fmtFecha(m.fecha)}</div>
             </div>
             <div class="cant ${pos?'pos':'neg-m'}">${pos?'+':''}${m.cant}</div>
           </div>`;
-        }).join('') : `<div class="no-movs">Sin movimientos todavía.</div>`}
+        }).join('') : `<div style="color:var(--ink-soft);font-size:14px;padding:8px 0">Sin movimientos todavía.</div>`}
       </div>
     </div>`;
 
-  const bar = document.createElement('div');
-  bar.className='bar';
-  bar.innerHTML = puedeAjustar
-    ? `<div class="bar-2">
-         <button class="ghost" onclick="abrirPanel('ajuste','${p.id}')">Ajuste</button>
-         <button class="bar-btn" onclick="abrirPanel('ingreso','${p.id}')">Registrar ingreso</button>
-       </div>`
-    : '';
-  el.appendChild(bar);
+  if (puedeAjustar) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = `<div class="bar-2">
+      <button class="ghost" onclick="window._abrirPanel('ajuste','${p.id}')">Ajuste</button>
+      <button class="bar-btn" onclick="window._abrirPanel('ingreso','${p.id}')">Registrar ingreso</button>
+    </div>`;
+    el.appendChild(bar);
+  }
+
+  if (panelOpen) renderPanel();
 }
 
-// ── PANEL ─────────────────────────────────────────────────────────────
-function renderPanel(){
-  const esIngreso = panelOpen==='ingreso';
-  const prodPrefill = pInput.prodId ? productos.find(p=>p.id===pInput.prodId) : null;
-  const busqMatch = pInput.busq.trim().length>1
-    ? productos.filter(p=>p.nombre.toLowerCase().includes(pInput.busq.toLowerCase())).slice(0,5)
+// ── PANEL INGRESO / AJUSTE ─────────────────────────────────────────────────
+function renderPanel() {
+  const esIngreso = panelOpen === 'ingreso';
+  const prodPrefill = pInput.prodId ? productos.find(p => p.id === pInput.prodId) : null;
+  const busqMatch = pInput.busq.trim().length > 1
+    ? productos.filter(p => p.nombre.toLowerCase().includes(pInput.busq.toLowerCase())).slice(0, 5)
     : [];
 
   const ov = document.createElement('div');
-  ov.className='overlay';
-  ov.onclick = e => { if(e.target===ov) cerrarPanel(); };
-
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) window._cerrarPanel(); };
   ov.innerHTML = `
     <div class="panel">
       <h3>${esIngreso ? 'Registrar ingreso' : 'Ajuste de stock'}</h3>
       <p class="sub">${esIngreso ? 'El stock sube con el ingreso registrado.'
-                                 : 'Corrección manual. Se registra como ajuste.'}</p>
+                                  : 'Corrección manual. Se registra como ajuste.'}</p>
       ${prodPrefill
         ? `<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;
-               padding:12px 14px;margin-bottom:14px;font-size:15px;font-weight:600">
-             ${prodPrefill.nombre}
-           </div>`
+               padding:12px 14px;margin-bottom:14px;font-size:15px;font-weight:600">${prodPrefill.nombre}</div>`
         : `<label class="fl">Producto</label>
            <input class="field" id="pbusq" placeholder="Buscar producto…"
-             value="${pInput.busq}" oninput="pInput.busq=this.value;rerenderPanel()"
-             autocomplete="off">
+             value="${pInput.busq}" oninput="window._setPBusq(this.value)" autocomplete="off">
            ${busqMatch.length ? `<div class="prod-results">
-             ${busqMatch.map(p=>`<div class="pr-row" onclick="selProd('${p.id}')">${p.nombre}</div>`).join('')}
+             ${busqMatch.map(p => `<div class="pr-row" onclick="window._selProd('${p.id}')">${p.nombre}</div>`).join('')}
            </div>` : ''}`}
       <label class="fl">${esIngreso ? 'Cantidad a ingresar' : 'Cantidad (negativo para restar)'}</label>
       <input class="field" id="pcant" type="number"
-        placeholder="${esIngreso?'Ej: 12':'Ej: 5 ó -3'}"
+        placeholder="${esIngreso ? 'Ej: 12' : 'Ej: 5 ó -3'}"
         value="${pInput.cant}" oninput="pInput.cant=this.value" inputmode="numeric">
       ${!esIngreso ? `<label class="fl">Motivo (opcional)</label>
         <input class="field" id="pmot" placeholder="Ej: error de conteo"
           value="${pInput.motivo}" oninput="pInput.motivo=this.value">` : ''}
       <div class="panel-btns">
-        <button class="cancel" onclick="cerrarPanel()">Cancelar</button>
-        <button class="bar-btn" onclick="confirmarPanel()">Confirmar</button>
+        <button class="cancel" onclick="window._cerrarPanel()">Cancelar</button>
+        <button class="bar-btn" onclick="window._confirmarPanel()">Confirmar</button>
       </div>
     </div>`;
   document.getElementById('root').appendChild(ov);
-  setTimeout(()=>{
+  setTimeout(() => {
     const f = document.getElementById('pbusq') || document.getElementById('pcant');
-    if(f) f.focus();
-  },50);
+    if (f) f.focus();
+  }, 50);
 }
 
-function selProd(id){ pInput.prodId=id; pInput.busq=''; rerenderPanel(); }
-function rerenderPanel(){
-  const ov = document.querySelector('.overlay');
-  if(ov) ov.remove();
-  renderPanel();
+// ── TAB SIN INGRESO ────────────────────────────────────────────────────────
+function renderTabSinIngreso(el) {
+  const gs = grupos();
+  const lista = [...productos].sort((a,b) => diasDesde(b.ultimo_ingreso) - diasDesde(a.ultimo_ingreso));
+  const maxDias = diasDesde(lista[0]?.ultimo_ingreso) || 1;
+  el.innerHTML += `
+    <div class="filters">
+      <div class="chips">
+        ${gs.map((g,i) => `<div class="chip ${filtroGrupo===g?'active':''}"
+          onclick="window._setFiltroGrupoFull(${i})">${g==='todo'?'Todos':g}</div>`).join('')}
+      </div>
+    </div>
+    <div class="section-lbl">Ordenados por días sin reingreso</div>
+    <div class="list" style="padding-bottom:20px">
+      ${lista.filter(p => filtroGrupo==='todo' || p[campoGrupo()]===filtroGrupo).map(p => {
+        const d = diasDesde(p.ultimo_ingreso);
+        const cl = d >= 60 ? 'red' : d >= 45 ? 'amber' : '';
+        const dStr = d === 9999 ? 'Sin ingresos' : d + ' días';
+        return `<div class="rank-item">
+          <div class="top">
+            <span class="nm">${p.nombre}</span>
+            <span class="val" style="${d>=60?'color:var(--red-tx)':d>=45?'color:var(--amber-tx)':''}">${dStr}</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill ${cl}" style="width:${Math.round(d/maxDias*100)}%"></div></div>
+          <div style="margin-top:6px;font-size:12px;color:var(--ink-soft)">
+            ${p.prov} · ${p.cat}${p.ultimo_ingreso?' · último: '+fmtFecha(p.ultimo_ingreso):''}
+            ${d>=DIAS_ALERTA?`<span style="color:${d>=60?'var(--red-tx)':'var(--amber-tx)'};font-weight:600"> — ⚠ revisar costo</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  window._gruposCache = gs;
 }
 
-function abrirPanel(tipo, id){
-  if (!puedeAjustar) return
-  panelOpen=tipo;
-  pInput = { prodId:id||'', busq:'', cant:'', motivo:'' };
-  render();
+// ── TAB PRECIOS ────────────────────────────────────────────────────────────
+function renderTabPrecio(el) {
+  const gs = grupos();
+  const lista = [...productos].sort((a,b) => diasDesde(b.ultimo_cambio_costo) - diasDesde(a.ultimo_cambio_costo));
+  const maxDias = diasDesde(lista[0]?.ultimo_cambio_costo) || 1;
+  el.innerHTML += `
+    <div class="filters">
+      <div class="chips">
+        ${gs.map((g,i) => `<div class="chip ${filtroGrupo===g?'active':''}"
+          onclick="window._setFiltroGrupoFull(${i})">${g==='todo'?'Todos':g}</div>`).join('')}
+      </div>
+    </div>
+    <div class="section-lbl">Ordenados por días sin cambio de costo</div>
+    <div class="list" style="padding-bottom:20px">
+      ${lista.filter(p => filtroGrupo==='todo' || p[campoGrupo()]===filtroGrupo).map(p => {
+        const d = diasDesde(p.ultimo_cambio_costo);
+        const cl = d >= 60 ? 'red' : d >= 45 ? 'amber' : '';
+        return `<div class="rank-item">
+          <div class="top">
+            <span class="nm">${p.nombre}</span>
+            <span class="val" style="${d>=60?'color:var(--red-tx)':d>=45?'color:var(--amber-tx)':''}">${d}d</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill ${cl}" style="width:${Math.round(d/maxDias*100)}%"></div></div>
+          <div style="margin-top:6px;font-size:12px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+            <span>${p.prov} · costo ${ars(p.costo)} · precio ${ars(p.precio)}</span>
+            ${d>=DIAS_ALERTA?`<span style="color:${d>=60?'var(--red-tx)':'var(--amber-tx)'};font-weight:600">⚠ posible desactualización</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  window._gruposCache = gs;
 }
-function cerrarPanel(){ panelOpen=null; render(); }
 
-async function confirmarPanel(){
+// ── TAB RESUMEN ────────────────────────────────────────────────────────────
+function renderTabResumen(el) {
+  const neg      = productos.filter(p => p.stock < 0).length;
+  const sinStock = productos.filter(p => p.stock === 0).length;
+  const bajo     = productos.filter(p => p.stock > 0 && p.stock <= 5).length;
+  const sinI45   = productos.filter(p => diasDesde(p.ultimo_ingreso) >= 45).length;
+  const sinP45   = productos.filter(p => diasDesde(p.ultimo_cambio_costo) >= 45).length;
+  const top5I = [...productos].sort((a,b) => diasDesde(b.ultimo_ingreso) - diasDesde(a.ultimo_ingreso)).slice(0,5);
+  const top5P = [...productos].sort((a,b) => diasDesde(b.ultimo_cambio_costo) - diasDesde(a.ultimo_cambio_costo)).slice(0,5);
+  const maxI = diasDesde(top5I[0]?.ultimo_ingreso) || 1;
+  const maxP = diasDesde(top5P[0]?.ultimo_cambio_costo) || 1;
+
+  el.innerHTML += `
+    <div class="summary">
+      <div class="sum-card"><div class="num red">${neg+sinStock}</div><div class="lbl">Sin stock / negativos</div></div>
+      <div class="sum-card"><div class="num amber">${bajo}</div><div class="lbl">Stock bajo (≤5)</div></div>
+      <div class="sum-card"><div class="num red">${sinI45}</div><div class="lbl">Sin ingreso +45 días</div></div>
+      <div class="sum-card"><div class="num amber">${sinP45}</div><div class="lbl">Precio +45d sin cambio</div></div>
+    </div>
+    <div class="section-lbl" style="margin-top:8px">Top 5 sin reingreso</div>
+    <div class="list" style="padding-top:0">
+      ${top5I.map(p => {
+        const d = diasDesde(p.ultimo_ingreso);
+        return `<div class="rank-item">
+          <div class="top"><span class="nm">${p.nombre}</span>
+            <span class="val" style="${d>=60?'color:var(--red-tx)':d>=45?'color:var(--amber-tx)':''}">${d===9999?'∞':d+'d'}</span></div>
+          <div class="bar-track"><div class="bar-fill ${d>=60?'red':d>=45?'amber':''}" style="width:${Math.round(d/maxI*100)}%"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="section-lbl">Top 5 precio sin cambio</div>
+    <div class="list" style="padding-top:0;padding-bottom:20px">
+      ${top5P.map(p => {
+        const d = diasDesde(p.ultimo_cambio_costo);
+        return `<div class="rank-item">
+          <div class="top"><span class="nm">${p.nombre}</span>
+            <span class="val" style="${d>=60?'color:var(--red-tx)':d>=45?'color:var(--amber-tx)':''}">${d}d</span></div>
+          <div class="bar-track"><div class="bar-fill ${d>=60?'red':d>=45?'amber':''}" style="width:${Math.round(d/maxP*100)}%"></div></div>
+          <div style="margin-top:5px;font-size:12px;color:var(--ink-soft)">${p.prov} · ${ars(p.costo)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── HELPERS FILTRO ─────────────────────────────────────────────────────────
+const uniq = arr => [...new Set(arr)];
+function grupos() {
+  const vals = agrupar === 'cat'
+    ? uniq(productos.map(p => p.cat)).sort()
+    : uniq(productos.map(p => p.prov)).sort();
+  return ['todo', ...vals];
+}
+function campoGrupo() { return agrupar === 'cat' ? 'cat' : 'prov'; }
+function prodsFiltrados() {
+  return productos.filter(p => {
+    if (filtroGrupo !== 'todo' && p[campoGrupo()] !== filtroGrupo) return false;
+    if (busqueda.trim() && !p.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
+    return true;
+  });
+}
+
+// ── ACCIONES PANEL ─────────────────────────────────────────────────────────
+async function confirmarPanel() {
   const cant = parseFloat(document.getElementById('pcant')?.value);
-  if(!cant || isNaN(cant)) return;
+  if (!cant || isNaN(cant)) return;
   const prodId = pInput.prodId;
-  if(!prodId) return;
+  if (!prodId) return;
   const motivo = document.getElementById('pmot')?.value.trim() || '';
-  const tipo = panelOpen==='ingreso' ? 'ingreso' : 'ajuste';
-  const cantFinal = panelOpen==='ingreso' ? Math.abs(cant) : cant;
+  const tipo = panelOpen === 'ingreso' ? 'ingreso' : 'ajuste';
+  const cantFinal = panelOpen === 'ingreso' ? Math.abs(cant) : cant;
 
   const btn = document.querySelector('.panel .bar-btn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
 
   const { error } = await supabase.from('mov_stock').insert({
     empresa_id: usuario.empresa_id,
@@ -425,47 +609,49 @@ async function confirmarPanel(){
     referencia_tipo: 'ajuste_manual',
     usuario_id: usuario.id,
     ...(motivo ? { referencia: motivo } : {})
-  })
-  if (error) { mostrarError(error.message); if(btn){ btn.disabled=false; btn.textContent='Confirmar'; } return; }
+  });
 
-  await cargarProductos()
-  await cargarMovs(prodId)
-  panelOpen = null
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; }
+    alert('Error: ' + error.message);
+    return;
+  }
+
+  await cargarTodo();
+  await cargarMovs(prodId);
+  panelOpen = null;
   prodSelId = prodId; vista = 'detalle'; render();
 }
 
-// ── NAVEGACIÓN ────────────────────────────────────────────────────────
-function irLista() { vista='lista'; panelOpen=null; render(); }
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._setTab            = t  => { tab = t; filtroGrupo = 'todo'; busqueda = ''; vista = 'lista'; render(); };
+window._setBusqueda       = v  => { busqueda = v; renderStockList(); };
+window._setAgrupar        = v  => { agrupar = v; filtroGrupo = 'todo'; render(); };
+window._setFiltroGrupo    = i  => { filtroGrupo = (window._gruposCache || grupos())[i]; renderStockList(); };
+window._setFiltroGrupoFull= i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
+window._setBannerNeg      = () => { busqueda = ''; filtroGrupo = 'todo'; render(); /* negativos ya primeros por sort */ };
+window._irDetalle         = async id => {
+  prodSelId = id; vista = 'detalle'; movs = []; render();
+  await cargarMovs(id); render();
+};
+window._irLista           = () => { vista = 'lista'; panelOpen = null; render(); };
+window._abrirPanel        = (tipo, id) => {
+  if (!puedeAjustar) return;
+  panelOpen = tipo; pInput = { prodId: id || '', busq: '', cant: '', motivo: '' }; render();
+};
+window._cerrarPanel       = () => { panelOpen = null; render(); };
+window._confirmarPanel    = () => confirmarPanel();
+window._selProd           = id => { pInput.prodId = id; pInput.busq = ''; window._rerenderPanel(); };
+window._setPBusq          = v  => { pInput.busq = v; window._rerenderPanel(); };
+window._rerenderPanel     = () => {
+  document.querySelector('.overlay')?.remove();
+  renderPanel();
+};
+Object.defineProperty(window, 'pInput', { get: () => pInput, set: v => { pInput = v; } });
 
-async function irDetalle(id){
-  prodSelId = id; vista = 'detalle';
-  render(); // render inmediato con movs vacíos
-  await cargarMovs(id);
-  render(); // re-render con movs cargados
-}
-
-// ── INIT ──────────────────────────────────────────────────────────────
-// Exponer al DOM (módulo ES no hace auto-global)
-Object.assign(window, { render, irLista, irDetalle, abrirPanel, cerrarPanel,
-                         confirmarPanel, selProd, rerenderPanel,
-                         busqueda: undefined, filtro: undefined });
-
-// Parchear referencias inline a variables globales
-Object.defineProperty(window, 'busqueda', {
-  get: () => busqueda, set: v => { busqueda = v; }
-});
-Object.defineProperty(window, 'filtro', {
-  get: () => filtro, set: v => { filtro = v; }
-});
-
-document.getElementById('root').innerHTML =
-  `<div style="text-align:center;padding:60px 20px;color:var(--ink-soft)">Cargando stock…</div>`;
-try {
-  await cargarProductos();
-  render();
-} catch(e) {
-  mostrarError('Error cargando stock: ' + e.message);
-}
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargarTodo();
+render();
 </script>
 </body>
 </html>
