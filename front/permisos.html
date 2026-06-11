@@ -128,12 +128,12 @@ const supabase = createClient(SUPA_URL, SUPA_KEY);
 
 // ── AUTH GUARD ────────────────────────────────────────────────────────────
 const { data: { session } } = await supabase.auth.getSession();
-if (!session) { location.href = './login.html'; }
+if (!session) { location.href = './login_home.html'; }
 
 const { data: usuario } = await supabase
   .from('usuarios')
   .select('id, nombre, email, rol, empresa_id')
-  .eq('id', session.user.id)
+  .eq('auth_id', session.user.id)
   .single();
 
 if (!usuario || usuario.rol !== 'admin') {
