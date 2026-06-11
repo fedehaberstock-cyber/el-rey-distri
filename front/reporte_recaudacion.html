@@ -130,11 +130,11 @@ const supabase = createClient(SUPA_URL, SUPA_KEY);
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
 const { data: { session } } = await supabase.auth.getSession();
-if (!session) { location.href = './login.html'; }
+if (!session) { location.href = './login_home.html'; }
 
 const { data: usuario } = await supabase
-  .from('usuarios').select('id, nombre, rol, empresa_id').eq('id', session.user.id).single();
-if (!usuario) { location.href = './login.html'; }
+  .from('usuarios').select('id, nombre, rol, empresa_id').eq('auth_id', session.user.id).single();
+if (!usuario) { location.href = './login_home.html'; }
 
 if (usuario.rol !== 'admin') {
   const { data: perm } = await supabase.from('permisos')
