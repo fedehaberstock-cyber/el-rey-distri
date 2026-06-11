@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Historial de hojas</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20;gap:10px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{margin-left:auto;background:none;border:none;font-size:13px;color:var(--gold);
+    font-weight:600;cursor:pointer;font-family:inherit}
+
+  .hoja{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    margin:12px 18px;overflow:hidden}
+  .hoja-top{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;
+    cursor:pointer;gap:10px}
+  .hoja-top:hover{background:var(--line-soft)}
+  .hoja-fecha{font-size:15px;font-weight:700}
+  .hoja-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .hoja-estado{font-size:11px;padding:3px 8px;border-radius:999px;font-weight:600}
+  .hoja-estado.cerrada{background:var(--green-bg);color:var(--green-tx)}
+  .hoja-estado.pendiente{background:var(--line-soft);color:var(--ink-soft)}
+
+  .ped-list{border-top:1px solid var(--line-soft);background:var(--paper)}
+  .ped-row{display:flex;justify-content:space-between;align-items:center;
+    padding:10px 14px;border-bottom:1px solid var(--line-soft);cursor:pointer;gap:8px}
+  .ped-row:last-child{border-bottom:none}
+  .ped-row:hover{background:var(--gold-lt)}
+  .ped-cli{font-size:14px;font-weight:600}
+  .ped-meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .ped-total{font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap}
+
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('ventas_totales') && !tienePermiso('reportes_stock') && usuario.rol !== 'admin') {
+  location.href = './login_home.html'
+}
+
+const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n)
+const fmtFecha = s => {
+  const [y,m,d] = s.split('-')
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+  return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`
+}
+
+let hojas = []      // [{id, fecha, estado, pedidos: [{id, cliente, total, boleta_id}]}]
+let abierta = null  // id de hoja expandida
+
+async function cargar() {
+  const { data: hojasData, error: e1 } = await supabase
+    .from('hojas_ruta')
+    .select('id, fecha, estado')
+    .eq('empresa_id', usuario.empresa_id)
+    .order('fecha', { ascending: false })
+    .limit(60)
+  if (e1) throw e1
+
+  const hojaIds = (hojasData || []).map(h => h.id)
+  if (!hojaIds.length) { hojas = []; return }
+
+  const { data: peds, error: e2 } = await supabase
+    .from('pedidos')
+    .select('id, hoja_ruta_id, clientes(nombre), boletas(id, total)')
+    .in('hoja_ruta_id', hojaIds)
+  if (e2) throw e2
+
+  const mapPeds = new Map()
+  for (const p of (peds || [])) {
+    const arr = mapPeds.get(p.hoja_ruta_id) || []
+    const bol = Array.isArray(p.boletas) ? p.boletas[0] : p.boletas
+    arr.push({
+      id:        p.id,
+      cliente:   p.clientes?.nombre || '(sin cliente)',
+      total:     Number(bol?.total) || 0,
+      boleta_id: bol?.id || null,
+    })
+    mapPeds.set(p.hoja_ruta_id, arr)
+  }
+
+  hojas = hojasData.map(h => ({
+    ...h,
+    pedidos: mapPeds.get(h.id) || [],
+  }))
+}
+
+function render() {
+  const el = document.getElementById('root')
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Historial de hojas</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    ${hojas.length === 0
+      ? `<div class="empty">No hay hojas de ruta cargadas.</div>`
+      : hojas.map(h => {
+          const total = h.pedidos.reduce((s,p)=>s+p.total,0)
+          const exp = abierta === h.id
+          return `
+            <div class="hoja">
+              <div class="hoja-top" onclick="window._toggle('${h.id}')">
+                <div>
+                  <div class="hoja-fecha">${fmtFecha(h.fecha)}</div>
+                  <div class="hoja-sub">${h.pedidos.length} pedidos · ${ars(total)}</div>
+                </div>
+                <span class="hoja-estado ${h.estado}">${h.estado}</span>
+              </div>
+              ${exp ? `
+                <div class="ped-list">
+                  ${h.pedidos.length === 0 ? `<div style="padding:14px;color:var(--ink-soft);font-size:13px">Sin pedidos.</div>`
+                    : h.pedidos.map(p => `
+                      <div class="ped-row" onclick="window._verBoleta('${p.boleta_id || ''}')">
+                        <div>
+                          <div class="ped-cli">${p.cliente}</div>
+                          <div class="ped-meta">#${p.id.slice(-4).toUpperCase()}${p.boleta_id ? '' : ' · sin boleta'}</div>
+                        </div>
+                        <div class="ped-total">${ars(p.total)}</div>
+                      </div>`).join('')}
+                </div>` : ''}
+            </div>`
+        }).join('')}
+  `
+}
+
+window._toggle = (id) => {
+  abierta = (abierta === id) ? null : id
+  render()
+}
+window._verBoleta = (boletaId) => {
+  if (!boletaId) { alert('Este pedido no tiene boleta asociada.'); return }
+  window.open(`./boleta.html?id=${boletaId}`, '_blank')
+}
+
+try {
+  await cargar()
+  render()
+} catch (e) {
+  document.getElementById('root').innerHTML =
+    `<div class="err-box">Error: ${e.message || e}</div>`
+}
+</script>
+</body>
+</html>
