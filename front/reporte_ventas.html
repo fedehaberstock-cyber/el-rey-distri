@@ -177,7 +177,7 @@ async function cargarPedidos() {
     .from('pedidos')
     .select(`
       id, fecha_pedido, estado, descuento,
-      usuarios(nombre),
+      usuarios!pedidos_usuario_id_fkey(nombre),
       pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, productos(nombre))
     `)
     .eq('empresa_id', usuario.empresa_id)
