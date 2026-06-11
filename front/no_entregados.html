@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · No entregados</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;padding:14px 18px;gap:10px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+
+  /* BANNER */
+  .banner{margin:14px 18px;padding:13px 14px;background:var(--amber-bg);
+    border:1px solid var(--amber-tx);border-radius:12px;font-size:14px;
+    color:var(--amber-tx);font-weight:600;display:flex;align-items:center;gap:8px}
+  .banner svg{width:18px;height:18px;flex-shrink:0}
+
+  /* CARD */
+  .ped-card{margin:0 18px 14px;background:var(--card);border:1.5px solid var(--red-tx);
+    border-radius:14px;overflow:hidden}
+  .ped-card.resuelta{border-color:var(--line);opacity:.7}
+
+  .ped-hdr{padding:13px 14px;border-bottom:1px solid var(--line-soft)}
+  .ped-hdr .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .ped-hdr .nm{font-size:16px;font-weight:700}
+  .ped-hdr .sub{font-size:13px;color:var(--ink-soft);margin-top:3px}
+  .res-chip{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;flex-shrink:0}
+  .res-chip.post{background:var(--amber-bg);color:var(--amber-tx)}
+  .res-chip.cancel{background:var(--red-bg);color:var(--red-tx)}
+  .res-chip.pend{background:var(--line-soft);color:var(--ink-soft)}
+
+  .motivo-box{margin-top:8px;padding:7px 10px;background:var(--red-bg);
+    border-radius:8px;font-size:13px;color:var(--red-tx);font-weight:500}
+
+  /* items del pedido */
+  .items-list{padding:10px 14px;border-bottom:1px solid var(--line-soft)}
+  .item-row{display:flex;justify-content:space-between;align-items:baseline;
+    padding:4px 0;font-size:14px}
+  .item-row .nm{color:var(--ink)}
+  .item-row .cant{color:var(--ink-soft);font-weight:600}
+
+  /* acciones */
+  .acciones{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+  .acc-title{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:4px}
+
+  .op-row{display:flex;align-items:flex-start;gap:10px;padding:12px;
+    border:1.5px solid var(--line);border-radius:12px;cursor:pointer;background:var(--paper)}
+  .op-row.sel-post  {border-color:var(--amber-tx);background:var(--amber-bg)}
+  .op-row.sel-cancel{border-color:var(--red-tx);  background:var(--red-bg)}
+  .op-row:active{filter:brightness(.97)}
+  .op-icon{font-size:22px;line-height:1;flex-shrink:0;margin-top:1px}
+  .op-text .title{font-size:15px;font-weight:700}
+  .op-text .desc{font-size:13px;color:var(--ink-soft);margin-top:2px;line-height:1.3}
+  .op-row.sel-post   .op-text .desc{color:var(--amber-tx)}
+  .op-row.sel-cancel .op-text .desc{color:var(--red-tx)}
+
+  /* fecha postergar */
+  .fecha-wrap{margin-top:10px;display:flex;align-items:center;gap:10px}
+  .fecha-wrap label{font-size:13px;font-weight:600;color:var(--ink-soft)}
+  .fecha-wrap input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:10px;
+    font-size:14px;font-family:inherit;color:var(--ink);background:var(--card)}
+  .fecha-wrap input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  /* devolución stock */
+  .devol-wrap{margin-top:10px}
+  .devol-title{font-size:13px;font-weight:600;color:var(--red-tx);margin-bottom:6px}
+  .devol-row{display:flex;justify-content:space-between;align-items:center;
+    padding:6px 0;border-bottom:1px solid var(--line-soft);font-size:14px}
+  .devol-row:last-child{border-bottom:none}
+  .devol-row .nm{flex:1}
+  .devol-row .cant{font-weight:700;color:var(--red-tx);margin-right:8px}
+  .devol-check{width:22px;height:22px;border:2px solid var(--line);border-radius:6px;
+    cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .devol-check.on{background:var(--red-tx);border-color:var(--red-tx);color:#fff}
+
+  /* confirmar botón por card */
+  .confirmar-btn{width:100%;padding:13px;border:none;border-radius:10px;
+    background:var(--gold);color:#fff;font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:10px}
+  .confirmar-btn:active{background:var(--gold-dk)}
+  .confirmar-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+
+  /* resuelta overlay */
+  .resuelta-tag{width:100%;padding:12px;text-align:center;font-size:14px;font-weight:600}
+  .resuelta-tag.post{color:var(--amber-tx)}
+  .resuelta-tag.cancel{color:var(--red-tx)}
+
+  /* resumen final */
+  .resumen{margin:14px 18px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px}
+  .res-title{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:10px}
+  .res-row{display:flex;justify-content:space-between;padding:5px 0;
+    border-bottom:1px solid var(--line-soft);font-size:14px}
+  .res-row:last-child{border-bottom:none}
+  .res-row .k{color:var(--ink-soft)}
+  .res-row .v{font-weight:600}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--ink-soft);font-size:15px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .ped-card{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession } from './src/auth.js'
+import { ars, mostrarError } from './src/utils.js'
+
+const { usuario } = await requireSession()
+if (usuario.rol !== 'admin') {
+  alert('Solo admin puede resolver no entregados.')
+  location.replace('./login_home.html')
+  throw new Error('no autorizado')
+}
+
+const HOY = new Date().toISOString().slice(0,10)
+const MANANA = new Date(Date.now() + 86400000).toISOString().slice(0,10)
+
+let pedidos = []
+let estados = {}
+
+async function cargarPedidos() {
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select('*, clientes(nombre, direccion), boletas(total, saldo_anterior), pedido_items(cantidad, producto_id, productos(nombre))')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('estado', 'no_entregado')
+    .order('fecha', { ascending: false })
+  if (error) throw error
+
+  pedidos = (data || []).map(p => ({
+    id: p.id,
+    num: '#' + p.id.slice(-4).toUpperCase(),
+    fecha: (p.fecha || '').slice(0, 10),
+    cliente: p.clientes?.nombre || '',
+    dir: p.clientes?.direccion || '',
+    motivo: p.motivo_no_entrega || '',
+    total: Number(p.boletas?.[0]?.total) || 0,
+    items: (p.pedido_items || []).map(it => ({
+      nom: it.productos?.nombre || '?',
+      cant: Number(it.cantidad),
+      producto_id: it.producto_id,
+    })),
+  }))
+
+  estados = {}
+  pedidos.forEach(p => {
+    estados[p.id] = {
+      decision: null,
+      fechaPost: MANANA,
+      devolItems: {},
+      confirmado: false,
+    }
+    p.items.forEach((_, i) => { estados[p.id].devolItems[i] = true })
+  })
+}
+
+// ── render ────────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root')
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>No entregados</small></div>
+      </div>
+    </div>`
+
+  const pendientes = pedidos.filter(p => !estados[p.id].confirmado)
+  const resueltos  = pedidos.filter(p => estados[p.id].confirmado)
+
+  if (!pedidos.length) {
+    el.innerHTML += `<div class="empty">Sin pedidos no entregados. ✓</div>`
+    return
+  }
+
+  if (pendientes.length) {
+    el.innerHTML += `
+      <div class="banner">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 2L2 17h16L10 2zM10 8v4M10 14v.01"/>
+        </svg>
+        ${pendientes.length} pedido${pendientes.length > 1 ? 's' : ''} sin entregar — decidí qué hacer
+      </div>`
+  }
+
+  pendientes.forEach(p => renderCard(el, p, false))
+
+  if (resueltos.length) {
+    const lbl = document.createElement('div')
+    lbl.style.cssText = 'padding:14px 18px 6px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)'
+    lbl.textContent = 'Resueltos'
+    el.appendChild(lbl)
+    resueltos.forEach(p => renderCard(el, p, true))
+    renderResumen(el, resueltos)
+  }
+}
+
+function renderCard(el, p, resuelta) {
+  const e = estados[p.id]
+  const div = document.createElement('div')
+  div.className = `ped-card${resuelta ? ' resuelta' : ''}`
+
+  const chip = e.confirmado
+    ? (e.decision === 'postergar'
+        ? `<span class="res-chip post">📅 Postergado</span>`
+        : `<span class="res-chip cancel">✕ Cancelado</span>`)
+    : `<span class="res-chip pend">Pendiente</span>`
+
+  div.innerHTML = `
+    <div class="ped-hdr">
+      <div class="top">
+        <div>
+          <div class="nm">${p.cliente}</div>
+          <div class="sub">${p.num} · ${p.dir}</div>
+        </div>
+        ${chip}
+      </div>
+      ${p.motivo ? `<div class="motivo-box">💬 ${p.motivo}</div>` : ''}
+    </div>
+    <div class="items-list">
+      ${p.items.map(it => `
+        <div class="item-row">
+          <span class="nm">${it.nom}</span>
+          <span class="cant">×${it.cant}</span>
+        </div>`).join('')}
+    </div>`
+
+  if (resuelta) {
+    const tagCl = e.decision === 'postergar' ? 'post' : 'cancel'
+    const tagTxt = e.decision === 'postergar'
+      ? `📅 Postergado para ${e.fechaPost.split('-').reverse().join('/')}`
+      : `✕ Cancelado — stock devuelto`
+    div.innerHTML += `<div class="resuelta-tag ${tagCl}">${tagTxt}</div>`
+  } else {
+    const accDiv = document.createElement('div')
+    accDiv.className = 'acciones'
+    accDiv.innerHTML = `<div class="acc-title">¿Qué hacemos?</div>`
+
+    const opPost = document.createElement('div')
+    opPost.className = `op-row ${e.decision === 'postergar' ? 'sel-post' : ''}`
+    opPost.innerHTML = `
+      <span class="op-icon">📅</span>
+      <div class="op-text">
+        <div class="title">Postergar entrega</div>
+        <div class="desc">El pedido queda pendiente para otra fecha. Stock no se modifica.</div>
+        ${e.decision === 'postergar' ? `
+          <div class="fecha-wrap">
+            <label>Entregar el</label>
+            <input type="date" value="${e.fechaPost}" min="${HOY}"
+              oninput="estados['${p.id}'].fechaPost=this.value" onclick="event.stopPropagation()">
+          </div>` : ''}
+      </div>`
+    opPost.onclick = () => { toggleDecision(p.id, 'postergar') }
+    accDiv.appendChild(opPost)
+
+    const opCancel = document.createElement('div')
+    opCancel.className = `op-row ${e.decision === 'cancelar' ? 'sel-cancel' : ''}`
+    opCancel.innerHTML = `
+      <span class="op-icon">✕</span>
+      <div class="op-text">
+        <div class="title">Cancelar pedido</div>
+        <div class="desc">El pedido se anula. Seleccioná los productos a devolver al stock.</div>
+        ${e.decision === 'cancelar' ? `
+          <div class="devol-wrap">
+            <div class="devol-title">Devolver al stock:</div>
+            ${p.items.map((it, i) => `
+              <div class="devol-row">
+                <span class="nm">${it.nom}</span>
+                <span class="cant">+${it.cant}</span>
+                <div class="devol-check ${e.devolItems[i] ? 'on' : ''}"
+                  onclick="event.stopPropagation();toggleDevol('${p.id}',${i})">
+                  ${e.devolItems[i] ? '✓' : ''}
+                </div>
+              </div>`).join('')}
+          </div>` : ''}
+      </div>`
+    opCancel.onclick = () => { toggleDecision(p.id, 'cancelar') }
+    accDiv.appendChild(opCancel)
+
+    const btn = document.createElement('button')
+    btn.className = 'confirmar-btn'
+    btn.disabled = !e.decision
+    btn.textContent = e.decision === 'postergar' ? 'Confirmar postergación'
+                    : e.decision === 'cancelar' ? 'Confirmar cancelación'
+                    : 'Elegí una opción'
+    btn.onclick = () => confirmar(p.id)
+    accDiv.appendChild(btn)
+    div.appendChild(accDiv)
+  }
+  el.appendChild(div)
+}
+
+function renderResumen(el, resueltos) {
+  const postergados = resueltos.filter(p => estados[p.id].decision === 'postergar')
+  const cancelados  = resueltos.filter(p => estados[p.id].decision === 'cancelar')
+  const stockDevuelto = cancelados.reduce((s, p) => {
+    return s + p.items.filter((_, i) => estados[p.id].devolItems[i]).reduce((ss, it) => ss + it.cant, 0)
+  }, 0)
+
+  const box = document.createElement('div')
+  box.className = 'resumen'
+  box.innerHTML = `
+    <div class="res-title">Resumen</div>
+    ${postergados.length ? `<div class="res-row">
+      <span class="k">📅 Postergados</span>
+      <span class="v" style="color:var(--amber-tx)">${postergados.length} pedido${postergados.length > 1 ? 's' : ''}</span>
+    </div>` : ''}
+    ${cancelados.length ? `<div class="res-row">
+      <span class="k">✕ Cancelados</span>
+      <span class="v" style="color:var(--red-tx)">${cancelados.length} pedido${cancelados.length > 1 ? 's' : ''}</span>
+    </div>` : ''}
+    ${stockDevuelto ? `<div class="res-row">
+      <span class="k">📦 Stock devuelto</span>
+      <span class="v" style="color:var(--green-tx)">+${stockDevuelto} unidades</span>
+    </div>` : ''}`
+  el.appendChild(box)
+}
+
+// ── acciones ──────────────────────────────────────────────────────────
+function toggleDecision(id, dec) {
+  const e = estados[id]
+  e.decision = e.decision === dec ? null : dec
+  render()
+}
+
+function toggleDevol(id, i) {
+  estados[id].devolItems[i] = !estados[id].devolItems[i]
+  render()
+}
+
+async function confirmar(id) {
+  const e = estados[id]
+  const p = pedidos.find(x => x.id === id)
+  const btn = document.querySelector(`.ped-card:not(.resuelta) .confirmar-btn`)
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…' }
+
+  try {
+    if (e.decision === 'postergar') {
+      await supabase.from('pedidos')
+        .update({ estado: 'postergado', hoja_ruta_id: null })
+        .eq('id', id)
+    } else {
+      // Cancelar: anular pedido + devolver stock seleccionado
+      await supabase.from('pedidos')
+        .update({ estado: 'anulado' })
+        .eq('id', id)
+
+      const itemsADevolver = p.items
+        .filter((_, i) => e.devolItems[i])
+        .map(it => ({
+          empresa_id: usuario.empresa_id,
+          producto_id: it.producto_id,
+          tipo: 'devolucion',
+          cantidad: it.cant,
+          referencia: id,
+          referencia_tipo: 'pedido',
+          usuario_id: usuario.id,
+        }))
+
+      if (itemsADevolver.length) {
+        const { error: e2 } = await supabase.from('mov_stock').insert(itemsADevolver)
+        if (e2) throw e2
+      }
+
+      // Revertir cargo en mov_cuenta con ajuste
+      const { error: e3 } = await supabase.from('mov_cuenta').insert({
+        empresa_id: usuario.empresa_id,
+        cliente_id: (await supabase.from('pedidos').select('cliente_id').eq('id', id).single()).data.cliente_id,
+        tipo: 'ajuste',
+        monto: -(p.total),
+        referencia: id,
+        referencia_tipo: 'pedido',
+        usuario_id: usuario.id,
+      })
+      if (e3) throw e3
+    }
+
+    e.confirmado = true
+    render()
+  } catch (err) {
+    mostrarError('Error: ' + err.message)
+    if (btn) { btn.disabled = false; btn.textContent = 'Reintentar' }
+  }
+}
+
+// Exponer al DOM
+window.estados = estados
+Object.assign(window, { toggleDecision, toggleDevol, confirmar, render })
+
+// ── INIT ──────────────────────────────────────────────────────────────
+document.getElementById('root').innerHTML =
+  `<div style="text-align:center;padding:60px 20px;color:var(--ink-soft)">Cargando…</div>`
+try {
+  await cargarPedidos()
+  window.estados = estados
+  render()
+} catch (e) {
+  mostrarError('Error: ' + e.message)
+}
+</script>
+</body>
+</html>

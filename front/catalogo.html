@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Catálogo</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:100px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;color:var(--gold);font-size:16px;font-weight:600;
+    cursor:pointer;padding:0;font-family:inherit;display:flex;align-items:center;gap:4px}
+  .back svg{width:20px;height:20px}
+  .hdr-title{font-size:17px;font-weight:600;flex:1;text-align:center}
+  .hdr-right{min-width:60px;display:flex;justify-content:flex-end;gap:8px}
+  .hdr-btn{padding:7px 13px;border:1px solid var(--line);border-radius:999px;
+    background:var(--card);font-size:13px;font-weight:600;cursor:pointer;
+    font-family:inherit;color:var(--ink)}
+  .hdr-btn.gold{background:var(--gold);color:#fff;border-color:var(--gold)}
+
+  /* TABS */
+  .tabs{display:flex;border-bottom:2px solid var(--line);background:var(--paper);
+    position:sticky;top:57px;z-index:19}
+  .tab{flex:1;padding:11px 6px;text-align:center;font-size:13px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  /* PRODUCTO CON FOTO */
+  section{padding:18px}
+  .lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px;display:block}
+  .field{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .divider{height:1px;background:var(--line-soft);margin:0 18px}
+
+  /* upload foto */
+  .foto-wrap{position:relative;width:100%;aspect-ratio:1;border-radius:14px;
+    border:2px dashed var(--line);background:var(--card);overflow:hidden;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+  .foto-wrap.tiene-foto{border-style:solid;border-color:var(--line)}
+  .foto-wrap img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+  .foto-wrap .overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);
+    display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+  .foto-wrap:hover .overlay{opacity:1}
+  .foto-wrap .overlay span{color:#fff;font-size:14px;font-weight:600}
+  .foto-placeholder{display:flex;flex-direction:column;align-items:center;gap:8px;
+    color:var(--ink-soft)}
+  .foto-placeholder svg{width:40px;height:40px;opacity:.4}
+  .foto-placeholder span{font-size:14px;font-weight:500}
+  .foto-placeholder small{font-size:12px;opacity:.7}
+  .foto-actions{display:flex;gap:8px;margin-top:10px}
+  .foto-btn{flex:1;padding:10px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:14px;font-weight:600;cursor:pointer;
+    font-family:inherit;color:var(--ink);text-align:center}
+  .foto-btn.gold{background:var(--gold);color:#fff;border-color:var(--gold)}
+  .foto-btn:active{filter:brightness(.95)}
+  input[type=file]{display:none}
+
+  /* lista de productos */
+  .prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px}
+  .prod-thumb{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;cursor:pointer}
+  .prod-thumb:active{filter:brightness(.97)}
+  .prod-thumb .img-wrap{aspect-ratio:1;background:var(--line-soft);position:relative;
+    display:flex;align-items:center;justify-content:center}
+  .prod-thumb .img-wrap img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+  .prod-thumb .img-wrap .no-foto{font-size:28px;opacity:.3}
+  .prod-thumb .info{padding:10px}
+  .prod-thumb .nm{font-size:13px;font-weight:700;line-height:1.3}
+  .prod-thumb .pr{font-size:13px;color:var(--gold);font-weight:600;margin-top:3px}
+  .prod-thumb .cat{font-size:11px;color:var(--ink-soft);margin-top:2px}
+  .tiene-foto-badge{position:absolute;top:6px;right:6px;width:18px;height:18px;
+    background:var(--green-tx);border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:10px;color:#fff}
+
+  /* CATÁLOGO CONFIG */
+  .config-section{margin:0 18px 14px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:14px}
+  .config-title{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:12px}
+  .config-row{display:flex;align-items:center;justify-content:space-between;
+    gap:10px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+  .config-row:last-child{border-bottom:none}
+  .config-lbl{font-size:14px;font-weight:500}
+  .config-lbl small{display:block;font-size:12px;color:var(--ink-soft);margin-top:1px}
+  .config-input{padding:7px 10px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;font-family:inherit;color:var(--ink);background:var(--paper)}
+  .config-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .config-input.wide{width:100%;margin-top:6px;display:block}
+  .toggle{width:44px;height:26px;border-radius:999px;border:none;cursor:pointer;
+    position:relative;flex-shrink:0;transition:background .2s}
+  .toggle.on{background:var(--gold)}
+  .toggle.off{background:var(--line)}
+  .toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;
+    background:#fff;top:3px;transition:left .2s}
+  .toggle.on::after{left:21px}
+  .toggle.off::after{left:3px}
+
+  /* selector cantidad por página */
+  .qty-selector{display:flex;gap:6px;flex-wrap:wrap}
+  .qty-btn{width:40px;height:36px;border:1.5px solid var(--line);border-radius:8px;
+    background:var(--paper);font-size:14px;font-weight:600;cursor:pointer;
+    font-family:inherit;color:var(--ink-soft)}
+  .qty-btn.sel{background:var(--gold);color:#fff;border-color:var(--gold)}
+
+  /* logo upload */
+  .logo-wrap{width:80px;height:80px;border:2px dashed var(--line);border-radius:10px;
+    background:var(--paper);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;overflow:hidden;flex-shrink:0;position:relative}
+  .logo-wrap img{width:100%;height:100%;object-fit:contain}
+  .logo-wrap .logo-placeholder{font-size:11px;color:var(--ink-soft);text-align:center;padding:8px}
+
+  /* filtros */
+  .filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .fchip{padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;
+    border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:pointer}
+  .fchip.sel{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* PREVIEW CATÁLOGO */
+  .preview-wrap{margin:0 18px 14px}
+  .preview-title{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:10px}
+
+  /* hoja A4 simulada */
+  .pagina{background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:0;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px}
+  .pag-header{padding:14px 16px 10px;border-bottom:1px solid #eee;
+    display:flex;align-items:center;gap:12px}
+  .pag-logo{width:44px;height:44px;border-radius:6px;background:var(--gold-lt);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    font-size:20px;overflow:hidden}
+  .pag-logo img{width:100%;height:100%;object-fit:contain}
+  .pag-header-text .empresa{font-size:15px;font-weight:700}
+  .pag-header-text .subtitulo{font-size:11px;color:#777;margin-top:1px}
+  .pag-grid{display:grid;gap:1px;background:#eee}
+  .pag-grid.g2{grid-template-columns:1fr 1fr}
+  .pag-grid.g3{grid-template-columns:1fr 1fr 1fr}
+  .pag-grid.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+  .pag-item{background:#fff;padding:10px 8px;text-align:center}
+  .pag-item .pimg{width:100%;aspect-ratio:1;background:var(--line-soft);border-radius:4px;
+    margin-bottom:6px;display:flex;align-items:center;justify-content:center;
+    font-size:22px;overflow:hidden;position:relative}
+  .pag-item .pimg img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+  .pag-item .pnm{font-size:11px;font-weight:700;line-height:1.2;color:#1C2B27}
+  .pag-item .ppr{font-size:12px;font-weight:700;color:var(--gold);margin-top:3px}
+  .pag-footer{padding:8px 16px;border-top:1px solid #eee;font-size:10px;
+    color:#999;display:flex;justify-content:space-between;align-items:center}
+
+  /* BAR */
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar-btn{width:100%;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .bar-2{display:flex;gap:10px}
+  .bar-2 .bar-btn{flex:1}
+  .bar-2 .ghost{flex:1;padding:15px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:15px;font-weight:600;color:var(--ink);
+    cursor:pointer;font-family:inherit}
+
+  /* PANEL EDITAR PRODUCTO */
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:22px 20px 32px;width:100%;max-height:90vh;overflow-y:auto}
+  .panel .handle{width:36px;height:4px;background:var(--line);border-radius:2px;
+    margin:0 auto 16px}
+  .panel h3{font-size:18px;font-weight:700;margin-bottom:16px}
+  .panel .fl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .panel .fl:first-of-type{margin-top:0}
+  .panel-btns{display:flex;gap:10px;margin-top:18px}
+  .panel-btns .bar-btn{flex:2}
+  .panel-btns .cancel{flex:1;padding:14px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:15px;font-weight:600;cursor:pointer;
+    color:var(--ink);font-family:inherit}
+
+  @media(prefers-reduced-motion:no-preference){
+    .prod-thumb,.panel{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  }
+
+  /* PRINT catálogo */
+  @media print{
+    @page{size:A4 portrait;margin:10mm}
+    body{max-width:100%;padding:0;background:#fff}
+    .hdr,.tabs,.bar,.config-section,.preview-title,.no-print{display:none!important}
+    .preview-wrap{margin:0}
+    .pagina{border:none;box-shadow:none;border-radius:0;margin:0;page-break-after:always}
+    .pagina:last-child{page-break-after:auto}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<input type="file" id="file-foto"   accept="image/*" onchange="onFotoChange(event)">
+<input type="file" id="file-logo"   accept="image/*" onchange="onLogoChange(event)">
+
+<script>
+// ── DATOS ──────────────────────────────────────────────────────────────
+const categorias = ['Farmacia','Limpieza','Perfumería','Kiosco','Bebé','Mate','Tinturas','Bolsas'];
+
+let productos = [
+  {id:'p1', nombre:'Actron 400 X10',         cat:'Farmacia',   precio:7200,  foto:null},
+  {id:'p2', nombre:'Tafirol 1g X8',           cat:'Farmacia',   precio:6200,  foto:null},
+  {id:'p3', nombre:'Ala Matic 800g',           cat:'Limpieza',   precio:3800,  foto:'https://images.unsplash.com/photo-1584304198673-d2b2e5dffe38?w=300&q=80'},
+  {id:'p4', nombre:'Sedal Shampoo 190ml',      cat:'Perfumería', precio:3300,  foto:'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=300&q=80'},
+  {id:'p5', nombre:'Lav. Ayudin 1L',           cat:'Limpieza',   precio:2200,  foto:null},
+  {id:'p6', nombre:'OCB Blanco X1',            cat:'Kiosco',     precio:2500,  foto:null},
+  {id:'p7', nombre:'Pañal Babysec M 8u',       cat:'Bebé',       precio:11200, foto:'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=300&q=80'},
+  {id:'p8', nombre:'Crema Hinds 250ml',        cat:'Perfumería', precio:4400,  foto:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=300&q=80'},
+  {id:'p9', nombre:'Kit Tintura Nantyr 5.0',   cat:'Tinturas',   precio:6800,  foto:null},
+  {id:'p10',nombre:'Det. Magistral 300ml',      cat:'Limpieza',   precio:2800,  foto:null},
+  {id:'p11',nombre:'Esponja Acero Make 30g',    cat:'Limpieza',   precio:1800,  foto:null},
+  {id:'p12',nombre:'Bolsa Consorcio 60x90 10u', cat:'Bolsas',     precio:3600,  foto:null},
+];
+
+// ── CONFIG CATÁLOGO ────────────────────────────────────────────────────
+let config = {
+  empresa:    'Distribuidora El Rey',
+  subtitulo:  'Alta Gracia, Córdoba · Tel: 351-000-0000',
+  piePagina:  'Consultas y pedidos: 351-000-0000 · @distribuidoraelrey',
+  logo:       null,
+  porPagina:  4,       // 2 | 4 | 6 | 8 | 12
+  mostrarPrecio: true,
+  filtroCat:  'todas',
+};
+
+// ── ESTADO ─────────────────────────────────────────────────────────────
+let tab = 'productos';
+let panelProd = null;   // id producto editando
+let panelFotoTemp = null;
+
+const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+
+// ── RENDER ─────────────────────────────────────────────────────────────
+function render(){
+  const el = document.getElementById('root');
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Catálogo</small></div>
+      </div>
+      <div class="hdr-right">
+        ${tab==='catalogo'?`<button class="hdr-btn gold" onclick="generarCatalogo()">🖨 Exportar</button>`:''}
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab ${tab==='productos'?'active':''}" onclick="tab='productos';render()">Productos</div>
+      <div class="tab ${tab==='catalogo'?'active':''}" onclick="tab='catalogo';render()">Catálogo</div>
+    </div>`;
+
+  if(tab==='productos') renderProductos(el);
+  else                  renderCatalogo(el);
+
+  if(panelProd) renderPanel(el);
+}
+
+// ── PRODUCTOS ──────────────────────────────────────────────────────────
+function renderProductos(el){
+  const conFoto = productos.filter(p=>p.foto).length;
+  const info = document.createElement('div');
+  info.style.cssText='padding:12px 18px 4px;font-size:13px;color:var(--ink-soft)';
+  info.innerHTML=`${conFoto} de ${productos.length} productos con foto · Tocá uno para agregar o cambiar imagen`;
+  el.appendChild(info);
+
+  const grid = document.createElement('div');
+  grid.className='prod-grid';
+  productos.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='prod-thumb';
+    card.onclick = ()=>{ panelProd=p.id; panelFotoTemp=p.foto; render(); };
+    card.innerHTML=`
+      <div class="img-wrap">
+        ${p.foto
+          ? `<img src="${p.foto}" alt="${p.nombre}" loading="lazy">
+             <div class="tiene-foto-badge">✓</div>`
+          : `<span class="no-foto">📦</span>`}
+      </div>
+      <div class="info">
+        <div class="nm">${p.nombre}</div>
+        <div class="pr">${ars(p.precio)}</div>
+        <div class="cat">${p.cat}</div>
+      </div>`;
+    grid.appendChild(card);
+  });
+  el.appendChild(grid);
+}
+
+// ── CATÁLOGO CONFIG + PREVIEW ──────────────────────────────────────────
+function renderCatalogo(el){
+  const cats = ['todas',...new Set(productos.map(p=>p.cat))];
+
+  // CONFIG
+  const cfg = document.createElement('div');
+  cfg.innerHTML=`
+    <!-- Identidad -->
+    <div class="config-section">
+      <div class="config-title">Encabezado</div>
+      <div class="config-row">
+        <div class="config-lbl">Logo
+          <small>Tocá para subir</small>
+        </div>
+        <div class="logo-wrap" onclick="document.getElementById('file-logo').click()">
+          ${config.logo
+            ? `<img src="${config.logo}" alt="logo">`
+            : `<div class="logo-placeholder">+ Logo</div>`}
+        </div>
+      </div>
+      <div class="config-row" style="flex-direction:column;align-items:flex-start">
+        <span class="config-lbl">Nombre de empresa</span>
+        <input class="config-input wide" type="text" value="${config.empresa}"
+          oninput="config.empresa=this.value;actualizarPreview()">
+      </div>
+      <div class="config-row" style="flex-direction:column;align-items:flex-start">
+        <span class="config-lbl">Subtítulo / contacto</span>
+        <input class="config-input wide" type="text" value="${config.subtitulo}"
+          oninput="config.subtitulo=this.value;actualizarPreview()">
+      </div>
+    </div>
+
+    <!-- Pie -->
+    <div class="config-section">
+      <div class="config-title">Pie de página</div>
+      <div class="config-row" style="flex-direction:column;align-items:flex-start">
+        <span class="config-lbl">Texto del pie</span>
+        <input class="config-input wide" type="text" value="${config.piePagina}"
+          oninput="config.piePagina=this.value;actualizarPreview()">
+      </div>
+    </div>
+
+    <!-- Layout -->
+    <div class="config-section">
+      <div class="config-title">Layout</div>
+      <div class="config-row">
+        <div class="config-lbl">Productos por página</div>
+        <div class="qty-selector">
+          ${[2,4,6,8,12].map(n=>`
+            <button class="qty-btn ${config.porPagina===n?'sel':''}"
+              onclick="config.porPagina=${n};render()">${n}</button>`).join('')}
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="config-lbl">Mostrar precio</div>
+        <button class="toggle ${config.mostrarPrecio?'on':'off'}"
+          onclick="config.mostrarPrecio=!config.mostrarPrecio;render()"></button>
+      </div>
+    </div>
+
+    <!-- Filtro por categoría -->
+    <div class="config-section">
+      <div class="config-title">Filtrar productos</div>
+      <div class="filter-chips">
+        ${cats.map(c=>`
+          <div class="fchip ${config.filtroCat===c?'sel':''}"
+            onclick="config.filtroCat='${c}';render()">
+            ${c==='todas'?'Todas las categorías':c}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  el.appendChild(cfg);
+
+  // PREVIEW
+  renderPreview(el);
+
+  // barra
+  const bar = document.createElement('div');
+  bar.className='bar';
+  bar.innerHTML=`
+    <div class="bar-2">
+      <button class="ghost" onclick="tab='productos';render()">← Productos</button>
+      <button class="bar-btn" onclick="generarCatalogo()">🖨 Exportar PDF</button>
+    </div>`;
+  el.appendChild(bar);
+}
+
+function renderPreview(el){
+  const prods = productos.filter(p=>
+    p.foto && (config.filtroCat==='todas' || p.cat===config.filtroCat)
+  );
+
+  const wrap = document.createElement('div');
+  wrap.className='preview-wrap';
+  wrap.id='preview-wrap';
+
+  if(!prods.length){
+    wrap.innerHTML=`<div class="preview-title">Vista previa</div>
+      <div style="text-align:center;padding:30px;color:var(--ink-soft);font-size:14px;
+        background:var(--card);border:1px solid var(--line);border-radius:12px">
+        No hay productos con foto en esta categoría.<br>
+        <span style="font-size:13px;opacity:.7">Agregá fotos desde la pestaña Productos.</span>
+      </div>`;
+    el.appendChild(wrap);
+    return;
+  }
+
+  // calcular columnas
+  const cols = config.porPagina<=2?2:config.porPagina<=6?3:4;
+  const gridCl = `pag-grid g${cols}`;
+
+  // dividir en páginas
+  const paginas = [];
+  for(let i=0; i<prods.length; i+=config.porPagina){
+    paginas.push(prods.slice(i, i+config.porPagina));
+  }
+
+  wrap.innerHTML=`<div class="preview-title">Vista previa · ${prods.length} productos · ${paginas.length} página${paginas.length>1?'s':''}</div>`;
+
+  paginas.forEach((pags, pi)=>{
+    const pag = document.createElement('div');
+    pag.className='pagina';
+    pag.innerHTML=`
+      <div class="pag-header">
+        <div class="pag-logo">
+          ${config.logo?`<img src="${config.logo}" alt="logo">`:`&#9818;`}
+        </div>
+        <div class="pag-header-text">
+          <div class="empresa">${config.empresa}</div>
+          <div class="subtitulo">${config.subtitulo}</div>
+        </div>
+      </div>
+      <div class="${gridCl}">
+        ${pags.map(p=>`
+          <div class="pag-item">
+            <div class="pimg">
+              ${p.foto?`<img src="${p.foto}" alt="${p.nombre}" loading="lazy">`:`📦`}
+            </div>
+            <div class="pnm">${p.nombre}</div>
+            ${config.mostrarPrecio?`<div class="ppr">${ars(p.precio)}</div>`:''}
+          </div>`).join('')}
+      </div>
+      <div class="pag-footer">
+        <span>${config.piePagina}</span>
+        <span>Página ${pi+1} / ${paginas.length}</span>
+      </div>`;
+    wrap.appendChild(pag);
+  });
+
+  el.appendChild(wrap);
+}
+
+function actualizarPreview(){
+  const box=document.getElementById('preview-wrap');
+  if(!box) return;
+  const el=document.getElementById('root');
+  const newWrap=document.createElement('div');
+  renderPreview(newWrap);
+  const newPrev=newWrap.querySelector('#preview-wrap');
+  if(newPrev) box.replaceWith(newPrev);
+}
+
+// ── PANEL EDITAR PRODUCTO ──────────────────────────────────────────────
+function renderPanel(el){
+  const p=productos.find(x=>x.id===panelProd);
+  const ov=document.createElement('div');
+  ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov){panelProd=null;render();}};
+
+  ov.innerHTML=`
+    <div class="panel">
+      <div class="handle"></div>
+      <h3>${p.nombre}</h3>
+
+      <label class="fl">Foto del producto</label>
+      <div class="foto-wrap ${panelFotoTemp?'tiene-foto':''}"
+        onclick="document.getElementById('file-foto').click()">
+        ${panelFotoTemp
+          ? `<img src="${panelFotoTemp}" alt="${p.nombre}">
+             <div class="overlay"><span>Cambiar foto</span></div>`
+          : `<div class="foto-placeholder">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                 <rect x="3" y="3" width="18" height="18" rx="3"/>
+                 <circle cx="8.5" cy="8.5" r="1.5"/>
+                 <path d="M21 15l-5-5L5 21"/>
+               </svg>
+               <span>Subir foto</span>
+               <small>JPG, PNG · máx 5MB</small>
+             </div>`}
+      </div>
+      ${panelFotoTemp?`
+        <div class="foto-actions">
+          <button class="foto-btn" onclick="panelFotoTemp=null;rerenderPanel()">🗑 Quitar</button>
+          <button class="foto-btn gold" onclick="document.getElementById('file-foto').click()">📷 Cambiar</button>
+        </div>`:''}
+
+      <label class="fl" style="margin-top:16px">Precio de venta</label>
+      <input class="field" type="number" value="${p.precio}"
+        oninput="getProd('${p.id}').precio=+this.value">
+
+      <label class="fl">Categoría</label>
+      <select class="field" onchange="getProd('${p.id}').cat=this.value">
+        ${categorias.map(c=>`<option ${c===p.cat?'selected':''}>${c}</option>`).join('')}
+      </select>
+
+      <div class="panel-btns">
+        <button class="cancel" onclick="panelProd=null;render()">Cancelar</button>
+        <button class="bar-btn" onclick="guardarProd('${p.id}')">Guardar</button>
+      </div>
+    </div>`;
+
+  el.appendChild(ov);
+}
+
+function rerenderPanel(){
+  document.querySelector('.overlay')?.remove();
+  const el=document.getElementById('root');
+  renderPanel(el);
+}
+
+function getProd(id){ return productos.find(p=>p.id===id); }
+
+function guardarProd(id){
+  const p=getProd(id);
+  if(panelFotoTemp!==undefined) p.foto=panelFotoTemp;
+  panelProd=null; panelFotoTemp=null; render();
+}
+
+// ── SUBIDA DE FOTO ─────────────────────────────────────────────────────
+function onFotoChange(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    panelFotoTemp=ev.target.result;
+    rerenderPanel();
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+
+function onLogoChange(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    config.logo=ev.target.result;
+    render();
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+
+// ── EXPORTAR ───────────────────────────────────────────────────────────
+function generarCatalogo(){
+  try{ window.print(); }
+  catch(e){
+    const w=window.open('','_blank');
+    w.document.write(document.documentElement.outerHTML);
+    w.document.close(); w.focus();
+    setTimeout(()=>w.print(),600);
+  }
+}
+
+render();
+</script>
+</body>
+</html>

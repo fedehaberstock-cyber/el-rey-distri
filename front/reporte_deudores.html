@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Deudores</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+
+  .filters{padding:12px 18px 10px;background:var(--paper);
+    position:sticky;top:57px;z-index:19;border-bottom:1px solid var(--line-soft)}
+  .search-input{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-size:15px;font-family:inherit;
+    color:var(--ink);margin-bottom:8px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:12px center}
+  .search-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .chips{display:flex;gap:6px;overflow-x:auto}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{padding:6px 13px;border-radius:999px;font-size:13px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    white-space:nowrap;cursor:pointer;flex-shrink:0}
+  .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  .totales{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:14px 18px 4px}
+  .tot-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px;text-align:center}
+  .tot-card .num{font-size:20px;font-weight:700;line-height:1}
+  .tot-card .num.red{color:var(--red-tx)}
+  .tot-card .num.amber{color:var(--amber-tx)}
+  .tot-card .lbl{font-size:11px;color:var(--ink-soft);font-weight:500;margin-top:3px}
+
+  .list{padding:12px 18px}
+  .cli-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px;margin-bottom:10px;cursor:pointer}
+  .cli-card:active{background:var(--line-soft)}
+  .cli-card.critico{border-color:var(--red-tx);border-width:1.5px}
+  .cli-card.advertencia{border-color:var(--amber-tx);border-width:1.5px}
+  .cli-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .cli-card .nm{font-size:16px;font-weight:700;flex:1}
+  .saldo-num{font-size:18px;font-weight:700;white-space:nowrap}
+  .saldo-num.critico{color:var(--red-tx)}
+  .saldo-num.advertencia{color:var(--amber-tx)}
+  .saldo-num.leve{color:var(--ink-soft)}
+  .cli-card .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .meta-tag{font-size:13px;color:var(--ink-soft)}
+  .progress-wrap{margin-top:10px}
+  .progress-lbl{display:flex;justify-content:space-between;font-size:11px;
+    color:var(--ink-soft);margin-bottom:4px}
+  .progress-track{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
+  .progress-fill{height:100%;border-radius:999px}
+  .dias-badge{display:inline-flex;align-items:center;gap:4px;margin-top:8px;
+    padding:4px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .dias-badge.critico{background:var(--red-bg);color:var(--red-tx)}
+  .dias-badge.advertencia{background:var(--amber-bg);color:var(--amber-tx)}
+  .dias-badge.ok{background:var(--green-bg);color:var(--green-tx)}
+  .ultimo-pago{font-size:12px;color:var(--ink-soft);margin-top:4px}
+
+  .det-overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .det-panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:22px 20px 32px;width:100%;max-height:85vh;overflow-y:auto}
+  .det-panel .handle{width:36px;height:4px;background:var(--line);border-radius:2px;
+    margin:0 auto 18px}
+  .det-panel .cli-nm{font-size:20px;font-weight:700;margin-bottom:4px}
+  .det-panel .saldo-big{font-size:36px;font-weight:700;letter-spacing:-.02em}
+  .det-panel .saldo-big.critico{color:var(--red-tx)}
+  .det-panel .saldo-big.advertencia{color:var(--amber-tx)}
+  .sec-lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin:16px 0 8px}
+  .mov-row{display:flex;justify-content:space-between;align-items:flex-start;
+    padding:10px 0;border-bottom:1px solid var(--line-soft)}
+  .mov-row:last-child{border-bottom:none}
+  .mov-row .desc{font-size:15px;font-weight:500}
+  .mov-row .fecha{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .mov-row .monto{font-size:15px;font-weight:700}
+  .mov-row .monto.cargo{color:var(--red-tx)}
+  .mov-row .monto.pago{color:var(--green-tx)}
+  .bar-btn{width:100%;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:16px}
+  .bar-btn:active{background:var(--gold-dk)}
+  .bar-btn:disabled{opacity:.5;cursor:default}
+  .cancel-btn{width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:16px;font-weight:600;color:var(--ink);
+    cursor:pointer;font-family:inherit;margin-top:8px}
+
+  .cobro-lbl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .cobro-input{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:20px;font-weight:700;font-family:inherit;color:var(--ink)}
+  .cobro-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .empty{text-align:center;padding:50px 20px;color:var(--ink-soft);font-size:15px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .cli-card,.det-panel{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPA_URL = 'https://rqbpzmkcwxruzszbtsjv.supabase.co';
+const SUPA_KEY = 'sb_publishable_tdI7VSKRcEqhaTVY0ipprA_umkrtiQb';
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+// ── AUTH + PERMISOS ────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login.html'; }
+
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, nombre, rol, empresa_id').eq('id', session.user.id).single();
+if (!usuario) { location.href = './login.html'; }
+
+if (usuario.rol !== 'admin') {
+  const { data: perm } = await supabase.from('permisos')
+    .select('nivel').eq('usuario_id', usuario.id).eq('modulo', 'deudores').single();
+  if (!perm || perm.nivel === 'ninguno') { location.href = './login_home.html'; }
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+const HOY = new Date();
+const isoHoy = () => new Date().toISOString().slice(0, 10);
+const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 0;
+const fmtF = s => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+const ars = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(Math.abs(n));
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let clientes = [];
+let movimientos = [];  // all mov_cuenta rows
+let filtro = 'todos';
+let busqueda = '';
+let detalle = null;
+let cobroMonto = '';
+let vistaDetalle = 'movs';
+let guardandoCobro = false;
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargarTodo() {
+  const [{ data: clis, error: errC }, { data: movs, error: errM }] = await Promise.all([
+    supabase.from('clientes')
+      .select('id, nombre, telefono, direccion')
+      .eq('empresa_id', usuario.empresa_id)
+      .order('nombre'),
+    supabase.from('mov_cuenta')
+      .select('id, cliente_id, usuario_id, tipo, monto, descripcion, fecha, forma_pago')
+      .eq('empresa_id', usuario.empresa_id)
+      .order('fecha', { ascending: false }),
+  ]);
+
+  if (errC || errM) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error al cargar datos: ${(errC || errM).message}</div>`;
+    return;
+  }
+  clientes = clis || [];
+  movimientos = movs || [];
+  render();
+}
+
+// ── HELPERS CÁLCULO ────────────────────────────────────────────────────────
+const saldoDe = id => movimientos.filter(m => m.cliente_id === id).reduce((s, m) => s + m.monto, 0);
+
+const ultimoPago = id => {
+  const pagos = movimientos.filter(m => m.cliente_id === id && m.tipo === 'pago')
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  return pagos[0]?.fecha || null;
+};
+const ultimoCargo = id => {
+  const cargos = movimientos.filter(m => m.cliente_id === id && m.tipo === 'cargo')
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  return cargos[0]?.fecha || null;
+};
+const diasSinPago = id => {
+  const p = ultimoPago(id);
+  return p ? diasDesde(p) : (ultimoCargo(id) ? diasDesde(ultimoCargo(id)) : 0);
+};
+const nivelDeuda = (saldo, dias) => {
+  if (saldo <= 0) return 'aldia';
+  if (saldo >= 30000 || dias >= 45) return 'critico';
+  if (saldo >= 10000 || dias >= 20) return 'advertencia';
+  return 'leve';
+};
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root');
+  el.innerHTML = '';
+
+  const datos = clientes.map(c => {
+    const saldo = saldoDe(c.id);
+    const dias  = diasSinPago(c.id);
+    const nivel = nivelDeuda(saldo, dias);
+    return { ...c, saldo, dias, nivel };
+  }).filter(c => c.saldo > 0).sort((a, b) => b.saldo - a.saldo);
+
+  const filtrados = datos.filter(c => {
+    if (filtro !== 'todos' && c.nivel !== filtro) return false;
+    if (busqueda.trim() && !c.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
+    return true;
+  });
+
+  const totalDeuda    = datos.reduce((s, c) => s + c.saldo, 0);
+  const criticos      = datos.filter(c => c.nivel === 'critico').length;
+  const advertencias  = datos.filter(c => c.nivel === 'advertencia').length;
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Deudores</small></div>
+      </div>
+      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;margin-left:auto;font-family:inherit"
+        onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    <div class="filters">
+      <input class="search-input" placeholder="Buscar cliente…" value="${busqueda}"
+        oninput="window._setBusqueda(this.value)" autocomplete="off">
+      <div class="chips">
+        <div class="chip ${filtro === 'todos'       ? 'active' : ''}" onclick="window._setFiltro('todos')">Todos (${datos.length})</div>
+        <div class="chip ${filtro === 'critico'     ? 'active' : ''}" onclick="window._setFiltro('critico')">🔴 Crítico (${criticos})</div>
+        <div class="chip ${filtro === 'advertencia' ? 'active' : ''}" onclick="window._setFiltro('advertencia')">🟡 Atención (${advertencias})</div>
+        <div class="chip ${filtro === 'leve'        ? 'active' : ''}" onclick="window._setFiltro('leve')">Leve</div>
+      </div>
+    </div>
+    <div class="totales">
+      <div class="tot-card"><div class="num red">${ars(totalDeuda)}</div><div class="lbl">Total en deuda</div></div>
+      <div class="tot-card"><div class="num red">${criticos}</div><div class="lbl">Críticos</div></div>
+      <div class="tot-card"><div class="num amber">${advertencias}</div><div class="lbl">En atención</div></div>
+    </div>
+    <div class="list">
+      ${!filtrados.length
+        ? `<div class="empty">Sin deudores en esta categoría.</div>`
+        : filtrados.map(c => {
+            const maxSaldo = datos[0].saldo || 1;
+            const pct = Math.round(c.saldo / maxSaldo * 100);
+            const up = ultimoPago(c.id);
+            return `<div class="cli-card ${c.nivel === 'critico' || c.nivel === 'advertencia' ? c.nivel : ''}"
+              onclick="window._abrirDetalle('${c.id}')">
+              <div class="top">
+                <span class="nm">${c.nombre}</span>
+                <span class="saldo-num ${c.nivel === 'leve' ? 'leve' : c.nivel}">${ars(c.saldo)}</span>
+              </div>
+              <div class="meta"><span class="meta-tag">${c.direccion || ''}</span></div>
+              <div class="progress-wrap">
+                <div class="progress-lbl">
+                  <span>Participación en deuda total</span><span>${pct}%</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" style="width:${pct}%;background:${
+                    c.nivel === 'critico' ? 'var(--red-tx)' : c.nivel === 'advertencia' ? 'var(--amber-tx)' : 'var(--ink-soft)'}">
+                  </div>
+                </div>
+              </div>
+              <div>
+                <span class="dias-badge ${c.nivel === 'critico' ? 'critico' : c.nivel === 'advertencia' ? 'advertencia' : 'ok'}">
+                  ${c.dias} días sin pago
+                </span>
+              </div>
+              ${up ? `<div class="ultimo-pago">Último pago: ${fmtF(up)}</div>` : ''}
+            </div>`;
+          }).join('')}
+    </div>`;
+
+  if (detalle) renderDetalle();
+}
+
+// ── DETALLE ────────────────────────────────────────────────────────────────
+function renderDetalle() {
+  const c = clientes.find(x => x.id === detalle);
+  if (!c) return;
+  const saldo = saldoDe(c.id);
+  const dias  = diasSinPago(c.id);
+  const nivel = nivelDeuda(saldo, dias);
+  const movsCli = movimientos.filter(m => m.cliente_id === c.id)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  const ov = document.createElement('div');
+  ov.className = 'det-overlay';
+  ov.onclick = e => { if (e.target === ov) window._cerrarDetalle(); };
+
+  ov.innerHTML = `<div class="det-panel">
+    <div class="handle"></div>
+    <div class="cli-nm">${c.nombre}</div>
+    <div class="saldo-big ${nivel === 'leve' ? 'advertencia' : nivel}">${ars(saldo)}</div>
+    <div style="font-size:14px;color:var(--ink-soft);margin-top:4px">
+      ${dias} días sin pago${c.telefono ? ' · ' + c.telefono : ''}
+    </div>
+
+    ${vistaDetalle === 'movs' ? `
+      <div class="sec-lbl">Movimientos</div>
+      ${movsCli.length ? movsCli.map(m => `
+        <div class="mov-row">
+          <div>
+            <div class="desc">${m.descripcion || (m.tipo === 'cargo' ? 'Cargo' : 'Pago')}</div>
+            <div class="fecha">${fmtF(m.fecha)}</div>
+          </div>
+          <div class="monto ${m.tipo === 'cargo' ? 'cargo' : 'pago'}">
+            ${m.monto > 0 ? '+' : '−'} ${ars(m.monto)}
+          </div>
+        </div>`).join('') : '<div style="padding:16px 0;color:var(--ink-soft);font-size:14px">Sin movimientos registrados.</div>'}
+      <button class="bar-btn" onclick="window._mostrarCobro()">Registrar cobro</button>
+      <button class="cancel-btn" onclick="window._cerrarDetalle()">Cerrar</button>
+    ` : `
+      <div class="sec-lbl">Registrar cobro</div>
+      <label class="cobro-lbl">Monto recibido</label>
+      <input class="cobro-input" id="cobro-inp" type="number" min="1"
+        placeholder="$ 0" value="${cobroMonto}"
+        oninput="window._setCobroMonto(this.value)" inputmode="numeric">
+      <div style="margin-top:10px;font-size:13px;color:var(--ink-soft)">
+        Saldo después del cobro: <b style="color:var(--ink)">${
+          cobroMonto && parseFloat(cobroMonto) > 0
+            ? ars(Math.max(0, saldo - parseFloat(cobroMonto)))
+            : ars(saldo)
+        }</b>
+      </div>
+      <button class="bar-btn" onclick="window._confirmarCobro()" ${guardandoCobro ? 'disabled' : ''}>
+        ${guardandoCobro ? 'Guardando…' : 'Confirmar cobro'}
+      </button>
+      <button class="cancel-btn" onclick="window._mostrarMovs()">Cancelar</button>
+    `}
+  </div>`;
+
+  document.getElementById('root').appendChild(ov);
+  if (vistaDetalle === 'cobro') setTimeout(() => document.getElementById('cobro-inp')?.focus(), 50);
+}
+
+function rerenderDetalle() {
+  document.querySelector('.det-overlay')?.remove();
+  renderDetalle();
+}
+
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._setBusqueda   = v => { busqueda = v; render(); };
+window._setFiltro     = v => { filtro = v; render(); };
+window._abrirDetalle  = id => { detalle = id; vistaDetalle = 'movs'; cobroMonto = ''; render(); };
+window._cerrarDetalle = () => { detalle = null; render(); };
+window._mostrarCobro  = () => { vistaDetalle = 'cobro'; rerenderDetalle(); };
+window._mostrarMovs   = () => { vistaDetalle = 'movs'; rerenderDetalle(); };
+window._setCobroMonto = v => { cobroMonto = v; };
+
+window._confirmarCobro = async () => {
+  const n = parseFloat(cobroMonto);
+  if (!n || n <= 0) return;
+  guardandoCobro = true;
+  rerenderDetalle();
+
+  const { error } = await supabase.from('mov_cuenta').insert({
+    empresa_id:  usuario.empresa_id,
+    cliente_id:  detalle,
+    usuario_id:  usuario.id,
+    tipo:        'pago',
+    monto:       -n,
+    descripcion: 'Cobro registrado',
+    fecha:       isoHoy(),
+  });
+
+  guardandoCobro = false;
+  if (error) { alert('Error al guardar: ' + error.message); rerenderDetalle(); return; }
+
+  // update local cache optimistically
+  movimientos.unshift({
+    id: crypto.randomUUID(), cliente_id: detalle, usuario_id: usuario.id,
+    tipo: 'pago', monto: -n, descripcion: 'Cobro registrado', fecha: isoHoy(), forma_pago: null,
+  });
+  cobroMonto = ''; vistaDetalle = 'movs';
+  render();
+};
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargarTodo();
+</script>
+</body>
+</html>

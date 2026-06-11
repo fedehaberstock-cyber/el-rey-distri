@@ -1,0 +1,22 @@
+# ── Secretos ──────────────────────────────────────────────────────────────
+# ⚠️  Nunca commitear passwords en plano
+supabase/migrations/20260611_04_seed_admin_inicial.sql
+
+# ── Editor / OS ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.bak
+*.orig
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# ── Node (si en algún momento se agrega tooling) ──────────────────────────
+node_modules/
+.env
+.env.local
+.env.*.local
+
+# ── Netlify ───────────────────────────────────────────────────────────────
+.netlify/

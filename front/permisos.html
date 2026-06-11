@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Permisos</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --blue-bg:#E8F0FB;  --blue-tx:#2A4E9A;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;color:var(--gold);font-size:16px;font-weight:600;
+    cursor:pointer;padding:0;font-family:inherit;display:flex;align-items:center;gap:4px}
+  .back svg{width:20px;height:20px}
+  .hdr-title{font-size:17px;font-weight:600;flex:1;text-align:center}
+  .hdr-right{min-width:60px;display:flex;justify-content:flex-end}
+  .save-btn{padding:7px 14px;background:var(--gold);color:#fff;border:none;
+    border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .save-btn:active{background:var(--gold-dk)}
+  .save-btn:disabled{opacity:.5;cursor:default}
+
+  /* LISTA USUARIOS */
+  .user-list{padding:14px 18px}
+  .user-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .user-card:active{background:var(--line-soft)}
+  .user-info .nm{font-size:16px;font-weight:700}
+  .user-info .sub{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .rol-badge{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
+  .rol-badge.admin      {background:var(--gold-lt);color:var(--gold-dk)}
+  .rol-badge.preventista{background:var(--blue-bg);color:var(--blue-tx)}
+  .rol-badge.deposito   {background:var(--green-bg);color:var(--green-tx)}
+  .arr{color:var(--ink-soft);font-size:18px}
+
+  /* DETALLE PERMISOS */
+  .admin-notice{margin:14px 18px;padding:12px 14px;background:var(--gold-lt);
+    border:1px solid var(--gold);border-radius:12px;font-size:14px;
+    color:var(--gold-dk);font-weight:600;display:flex;align-items:center;gap:8px}
+  .admin-notice svg{width:16px;height:16px;flex-shrink:0}
+
+  .sec-lbl{padding:14px 18px 6px;font-size:12px;font-weight:700;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
+
+  .modulo-card{margin:0 18px 10px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;overflow:hidden}
+  .modulo-hdr{padding:12px 14px;display:flex;align-items:center;gap:10px;
+    border-bottom:1px solid var(--line-soft)}
+  .modulo-icon{font-size:20px;line-height:1;flex-shrink:0}
+  .modulo-nm{font-size:15px;font-weight:700;flex:1}
+  .modulo-desc{font-size:12px;color:var(--ink-soft);margin-top:1px}
+  .nivel-actual{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
+
+  /* selector de nivel */
+  .nivel-selector{display:flex;padding:10px 14px;gap:6px;flex-wrap:wrap}
+  .nivel-btn{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;
+    border:1.5px solid var(--line);background:var(--paper);color:var(--ink-soft);
+    cursor:pointer;white-space:nowrap;font-family:inherit}
+  .nivel-btn:active{filter:brightness(.97)}
+  .nivel-btn.sel-ninguno {background:#F0F0EC;border-color:#B0ADA4;color:var(--ink-soft)}
+  .nivel-btn.sel-vista   {background:var(--blue-bg);border-color:var(--blue-tx);color:var(--blue-tx)}
+  .nivel-btn.sel-crear   {background:var(--amber-bg);border-color:var(--amber-tx);color:var(--amber-tx)}
+  .nivel-btn.sel-editar  {background:var(--green-bg);border-color:var(--green-tx);color:var(--green-tx)}
+  .nivel-btn.sel-admin   {background:var(--gold-lt);border-color:var(--gold);color:var(--gold-dk)}
+
+  /* colores del nivel actual chip */
+  .chip-ninguno {background:#F0F0EC;color:var(--ink-soft)}
+  .chip-vista   {background:var(--blue-bg);color:var(--blue-tx)}
+  .chip-crear   {background:var(--amber-bg);color:var(--amber-tx)}
+  .chip-editar  {background:var(--green-bg);color:var(--green-tx)}
+  .chip-admin   {background:var(--gold-lt);color:var(--gold-dk)}
+
+  /* legend */
+  .legend{margin:0 18px 14px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px}
+  .legend-title{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px}
+  .legend-row{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:13px}
+  .legend-chip{padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;flex-shrink:0}
+
+  /* loading / error */
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+
+  /* saved toast */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 20px;border-radius:999px;
+    font-size:14px;font-weight:600;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+
+  @media(prefers-reduced-motion:no-preference){
+    .user-card,.modulo-card{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPA_URL = 'https://rqbpzmkcwxruzszbtsjv.supabase.co';
+const SUPA_KEY = 'sb_publishable_tdI7VSKRcEqhaTVY0ipprA_umkrtiQb';
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+// ── AUTH GUARD ────────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login.html'; }
+
+const { data: usuario } = await supabase
+  .from('usuarios')
+  .select('id, nombre, email, rol, empresa_id')
+  .eq('id', session.user.id)
+  .single();
+
+if (!usuario || usuario.rol !== 'admin') {
+  location.href = './login_home.html';
+}
+
+// ── MÓDULOS ───────────────────────────────────────────────────────────────
+const secciones = [
+  {
+    nombre: 'Operaciones',
+    modulos: [
+      { id: 'pedidos',    icon: '🛒', nombre: 'Pedidos',          desc: 'Cargar y ver pedidos de clientes' },
+      { id: 'clientes',   icon: '👥', nombre: 'Clientes',         desc: 'Ver, crear y editar clientes' },
+      { id: 'hoja_ruta',  icon: '🗺️', nombre: 'Hoja de ruta',     desc: 'Generar y cerrar la hoja del día' },
+    ]
+  },
+  {
+    nombre: 'Depósito',
+    modulos: [
+      { id: 'stock',      icon: '📦', nombre: 'Stock',            desc: 'Ver stock y registrar ajustes' },
+      { id: 'ingresos',   icon: '🏭', nombre: 'Ingresos',         desc: 'Cargar boletas de proveedor' },
+      { id: 'boletas',    icon: '🧾', nombre: 'Boletas de venta', desc: 'Ver y modificar boletas' },
+    ]
+  },
+  {
+    nombre: 'Finanzas',
+    modulos: [
+      { id: 'ventas_totales',   icon: '📈', nombre: 'Ventas — totales',  desc: 'Ver montos de ventas del período' },
+      { id: 'ventas_costos',    icon: '💰', nombre: 'Ventas — costos',   desc: 'Ver costos y margen por producto' },
+      { id: 'ventas_margenes',  icon: '📊', nombre: 'Ventas — márgenes', desc: 'Ver rentabilidad y márgenes' },
+      { id: 'deudores',         icon: '💸', nombre: 'Deudores',          desc: 'Ver clientes con saldo pendiente' },
+      { id: 'recaudacion',      icon: '💵', nombre: 'Recaudación',       desc: 'Ver lo cobrado por cada preventista' },
+    ]
+  },
+  {
+    nombre: 'Reportes',
+    modulos: [
+      { id: 'reportes_stock', icon: '⚠️', nombre: 'Reporte stock', desc: 'Stock crítico y precios desactualizados' },
+    ]
+  },
+  {
+    nombre: 'Configuración',
+    modulos: [
+      { id: 'configuracion',     icon: '🗂️', nombre: 'Productos/Proveedores', desc: 'Editar catálogo y condiciones' },
+      { id: 'usuarios_permisos', icon: '🔐', nombre: 'Usuarios y permisos',   desc: 'Gestionar accesos del equipo' },
+    ]
+  },
+];
+
+const NIVELES = [
+  { id: 'ninguno', lbl: 'Sin acceso', desc: 'No puede ver este módulo' },
+  { id: 'vista',   lbl: 'Solo vista', desc: 'Puede ver pero no modificar' },
+  { id: 'crear',   lbl: 'Crear',      desc: 'Puede ver y crear nuevos registros' },
+  { id: 'editar',  lbl: 'Editar',     desc: 'Puede ver, crear y modificar' },
+  { id: 'admin',   lbl: 'Admin',      desc: 'Control total del módulo' },
+];
+
+const DEFAULTS = {
+  preventista: {
+    pedidos: 'crear', clientes: 'crear', hoja_ruta: 'vista',
+    stock: 'vista', ingresos: 'ninguno', boletas: 'ninguno',
+    ventas_totales: 'vista', ventas_costos: 'ninguno', ventas_margenes: 'ninguno',
+    deudores: 'ninguno', recaudacion: 'ninguno', reportes_stock: 'ninguno',
+    configuracion: 'ninguno', usuarios_permisos: 'ninguno',
+  },
+  deposito: {
+    pedidos: 'vista', clientes: 'vista', hoja_ruta: 'editar',
+    stock: 'editar', ingresos: 'crear', boletas: 'editar',
+    ventas_totales: 'vista', ventas_costos: 'ninguno', ventas_margenes: 'ninguno',
+    deudores: 'ninguno', recaudacion: 'ninguno', reportes_stock: 'vista',
+    configuracion: 'ninguno', usuarios_permisos: 'ninguno',
+  },
+};
+
+const ROLES = { admin: 'Administrador', preventista: 'Preventista', deposito: 'Depósito' };
+const allModulos = secciones.flatMap(s => s.modulos).map(m => m.id);
+
+// ── ESTADO ────────────────────────────────────────────────────────────────
+let usuarios = [];
+let permisos = {};        // permisos[userId][modulo] = nivel
+let pendingChanges = {};  // pendingChanges[userId] = Set of changed modulos
+let vista = 'lista';
+let usuarioSel = null;
+let guardando = false;
+
+// ── CARGA INICIAL ──────────────────────────────────────────────────────────
+async function cargarTodo() {
+  const [{ data: usrs, error: errU }, { data: perms, error: errP }] = await Promise.all([
+    supabase.from('usuarios')
+      .select('id, nombre, email, rol')
+      .eq('empresa_id', usuario.empresa_id)
+      .order('nombre'),
+    supabase.from('permisos')
+      .select('usuario_id, modulo, nivel')
+      .eq('empresa_id', usuario.empresa_id),
+  ]);
+
+  if (errU || errP) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error al cargar datos: ${(errU || errP).message}</div>`;
+    return;
+  }
+
+  usuarios = usrs;
+
+  const permsByUser = {};
+  for (const p of (perms || [])) {
+    if (!permsByUser[p.usuario_id]) permsByUser[p.usuario_id] = {};
+    permsByUser[p.usuario_id][p.modulo] = p.nivel;
+  }
+
+  for (const u of usuarios) {
+    const dbRow = permsByUser[u.id] || {};
+    if (u.rol === 'admin') {
+      permisos[u.id] = Object.fromEntries(allModulos.map(m => [m, 'admin']));
+    } else {
+      const def = DEFAULTS[u.rol] || {};
+      permisos[u.id] = {};
+      for (const m of allModulos) {
+        permisos[u.id][m] = dbRow[m] ?? def[m] ?? 'ninguno';
+      }
+    }
+  }
+
+  render();
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root');
+  el.innerHTML = '';
+  if (vista === 'lista') renderLista(el);
+  else                   renderDetalle(el);
+}
+
+function renderLista(el) {
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Permisos</small></div>
+      </div>
+      <div class="hdr-right">
+        <button class="back" style="font-size:13px" onclick="window._goHome()">Inicio ›</button>
+      </div>
+    </div>
+    <div class="user-list">
+      ${usuarios.map(u => `
+        <div class="user-card" onclick="window._abrirDetalle('${u.id}')">
+          <div class="user-info">
+            <div class="nm">${u.nombre}</div>
+            <div class="sub">${u.email}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="rol-badge ${u.rol}">${ROLES[u.rol] || u.rol}</span>
+            <span class="arr">›</span>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="legend">
+      <div class="legend-title">Niveles de acceso</div>
+      ${NIVELES.map(n => `
+        <div class="legend-row">
+          <span class="legend-chip chip-${n.id}">${n.lbl}</span>
+          <span style="color:var(--ink-soft)">${n.desc}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderDetalle(el) {
+  const u = usuarios.find(x => x.id === usuarioSel);
+  const esAdmin = u.rol === 'admin';
+
+  el.innerHTML = `
+    <div class="hdr">
+      <button class="back" onclick="window._volverLista()">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 5l-5 5 5 5"/>
+        </svg>
+      </button>
+      <span class="hdr-title">${u.nombre}</span>
+      <div class="hdr-right">
+        ${!esAdmin ? `<button class="save-btn" onclick="window._guardar()"
+            ${guardando ? 'disabled' : ''}>
+            ${guardando ? 'Guardando…' : 'Guardar'}
+          </button>` : ''}
+      </div>
+    </div>`;
+
+  if (esAdmin) {
+    el.innerHTML += `
+      <div class="admin-notice">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="10" cy="10" r="7.5"/><path d="M10 6.5v4M10 13.5v.01"/>
+        </svg>
+        El administrador siempre tiene acceso completo a todo. Sus permisos no se pueden modificar.
+      </div>`;
+  }
+
+  if (!esAdmin) {
+    const resetDiv = document.createElement('div');
+    resetDiv.style.cssText = 'padding:10px 18px 0;display:flex;justify-content:flex-end';
+    resetDiv.innerHTML = `<button onclick="window._resetDefaults('${u.id}')"
+      style="background:none;border:none;font-size:13px;color:var(--ink-soft);
+      cursor:pointer;font-family:inherit;text-decoration:underline">
+      Restaurar defaults del rol
+    </button>`;
+    el.appendChild(resetDiv);
+  }
+
+  secciones.forEach(sec => {
+    const secDiv = document.createElement('div');
+    secDiv.innerHTML = `<div class="sec-lbl">${sec.nombre}</div>`;
+
+    sec.modulos.forEach(mod => {
+      const nivel = esAdmin ? 'admin' : (permisos[u.id]?.[mod.id] || 'ninguno');
+      const card = document.createElement('div');
+      card.className = 'modulo-card';
+      card.innerHTML = `
+        <div class="modulo-hdr">
+          <span class="modulo-icon">${mod.icon}</span>
+          <div style="flex:1">
+            <div class="modulo-nm">${mod.nombre}</div>
+            <div class="modulo-desc">${mod.desc}</div>
+          </div>
+          <span class="nivel-actual chip-${nivel}">${nivelLabel(nivel)}</span>
+        </div>
+        ${!esAdmin ? `<div class="nivel-selector">
+          ${NIVELES.map(n => `
+            <button class="nivel-btn ${nivel === n.id ? `sel-${n.id}` : ''}"
+              onclick="window._setPermiso('${u.id}','${mod.id}','${n.id}')">
+              ${n.lbl}
+            </button>`).join('')}
+        </div>` : ''}`;
+      secDiv.appendChild(card);
+    });
+    el.appendChild(secDiv);
+  });
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function nivelLabel(n) {
+  return NIVELES.find(x => x.id === n)?.lbl || n;
+}
+
+function showToast(msg, isErr = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? 'var(--red-tx)' : 'var(--ink)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._goHome = () => { location.href = './login_home.html'; };
+
+window._abrirDetalle = (id) => {
+  usuarioSel = id;
+  vista = 'detalle';
+  render();
+};
+
+window._volverLista = () => {
+  vista = 'lista';
+  usuarioSel = null;
+  render();
+};
+
+window._setPermiso = (userId, modulo, nivel) => {
+  permisos[userId][modulo] = nivel;
+  if (!pendingChanges[userId]) pendingChanges[userId] = new Set();
+  pendingChanges[userId].add(modulo);
+  render();
+};
+
+window._resetDefaults = (userId) => {
+  const u = usuarios.find(x => x.id === userId);
+  const def = DEFAULTS[u.rol] || {};
+  permisos[userId] = { ...def };
+  // mark everything as pending
+  if (!pendingChanges[userId]) pendingChanges[userId] = new Set();
+  allModulos.forEach(m => pendingChanges[userId].add(m));
+  render();
+};
+
+window._guardar = async () => {
+  const u = usuarios.find(x => x.id === usuarioSel);
+  if (!u || u.rol === 'admin') return;
+
+  const pending = pendingChanges[usuarioSel];
+  if (!pending || pending.size === 0) {
+    showToast('Sin cambios pendientes');
+    return;
+  }
+
+  guardando = true;
+  render();
+
+  // upsert all permisos for this user (full replace is safe and simple)
+  const rows = allModulos.map(modulo => ({
+    usuario_id: usuarioSel,
+    empresa_id: usuario.empresa_id,
+    modulo,
+    nivel: permisos[usuarioSel][modulo] || 'ninguno',
+  }));
+
+  const { error } = await supabase
+    .from('permisos')
+    .upsert(rows, { onConflict: 'usuario_id,modulo' });
+
+  guardando = false;
+
+  if (error) {
+    showToast('Error al guardar: ' + error.message, true);
+    render();
+    return;
+  }
+
+  delete pendingChanges[usuarioSel];
+  showToast('Permisos guardados. Aplican en el próximo login del usuario.');
+  render();
+};
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargarTodo();
+</script>
+</body>
+</html>

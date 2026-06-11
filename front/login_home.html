@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Acceso</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#1C2B27">
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="El Rey">
+<link rel="apple-touch-icon" href="./icons/icon-maskable.svg">
+<script src="./src/register-sw.js"></script>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --blue-bg:#E8F0FB;  --blue-tx:#2A4E9A;
+    --purple-bg:#F4EEFB;--purple-tx:#5E3A98;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4;min-height:100vh}
+  body{max-width:480px;margin:0 auto}
+
+  /* ── LOGIN ─────────────────────────────────────────────────────── */
+  .login-wrap{min-height:100vh;display:flex;flex-direction:column;
+    justify-content:center;padding:32px 28px}
+  .login-brand{text-align:center;margin-bottom:40px}
+  .login-crown{font-size:52px;line-height:1;color:var(--gold)}
+  .login-nombre{font-size:26px;font-weight:700;letter-spacing:-.01em;margin-top:6px}
+  .login-sub{font-size:14px;color:var(--ink-soft);margin-top:2px;letter-spacing:.04em;text-transform:uppercase;font-weight:500}
+  .login-form{display:flex;flex-direction:column;gap:14px}
+  .fl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
+  .field{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:16px;font-family:inherit;color:var(--ink)}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .login-btn{width:100%;padding:16px;border:none;border-radius:14px;
+    background:var(--gold);color:#fff;font-size:17px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:6px}
+  .login-btn:active{background:var(--gold-dk)}
+  .login-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+  .login-error{background:var(--red-bg);color:var(--red-tx);padding:12px 14px;
+    border-radius:10px;font-size:14px;font-weight:600;text-align:center;display:none}
+  .login-error.show{display:block}
+  .demo-hint{text-align:center;font-size:13px;color:var(--ink-soft);margin-top:20px}
+  .demo-chips{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .demo-chip{padding:6px 14px;border:1px solid var(--line);border-radius:999px;
+    font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-soft);background:var(--card)}
+  .demo-chip:active{background:var(--line-soft)}
+
+  /* ── HOME ──────────────────────────────────────────────────────── */
+  .hdr{padding:16px 20px 14px;border-bottom:1px solid var(--line);
+    background:var(--paper);display:flex;justify-content:space-between;align-items:center}
+  .hdr-left .greeting{font-size:13px;color:var(--ink-soft);font-weight:500}
+  .hdr-left .username{font-size:20px;font-weight:700;letter-spacing:-.01em}
+  .hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+  .rol-badge{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
+  .rol-badge.admin      {background:var(--gold-lt);color:var(--gold-dk)}
+  .rol-badge.preventista{background:var(--blue-bg);color:var(--blue-tx)}
+  .rol-badge.deposito   {background:var(--green-bg);color:var(--green-tx)}
+  .logout-btn{background:none;border:none;font-size:13px;color:var(--ink-soft);
+    cursor:pointer;font-family:inherit;padding:0}
+
+  .home-body{padding:20px 18px}
+
+  /* fecha */
+  .fecha-hoy{font-size:13px;color:var(--ink-soft);margin-bottom:16px}
+
+  /* sección */
+  .sec-title{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:10px}
+
+  /* grid de acciones */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+  .grid.single{grid-template-columns:1fr}
+  .action-card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:18px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px;
+    transition:box-shadow .15s}
+  .action-card:active{background:var(--line-soft)}
+  .action-card .icon{font-size:26px;line-height:1}
+  .action-card .ac-title{font-size:15px;font-weight:700}
+  .action-card .ac-desc{font-size:13px;color:var(--ink-soft);line-height:1.3}
+  .action-card.accent{border-color:var(--gold);background:var(--gold-lt)}
+  .action-card.red{border-color:var(--red-tx);background:var(--red-bg)}
+  .action-card.amber{border-color:var(--amber-tx);background:var(--amber-bg)}
+
+  /* alertas */
+  .alert-banner{display:flex;align-items:center;gap:10px;padding:12px 14px;
+    border-radius:12px;font-size:14px;font-weight:600;margin-bottom:10px;cursor:pointer}
+  .alert-banner.red{background:var(--red-bg);color:var(--red-tx)}
+  .alert-banner.amber{background:var(--amber-bg);color:var(--amber-tx)}
+  .alert-banner svg{width:18px;height:18px;flex-shrink:0}
+
+  /* resumen rápido */
+  .quick-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:22px}
+  .qs{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px;text-align:center}
+  .qs .num{font-size:22px;font-weight:700;line-height:1}
+  .qs .num.red{color:var(--red-tx)}
+  .qs .num.amber{color:var(--amber-tx)}
+  .qs .num.gold{color:var(--gold)}
+  .qs .lbl{font-size:11px;color:var(--ink-soft);margin-top:3px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .action-card{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import { login, logout as authLogout, requireSession, getSession, getUsuario, getPermisos } from './src/auth.js'
+import { cap, fechaLarga } from './src/utils.js'
+import { supabase } from './src/supabase.js'
+import { initSync, mountStatusBadge } from './src/sync.js'
+
+let usuarioActual = null;
+
+// ── HELPERS ────────────────────────────────────────────────────────────
+const ROLES = {
+  admin:       'Administrador',
+  preventista: 'Preventista',
+  deposito:    'Depósito',
+};
+const hoyStr = () => cap(fechaLarga(new Date()));
+
+// expongo handlers a los onclick inline del HTML
+window.intentarLogin = intentarLogin;
+window.logout = handleLogout;
+
+// ── ARRANQUE ───────────────────────────────────────────────────────────
+async function arrancar(){
+  try {
+    const session = await getSession();
+    if (session) {
+      // hay sesión persistida en localStorage
+      usuarioActual = getUsuario();
+      if (!usuarioActual) {
+        // token válido pero falta cargar perfil → forzar logout para relogear limpio
+        await authLogout();
+      } else {
+        initSync(supabase); // no await — corre en background
+      }
+    }
+  } catch (e) {
+    console.error('[arrancar] error:', e);
+  }
+  render();
+}
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────────────
+function render(){
+  if(!usuarioActual) renderLogin();
+  else               renderHome();
+}
+
+// ── LOGIN ──────────────────────────────────────────────────────────────
+function renderLogin(){
+  document.getElementById('root').innerHTML = `
+    <div class="login-wrap">
+      <div class="login-brand">
+        <div class="login-crown">&#9818;</div>
+        <div class="login-nombre">El Rey</div>
+        <div class="login-sub">Distribuidora</div>
+      </div>
+      <div class="login-form">
+        <div>
+          <label class="fl" for="email">Usuario</label>
+          <input class="field" id="email" type="email" placeholder="tu@email.com"
+            autocomplete="username" inputmode="email">
+        </div>
+        <div>
+          <label class="fl" for="pass">Contraseña</label>
+          <input class="field" id="pass" type="password" placeholder="••••••"
+            autocomplete="current-password"
+            onkeydown="if(event.key==='Enter') window.intentarLogin()">
+        </div>
+        <div id="err" class="login-error">Usuario o contraseña incorrectos</div>
+        <button id="login-btn" class="login-btn" onclick="window.intentarLogin()">Ingresar</button>
+      </div>
+    </div>`;
+}
+
+async function intentarLogin(){
+  const email = document.getElementById('email')?.value;
+  const pass  = document.getElementById('pass')?.value;
+  const errEl = document.getElementById('err');
+  const btn   = document.getElementById('login-btn');
+  errEl?.classList.remove('show');
+
+  if (!email || !pass) {
+    if (errEl) { errEl.textContent = 'Completá email y contraseña'; errEl.classList.add('show'); }
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
+  try {
+    const { usuario } = await login(email, pass);
+    usuarioActual = usuario;
+    initSync(supabase); // no await — corre en background
+    render();
+  } catch (e) {
+    if (errEl) {
+      errEl.textContent = e.message?.includes('Invalid login') ? 'Usuario o contraseña incorrectos' : e.message;
+      errEl.classList.add('show');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+  }
+}
+
+async function handleLogout(){
+  await authLogout();
+  usuarioActual = null;
+  render();
+}
+
+// ── HOME ───────────────────────────────────────────────────────────────
+function renderHome(){
+  const u = usuarioActual;
+  const el = document.getElementById('root');
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="hdr-left">
+        <div class="greeting">Bienvenido,</div>
+        <div class="username">${u.nombre}</div>
+      </div>
+      <div class="hdr-right">
+        <span class="rol-badge ${u.rol}">${ROLES[u.rol]}</span>
+        <div id="sync-badge"></div>
+        <button class="logout-btn" onclick="logout()">Cerrar sesión</button>
+      </div>
+    </div>
+    <div class="home-body">
+      <div class="fecha-hoy">${hoyStr()}</div>
+      <div id="home-content"></div>
+    </div>`;
+
+  // montar badge después de que el DOM esté listo
+  const badgeEl = document.getElementById('sync-badge');
+  if (badgeEl) mountStatusBadge(badgeEl);
+
+  if(u.rol==='admin')       renderHomeAdmin();
+  else if(u.rol==='preventista') renderHomePreventista();
+  else                           renderHomeDeposito();
+}
+
+// ── HOME ADMIN ─────────────────────────────────────────────────────────
+function renderHomeAdmin(){
+  const box = document.getElementById('home-content');
+  box.innerHTML = `
+    <div class="sec-title">Alertas</div>
+    ${ALERTAS.map(a=>`
+      <div class="alert-banner ${a.tipo}">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 2L2 17h16L10 2zM10 8v4M10 14v.01"/>
+        </svg>
+        ${a.msg}
+      </div>`).join('')}
+
+    <div class="sec-title" style="margin-top:16px">Resumen de hoy</div>
+    <div class="quick-stats">
+      <div class="qs"><div class="num gold">$284k</div><div class="lbl">Vendido hoy</div></div>
+      <div class="qs"><div class="num">8</div><div class="lbl">Pedidos</div></div>
+      <div class="qs"><div class="num red">5</div><div class="lbl">Deudores</div></div>
+    </div>
+
+    <div class="sec-title">Operaciones</div>
+    <div class="grid">
+      <div class="action-card accent" onclick="location.href='./hoja_ruta.html'">
+        <div class="icon">🚚</div>
+        <div class="ac-title">Hoja de ruta</div>
+        <div class="ac-desc">Reparto del día</div>
+      </div>
+      <div class="action-card" onclick="location.href='./pedido_preventista.html'">
+        <div class="icon">📋</div>
+        <div class="ac-title">Nuevo pedido</div>
+        <div class="ac-desc">Cargar pedido a un cliente</div>
+      </div>
+      <div class="action-card" onclick="location.href='./ingreso_boleta.html'">
+        <div class="icon">📦</div>
+        <div class="ac-title">Ingresos</div>
+        <div class="ac-desc">Cargar boleta de proveedor</div>
+      </div>
+      <div class="action-card" onclick="location.href='./clientes.html'">
+        <div class="icon">👥</div>
+        <div class="ac-title">Clientes</div>
+        <div class="ac-desc">Ver y gestionar clientes</div>
+      </div>
+      <div class="action-card" onclick="location.href='./stock.html'">
+        <div class="icon">🏪</div>
+        <div class="ac-title">Stock</div>
+        <div class="ac-desc">Estado del depósito</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Reportes</div>
+    <div class="grid">
+      <div class="action-card" onclick="location.href='./reporte_ventas.html'">
+        <div class="icon">📈</div>
+        <div class="ac-title">Ventas</div>
+        <div class="ac-desc">Por período y preventista</div>
+      </div>
+      <div class="action-card red" onclick="location.href='./reporte_deudores.html'">
+        <div class="icon">💸</div>
+        <div class="ac-title">Deudores</div>
+        <div class="ac-desc">Clientes con saldo pendiente</div>
+      </div>
+      <div class="action-card amber" onclick="location.href='./reporte_stock.html'">
+        <div class="icon">⚠️</div>
+        <div class="ac-title">Stock crítico</div>
+        <div class="ac-desc">Negativos y sin ingreso</div>
+      </div>
+      <div class="action-card" onclick="location.href='./reporte_recaudacion.html'">
+        <div class="icon">💵</div>
+        <div class="ac-title">Recaudación</div>
+        <div class="ac-desc">Lo cobrado por preventista</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Configuración</div>
+    <div class="grid">
+      <div class="action-card">
+        <div class="icon">🏭</div>
+        <div class="ac-title">Proveedores</div>
+        <div class="ac-desc">Cargos y condiciones</div>
+      </div>
+      <div class="action-card" onclick="location.href='./productos.html'">
+        <div class="icon">🗂️</div>
+        <div class="ac-title">Productos</div>
+        <div class="ac-desc">Catálogo completo</div>
+      </div>
+      <div class="action-card" onclick="location.href='./permisos.html'">
+        <div class="icon">🔐</div>
+        <div class="ac-title">Permisos</div>
+        <div class="ac-desc">Accesos del equipo</div>
+      </div>
+    </div>`;
+}
+
+// ── HOME PREVENTISTA ───────────────────────────────────────────────────
+function renderHomePreventista(){
+  const box = document.getElementById('home-content');
+  const u = usuarioActual;
+  box.innerHTML = `
+    <div class="sec-title">Mis ventas de hoy</div>
+    <div class="quick-stats">
+      <div class="qs"><div class="num gold">$138k</div><div class="lbl">Vendido</div></div>
+      <div class="qs"><div class="num">4</div><div class="lbl">Pedidos</div></div>
+      <div class="qs"><div class="num">$34k</div><div class="lbl">Ticket prom.</div></div>
+    </div>
+
+    <div class="sec-title">Acciones</div>
+    <div class="grid">
+      <div class="action-card accent" onclick="location.href='./pedido_preventista.html'">
+        <div class="icon">🛒</div>
+        <div class="ac-title">Nuevo pedido</div>
+        <div class="ac-desc">Cargar pedido a un cliente</div>
+      </div>
+      <div class="action-card" onclick="location.href='./clientes.html'">
+        <div class="icon">👥</div>
+        <div class="ac-title">Clientes</div>
+        <div class="ac-desc">Ver saldos y crear nuevos</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Mis pedidos de hoy</div>
+    <div class="grid single">
+      ${[
+        {cli:'Kiosco La Esquina',   monto:'$67.500', hora:'09:12'},
+        {cli:'Almacén Doña Rosa',   monto:'$31.200', hora:'10:45'},
+        {cli:'Despensa San Martín', monto:'$22.800', hora:'11:30'},
+        {cli:'Maxikiosco 24hs',     monto:'$16.400', hora:'14:10'},
+      ].map(p=>`
+        <div class="action-card" style="flex-direction:row;justify-content:space-between;align-items:center;padding:14px 16px">
+          <div>
+            <div class="ac-title" style="font-size:15px">${p.cli}</div>
+            <div style="font-size:12px;color:var(--ink-soft)">${p.hora}</div>
+          </div>
+          <div style="font-size:16px;font-weight:700;color:var(--gold)">${p.monto}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── HOME DEPÓSITO ──────────────────────────────────────────────────────
+function renderHomeDeposito(){
+  const box = document.getElementById('home-content');
+  box.innerHTML = `
+    <div class="sec-title">Alertas de stock</div>
+    <div class="alert-banner red">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 2L2 17h16L10 2zM10 8v4M10 14v.01"/>
+      </svg>
+      3 productos con stock negativo — revisar
+    </div>
+
+    <div class="sec-title" style="margin-top:14px">Acciones</div>
+    <div class="grid">
+      <div class="action-card accent" onclick="location.href='./hoja_ruta.html'">
+        <div class="icon">🚚</div>
+        <div class="ac-title">Hoja de ruta</div>
+        <div class="ac-desc">Reparto del día</div>
+      </div>
+      <div class="action-card" onclick="location.href='./ingreso_boleta.html'">
+        <div class="icon">📦</div>
+        <div class="ac-title">Cargar ingreso</div>
+        <div class="ac-desc">Registrar boleta de proveedor</div>
+      </div>
+      <div class="action-card red">
+        <div class="icon">⚠️</div>
+        <div class="ac-title">Stock negativo</div>
+        <div class="ac-desc">3 productos a corregir</div>
+      </div>
+      <div class="action-card" onclick="location.href='./stock.html'">
+        <div class="icon">🏪</div>
+        <div class="ac-title">Ver stock</div>
+        <div class="ac-desc">Estado completo del depósito</div>
+      </div>
+      <div class="action-card">
+        <div class="icon">🧾</div>
+        <div class="ac-title">Boletas</div>
+        <div class="ac-desc">Ver y modificar boletas</div>
+      </div>
+      <div class="action-card" onclick="location.href='./clientes.html'">
+        <div class="icon">👥</div>
+        <div class="ac-title">Clientes</div>
+        <div class="ac-desc">Ver saldos y registrar cobros</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Pedidos pendientes de despacho</div>
+    <div class="grid single">
+      ${[
+        {num:'#0034', cli:'Perfumería Belén',    items:4, hora:'08:30'},
+        {num:'#0035', cli:'Kiosco La Esquina',   items:2, hora:'09:15'},
+        {num:'#0036', cli:'Almacén Doña Rosa',   items:6, hora:'10:00'},
+      ].map(p=>`
+        <div class="action-card" style="flex-direction:row;justify-content:space-between;align-items:center;padding:14px 16px">
+          <div>
+            <div style="font-size:13px;color:var(--ink-soft);font-weight:600">${p.num} · ${p.hora}</div>
+            <div class="ac-title">${p.cli}</div>
+            <div style="font-size:12px;color:var(--ink-soft)">${p.items} ítems</div>
+          </div>
+          <div style="padding:7px 12px;background:var(--amber-bg);color:var(--amber-tx);
+            border-radius:999px;font-size:12px;font-weight:600">Pendiente</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+arrancar();
+</script>
+</body>
+</html>

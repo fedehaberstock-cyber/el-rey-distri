@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Bash(*)",
+      "WebFetch(domain:rqbpzmkcwxruzszbtsjv.supabase.co)",
+      "Bash(curl -s \"https://rqbpzmkcwxruzszbtsjv.supabase.co/rest/v1/?apikey=sb_publishable_hvP3OzQ8uwx_5EsIrX14Cg_jkjfjbgD\" -H \"Authorization: Bearer sb_publishable_hvP3OzQ8uwx_5EsIrX14Cg_jkjfjbgD\" -H \"Accept: application/json\")",
+      "Bash(curl -s https://rqbpzmkcwxruzszbtsjv.supabase.co/rest/v1/ -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYnB6bWtjd3hydXpzemJ0c2p2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA1MTQ1MCwiZXhwIjoyMDk2NjI3NDUwfQ.w80D2ALnfrxTLi82kVaLPnTFxBFjK5EwOLRONADDh3U' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYnB6bWtjd3hydXpzemJ0c2p2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA1MTQ1MCwiZXhwIjoyMDk2NjI3NDUwfQ.w80D2ALnfrxTLi82kVaLPnTFxBFjK5EwOLRONADDh3U')",
+      "Bash(python3 -c ' *)",
+      "Bash(mkdir -p /c/tmp)",
+      "Bash(curl -s https://rqbpzmkcwxruzszbtsjv.supabase.co/rest/v1/ -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYnB6bWtjd3hydXpzemJ0c2p2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA1MTQ1MCwiZXhwIjoyMDk2NjI3NDUwfQ.w80D2ALnfrxTLi82kVaLPnTFxBFjK5EwOLRONADDh3U' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYnB6bWtjd3hydXpzemJ0c2p2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA1MTQ1MCwiZXhwIjoyMDk2NjI3NDUwfQ.w80D2ALnfrxTLi82kVaLPnTFxBFjK5EwOLRONADDh3U' -o /c/tmp/schema.json)",
+      "Read(//c/tmp/**)",
+      "Bash(python3)",
+      "Bash(npm install *)",
+      "Bash(supabase init *)",
+      "PowerShell(supabase init --workdir \"G:\\\\Claude proyecto distri el rey\" 2>&1)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' https://rqbpzmkcwxruzszbtsjv.supabase.co/rest/v1/ -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYnB6bWtjd3hydXpzemJ0c2p2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA1MTQ1MCwiZXhwIjoyMDk2NjI3NDUwfQ.w80D2ALnfrxTLi82kVaLPnTFxBFjK5EwOLRONADDh3U' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxYnB6bWtjd3hydXpzemJ0c2p2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA1MTQ1MCwiZXhwIjoyMDk2NjI3NDUwfQ.w80D2ALnfrxTLi82kVaLPnTFxBFjK5EwOLRONADDh3U')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('LOGIN OK' if 'access_token' in d else 'FAIL: '+json.dumps\\(d\\)[:200]\\); print\\('user_id:', d.get\\('user',{}\\).get\\('id'\\)\\)\")",
+      "Bash(python3 -m http.server 5500)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"Servidor responde: HTTP %{http_code}\\\\n\" \"http://localhost:5500/login_home.html\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"http://localhost:5500/login_home.html\")",
+      "Bash(curl -s -o /dev/null -w \"src/supabase.js: HTTP %{http_code}\\\\n\" \"http://localhost:5500/src/supabase.js\")",
+      "Bash(curl -s -o /dev/null -w \"src/auth.js: HTTP %{http_code}\\\\n\" \"http://localhost:5500/src/auth.js\")",
+      "Bash(curl -s -o /dev/null -w \"src/utils.js: HTTP %{http_code}\\\\n\" \"http://localhost:5500/src/utils.js\")",
+      "Bash(ls ~/.claude/projects/ 2>/dev/null | head -20)"
+    ]
+  }
+}

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Recaudación</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --blue-bg:#E8F0FB;  --blue-tx:#2A4E9A;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+
+  .periodo-wrap{padding:12px 18px 10px;border-bottom:1px solid var(--line-soft);
+    background:var(--paper);position:sticky;top:57px;z-index:19}
+  .pchips{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px}
+  .pchips::-webkit-scrollbar{display:none}
+  .pchip{padding:7px 14px;border-radius:999px;font-size:14px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    white-space:nowrap;cursor:pointer;flex-shrink:0}
+  .pchip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+  .date-range{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .date-range input{width:100%;padding:8px 12px;border:1px solid var(--line);
+    border-radius:10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--card)}
+  .date-range input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .fecha-lbl{font-size:13px;color:var(--ink-soft);padding-top:2px}
+
+  .kpi-total{margin:14px 18px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:18px 20px;display:flex;justify-content:space-between;align-items:center}
+  .kpi-total .lbl{font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px}
+  .kpi-total .num{font-size:32px;font-weight:700;letter-spacing:-.02em;color:var(--gold)}
+  .kpi-total .sub{font-size:13px;color:var(--ink-soft);margin-top:2px}
+
+  .share-wrap{margin:0 18px 14px}
+  .share-bar{height:20px;border-radius:999px;overflow:hidden;display:flex}
+  .share-seg{height:100%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:#fff;transition:width .4s ease}
+  .share-legend{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+  .sl{display:flex;align-items:center;gap:5px;font-size:13px}
+  .sl-dot{width:10px;height:10px;border-radius:50%}
+
+  .prev-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 18px;margin-bottom:14px}
+  .prev-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .prev-card .name{font-size:15px;font-weight:700;margin-bottom:12px;
+    display:flex;align-items:center;gap:6px}
+  .prev-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .prev-stat{margin-bottom:8px}
+  .prev-stat .k{font-size:11px;color:var(--ink-soft);font-weight:500;
+    text-transform:uppercase;letter-spacing:.05em}
+  .prev-stat .v{font-size:18px;font-weight:700;line-height:1.2}
+  .forma-breakdown{margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)}
+  .forma-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
+  .forma-row .k{color:var(--ink-soft)}
+  .forma-row .v{font-weight:600}
+
+  .sec-lbl{padding:14px 18px 8px;font-size:12px;font-weight:700;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
+
+  .dia-row{margin:0 18px 8px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;overflow:hidden}
+  .dia-hdr{display:flex;justify-content:space-between;align-items:center;
+    padding:11px 14px;cursor:pointer}
+  .dia-hdr:active{background:var(--line-soft)}
+  .dia-fecha{font-size:14px;font-weight:600}
+  .dia-right{display:flex;align-items:center;gap:10px}
+  .dia-total{font-size:15px;font-weight:700;color:var(--gold)}
+  .dia-arr{color:var(--ink-soft);font-size:16px;transition:transform .2s}
+  .dia-arr.open{transform:rotate(90deg)}
+  .dia-body{border-top:1px solid var(--line-soft);padding:10px 14px}
+  .dia-body.hidden{display:none}
+  .dia-prev-row{display:flex;justify-content:space-between;align-items:center;
+    padding:6px 0;border-bottom:1px solid var(--line-soft)}
+  .dia-prev-row:last-child{border-bottom:none}
+  .dia-prev-nm{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
+  .dia-prev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dia-prev-detail{text-align:right}
+  .dia-prev-total{font-size:14px;font-weight:700}
+  .dia-prev-forms{font-size:12px;color:var(--ink-soft);margin-top:2px}
+
+  .chart-wrap{padding:0 18px 18px}
+  .chart-title{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:10px}
+  .bars-wrap{display:flex;align-items:flex-end;gap:4px;height:120px}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .bar-stacked{width:100%;display:flex;flex-direction:column;justify-content:flex-end}
+  .bar-seg{width:100%;min-height:2px}
+  .bar-seg:first-child{border-radius:4px 4px 0 0}
+  .bar-col .x{font-size:10px;color:var(--ink-soft);text-align:center}
+
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .empty{text-align:center;padding:40px 20px;color:var(--ink-soft);font-size:15px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .dia-row,.prev-card{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPA_URL = 'https://rqbpzmkcwxruzszbtsjv.supabase.co';
+const SUPA_KEY = 'sb_publishable_tdI7VSKRcEqhaTVY0ipprA_umkrtiQb';
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+// ── AUTH + PERMISOS ────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login.html'; }
+
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, nombre, rol, empresa_id').eq('id', session.user.id).single();
+if (!usuario) { location.href = './login.html'; }
+
+if (usuario.rol !== 'admin') {
+  const { data: perm } = await supabase.from('permisos')
+    .select('nivel').eq('usuario_id', usuario.id).eq('modulo', 'recaudacion').single();
+  if (!perm || perm.nivel === 'ninguno') { location.href = './login_home.html'; }
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+const ars  = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+const arsK = n => n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n / 1000) + 'k' : '$' + n;
+
+function isoHoy() { return new Date().toISOString().slice(0, 10); }
+function isoOffset(days) { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); }
+function inicioMes() { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); }
+function inicioMesAnterior() {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+  return d.toISOString().slice(0, 10);
+}
+function finMesAnterior() {
+  const d = new Date(); d.setDate(0); // last day of prev month
+  return d.toISOString().slice(0, 10);
+}
+
+function formatFecha(s) {
+  const [, m, d] = s.split('-');
+  const ms = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${parseInt(d)} ${ms[parseInt(m) - 1]}`;
+}
+function formatRango(d, h) {
+  const yr = d.slice(0, 4);
+  return d === h ? formatFecha(d) + ' ' + yr : formatFecha(d) + ' → ' + formatFecha(h) + ' ' + yr;
+}
+
+const COLORES = ['#A9760E', '#2A4E9A', '#2C6B3F', '#A8392B', '#5E3A98'];
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let periodo = 'semana';
+let desde = isoOffset(-6);
+let hasta = isoHoy();
+let diasExpandidos = {};
+let todosLosCobros = [];   // cache: mov_cuenta tipo=pago, last 6 months
+let preventistas = [];     // [{nombre, color}]
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargarTodo() {
+  const hace180 = isoOffset(-180);
+
+  const [{ data: cobros, error: errC }, { data: prevs, error: errP }] = await Promise.all([
+    supabase.from('mov_cuenta')
+      .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios(nombre)')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('tipo', 'pago')
+      .gte('fecha', hace180)
+      .order('fecha', { ascending: false }),
+    supabase.from('usuarios')
+      .select('id, nombre')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('rol', 'preventista'),
+  ]);
+
+  if (errC) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error al cargar cobros: ${errC.message}</div>`;
+    return;
+  }
+
+  todosLosCobros = (cobros || []).map(c => ({
+    ...c,
+    nombreUsuario: c.usuarios?.nombre || 'Desconocido',
+    // normalise forma_pago: efectivo / transferencia / cuenta_corriente
+    efectivo: (c.forma_pago === 'efectivo'       || !c.forma_pago) ? Math.abs(c.monto) : 0,
+    transf:   c.forma_pago === 'transferencia'   ? Math.abs(c.monto) : 0,
+    cc:       c.forma_pago === 'cuenta_corriente' ? Math.abs(c.monto) : 0,
+  }));
+
+  // derive preventistas from data OR from users table
+  const nombresEnCobros = new Set(todosLosCobros.map(c => c.nombreUsuario));
+  const nombresUsrs = (prevs || []).map(u => u.nombre);
+  const todosNombres = [...new Set([...nombresUsrs, ...nombresEnCobros])].filter(Boolean).sort();
+  preventistas = todosNombres.map((nombre, i) => ({ nombre, color: COLORES[i % COLORES.length] }));
+
+  render();
+}
+
+// ── FILTRO ─────────────────────────────────────────────────────────────────
+function cobrosEnPeriodo() {
+  return todosLosCobros.filter(c => c.fecha >= desde && c.fecha <= hasta);
+}
+
+function statsPrev(nombre, lista) {
+  const mis = lista.filter(c => c.nombreUsuario === nombre);
+  const ef  = mis.reduce((s, c) => s + c.efectivo, 0);
+  const tr  = mis.reduce((s, c) => s + c.transf, 0);
+  const cc  = mis.reduce((s, c) => s + c.cc, 0);
+  return { ef, tr, cc, total: ef + tr + cc, cobros: mis.length };
+}
+
+function diasDelPeriodo(lista) {
+  return [...new Set(lista.map(c => c.fecha))].sort((a, b) => b.localeCompare(a));
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root');
+  const lista = cobrosEnPeriodo();
+  const stats = preventistas.map(p => ({ ...p, ...statsPrev(p.nombre, lista) }));
+  const totalGral = stats.reduce((s, p) => s + p.total, 0);
+  const dias = diasDelPeriodo(lista);
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Recaudación</small></div>
+      </div>
+      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;margin-left:auto;font-family:inherit"
+        onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+
+    <div class="periodo-wrap">
+      <div class="pchips">
+        ${[['hoy','Hoy'],['semana','Esta semana'],['mes','Este mes'],['mes_ant','Mes anterior'],['rango','Rango libre']].map(([id, lbl]) =>
+          `<div class="pchip ${periodo === id ? 'active' : ''}" onclick="window._setPeriodo('${id}')">${lbl}</div>`
+        ).join('')}
+      </div>
+      ${periodo === 'rango' ? `
+        <div class="date-range">
+          <input type="date" value="${desde}" onchange="window._setDesde(this.value)">
+          <input type="date" value="${hasta}" onchange="window._setHasta(this.value)">
+        </div>`
+      : `<div class="fecha-lbl">${formatRango(desde, hasta)}</div>`}
+    </div>`;
+
+  if (!lista.length) {
+    el.innerHTML += `<div class="empty">Sin cobros en este período.</div>`;
+    return;
+  }
+
+  // KPI total
+  el.innerHTML += `
+    <div class="kpi-total">
+      <div>
+        <div class="lbl">Total recaudado</div>
+        <div class="num">${ars(totalGral)}</div>
+        <div class="sub">${dias.length} día${dias.length > 1 ? 's' : ''} · ${lista.length} cobro${lista.length > 1 ? 's' : ''}</div>
+      </div>
+    </div>`;
+
+  // share bar (only if multiple preventistas)
+  if (preventistas.length > 1) {
+    el.innerHTML += `
+      <div class="share-wrap">
+        <div class="share-bar">
+          ${stats.map(s => {
+            const pct = totalGral ? Math.round(s.total / totalGral * 100) : 0;
+            return `<div class="share-seg" style="width:${pct}%;background:${s.color}">${pct > 12 ? pct + '%' : ''}</div>`;
+          }).join('')}
+        </div>
+        <div class="share-legend">
+          ${stats.map(s => {
+            const pct = totalGral ? Math.round(s.total / totalGral * 100) : 0;
+            return `<div class="sl"><div class="sl-dot" style="background:${s.color}"></div>
+              <span>${s.nombre} ${pct}%</span></div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  // cards por preventista
+  const cardsDiv = document.createElement('div');
+  cardsDiv.className = 'prev-cards';
+  stats.filter(s => s.total > 0).forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'prev-card';
+    card.innerHTML = `
+      <div class="name"><div class="prev-dot" style="background:${s.color}"></div>${s.nombre}</div>
+      <div class="prev-stat"><div class="k">Total cobrado</div>
+        <div class="v" style="color:${s.color}">${ars(s.total)}</div></div>
+      <div class="prev-stat"><div class="k">Cobros</div><div class="v">${s.cobros}</div></div>
+      <div class="forma-breakdown">
+        <div class="forma-row"><span class="k">💵 Efectivo</span><span class="v">${ars(s.ef)}</span></div>
+        <div class="forma-row"><span class="k">📲 Transf.</span><span class="v">${ars(s.tr)}</span></div>
+        <div class="forma-row"><span class="k">📒 Cuenta</span><span class="v">${ars(s.cc)}</span></div>
+      </div>`;
+    cardsDiv.appendChild(card);
+  });
+  el.appendChild(cardsDiv);
+
+  // gráfico si hay más de 1 día
+  if (dias.length > 1) renderChart(el, lista, dias);
+
+  // detalle por día
+  const secLbl = document.createElement('div');
+  secLbl.className = 'sec-lbl';
+  secLbl.textContent = 'Detalle por día';
+  el.appendChild(secLbl);
+
+  dias.forEach(dia => {
+    const cobDia = lista.filter(c => c.fecha === dia);
+    const totDia = cobDia.reduce((s, c) => s + c.efectivo + c.transf + c.cc, 0);
+    const abierto = !!diasExpandidos[dia];
+
+    const row = document.createElement('div');
+    row.className = 'dia-row';
+    row.innerHTML = `
+      <div class="dia-hdr" onclick="window._toggleDia('${dia}')">
+        <span class="dia-fecha">${formatFecha(dia)}</span>
+        <div class="dia-right">
+          <span class="dia-total">${ars(totDia)}</span>
+          <span class="dia-arr ${abierto ? 'open' : ''}">›</span>
+        </div>
+      </div>
+      <div class="dia-body ${abierto ? '' : 'hidden'}">
+        ${preventistas.map(p => {
+          const mis = cobDia.filter(c => c.nombreUsuario === p.nombre);
+          if (!mis.length) return '';
+          const ef  = mis.reduce((s, c) => s + c.efectivo, 0);
+          const tr  = mis.reduce((s, c) => s + c.transf, 0);
+          const cc  = mis.reduce((s, c) => s + c.cc, 0);
+          const tot = ef + tr + cc;
+          const partes = [];
+          if (ef) partes.push(`💵 ${arsK(ef)}`);
+          if (tr) partes.push(`📲 ${arsK(tr)}`);
+          if (cc) partes.push(`📒 ${arsK(cc)}`);
+          return `<div class="dia-prev-row">
+            <div class="dia-prev-nm">
+              <div class="dia-prev-dot" style="background:${p.color}"></div>${p.nombre}
+            </div>
+            <div class="dia-prev-detail">
+              <div class="dia-prev-total" style="color:${p.color}">${ars(tot)}</div>
+              <div class="dia-prev-forms">${partes.join(' · ')}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    el.appendChild(row);
+  });
+}
+
+function renderChart(el, lista, dias) {
+  const wrap = document.createElement('div');
+  wrap.className = 'chart-wrap';
+  const diasOrd = [...dias].reverse();
+  const maxTotal = Math.max(...diasOrd.map(d =>
+    lista.filter(c => c.fecha === d).reduce((s, c) => s + c.efectivo + c.transf + c.cc, 0)
+  ), 1);
+
+  wrap.innerHTML = `
+    <div class="chart-title">Recaudación diaria por preventista</div>
+    <div class="bars-wrap">
+      ${diasOrd.map(dia => {
+        const segs = [...preventistas].reverse().map(p => {
+          const tot = lista.filter(c => c.fecha === dia && c.nombreUsuario === p.nombre)
+            .reduce((s, c) => s + c.efectivo + c.transf + c.cc, 0);
+          const h = Math.round(tot / maxTotal * 110);
+          return `<div class="bar-seg" style="height:${h}px;background:${p.color}"></div>`;
+        }).join('');
+        return `<div class="bar-col">
+          <div class="bar-stacked" style="height:110px">${segs}</div>
+          <span class="x">${dia.slice(8)}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  el.appendChild(wrap);
+}
+
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._setPeriodo = p => {
+  periodo = p;
+  const hoy = isoHoy();
+  if (p === 'hoy')     { desde = hoy;               hasta = hoy; }
+  if (p === 'semana')  { desde = isoOffset(-6);      hasta = hoy; }
+  if (p === 'mes')     { desde = inicioMes();        hasta = hoy; }
+  if (p === 'mes_ant') { desde = inicioMesAnterior(); hasta = finMesAnterior(); }
+  diasExpandidos = {};
+  render();
+};
+window._setDesde   = v => { desde = v; render(); };
+window._setHasta   = v => { hasta = v; render(); };
+window._toggleDia  = dia => { diasExpandidos[dia] = !diasExpandidos[dia]; render(); };
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargarTodo();
+</script>
+</body>
+</html>

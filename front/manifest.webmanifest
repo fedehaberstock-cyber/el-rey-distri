@@ -1,0 +1,42 @@
+{
+  "name": "El Rey — Distribuidora",
+  "short_name": "El Rey",
+  "description": "ERP para distribuidora mayorista",
+  "start_url": "./login_home.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FBF9F2",
+  "theme_color": "#1C2B27",
+  "lang": "es-AR",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nuevo pedido",
+      "short_name": "Pedido",
+      "url": "./pedido_preventista.html",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Hoja de ruta",
+      "short_name": "Hoja ruta",
+      "url": "./hoja_ruta.html",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "screenshots": []
+}

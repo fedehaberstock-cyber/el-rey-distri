@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Nuevo ingreso</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF; --line-soft:#EEEADD;
+    --gold:#A9760E; --gold-dk:#8A5F09;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2; --red-tx:#A8392B;
+    --card:#FFFFFF; --ai-bg:#F4EEFB; --ai-tx:#5E3A98;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:160px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .back{display:flex;align-items:center;gap:6px;background:none;border:none;
+    font-size:16px;font-weight:600;color:var(--gold);cursor:pointer;padding:0}
+  .back svg{width:20px;height:20px}
+  .hdr-title{font-size:17px;font-weight:600;flex:1;text-align:center}
+  .hdr-right{min-width:60px}
+
+  section{padding:18px}
+  .lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px}
+  .lbl-sub{text-transform:none;font-weight:500;color:var(--ink-soft);letter-spacing:0}
+  .field{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:16px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .divider{height:1px;background:var(--line-soft);margin:0 18px}
+
+  .ai-btn{display:flex;align-items:center;gap:10px;width:100%;
+    padding:13px 14px;border:1px dashed var(--ai-tx);background:var(--ai-bg);
+    color:var(--ai-tx);border-radius:12px;font-size:15px;font-weight:600;
+    font-family:inherit;cursor:pointer;margin-bottom:14px}
+  .ai-btn svg{width:18px;height:18px;flex-shrink:0}
+  .ai-btn:active{filter:brightness(.95)}
+
+  .item{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px}
+  .item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .item .nm{font-size:15px;font-weight:600;flex:1}
+  .item .lt{font-size:15px;font-weight:700;white-space:nowrap}
+  .item .x{border:none;background:none;color:var(--ink-soft);font-size:20px;
+    line-height:1;padding:0 0 0 6px;cursor:pointer}
+  .ctrls{display:flex;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap}
+  .stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .stepper button{width:34px;height:34px;border:none;background:var(--card);font-size:18px;
+    color:var(--gold);cursor:pointer}
+  .stepper button:active{background:var(--line-soft)}
+  .stepper .qty{min-width:30px;text-align:center;font-weight:600;font-size:15px}
+  .bulto-mult{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--ink-soft);font-weight:500}
+  .bulto-mult input{width:42px;padding:6px 6px;border:1px solid var(--line);border-radius:8px;
+    text-align:center;font-family:inherit;font-size:14px;color:var(--ink)}
+  .mini{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--ink-soft)}
+  .mini input{width:78px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;
+    text-align:right;font-family:inherit;font-size:14px;color:var(--ink)}
+  .item-meta{margin-top:8px;font-size:13px;color:var(--ink-soft);display:flex;
+    justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .item-meta .units{font-weight:600;color:var(--ink)}
+  .item-meta .final{color:var(--ai-tx);font-weight:500}
+  .add-prod{width:100%;padding:13px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-weight:600;color:var(--gold);cursor:pointer;
+    font-family:inherit}
+  .add-prod:active{background:var(--line-soft)}
+  .empty-items{text-align:center;color:var(--ink-soft);font-size:14px;
+    padding:24px 10px;border:1px dashed var(--line);border-radius:12px;margin-bottom:10px}
+
+  /* CARGOS */
+  .cargos{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .cargo-row{display:flex;align-items:center;gap:12px;padding:11px 14px;
+    border-bottom:1px solid var(--line-soft)}
+  .cargo-row:last-child{border-bottom:none}
+  .cb{position:relative;flex-shrink:0}
+  .cb input{appearance:none;width:22px;height:22px;border:2px solid var(--line);
+    border-radius:6px;cursor:pointer;margin:0;background:#fff}
+  .cb input:checked{background:var(--gold);border-color:var(--gold)}
+  .cb input:checked::after{content:'✓';position:absolute;inset:0;color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;pointer-events:none}
+  .cargo-nm{flex:1;font-size:14px;color:var(--ink-soft);font-weight:500}
+  .cargo-row.on .cargo-nm{color:var(--ink);font-weight:600}
+  .pct-input{display:flex;align-items:center;gap:3px;font-size:13px;color:var(--ink-soft)}
+  .pct-input input{width:56px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;
+    text-align:right;font-family:inherit;font-size:14px;color:var(--ink)}
+  .cargo-monto{font-size:13px;font-weight:600;color:var(--ink-soft);
+    min-width:78px;text-align:right}
+
+  /* RESUMEN */
+  .resume{margin:0 18px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px;margin-bottom:18px}
+  .resume .line{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0}
+  .resume .line .k{font-size:14px;color:var(--ink-soft)}
+  .resume .line .v{font-size:15px;font-weight:600}
+  .resume .line.total{padding-top:10px;margin-top:6px;border-top:1px solid var(--line-soft)}
+  .resume .line.total .k{font-size:14px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em}
+  .resume .line.total .v{font-size:18px;font-weight:700}
+  .resume .total-input{display:flex;justify-content:space-between;align-items:center;
+    margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft)}
+  .resume .total-input label{font-size:14px;font-weight:600}
+  .resume .total-input input{width:140px;padding:11px 12px;border:1px solid var(--line);
+    border-radius:10px;font-size:17px;font-weight:700;text-align:right;
+    font-family:inherit;color:var(--ink)}
+  .resume .total-input input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .verify{margin:0 18px 18px;padding:14px;border-radius:12px;display:flex;
+    align-items:center;gap:10px;font-size:14px;font-weight:600}
+  .verify.ok{background:var(--green-bg);color:var(--green-tx)}
+  .verify.bad{background:var(--red-bg);color:var(--red-tx)}
+  .verify.idle{background:var(--line-soft);color:var(--ink-soft)}
+  .verify svg{width:18px;height:18px;flex-shrink:0}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar-btn{width:100%;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .bar-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:22px 20px 30px;width:100%;max-height:80vh;overflow-y:auto}
+  .panel h3{font-size:18px;font-weight:700;margin-bottom:14px}
+  .panel .fl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .panel .fl:first-of-type{margin-top:0}
+  .sel-prod-info{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;margin-top:8px;font-size:13px;color:var(--ink-soft)}
+  .sel-prod-info b{color:var(--ink);font-weight:600}
+  .results{margin-top:6px;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;background:var(--card);max-height:200px;overflow-y:auto}
+  .results .r{padding:12px 14px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:15px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .results .r:last-child{border-bottom:none}
+  .results .r:active{background:var(--line-soft)}
+  .results .r.sel{background:var(--green-bg);color:var(--green-tx);font-weight:600}
+  .results .r .ub{font-size:12px;color:var(--ink-soft);font-weight:500}
+  .panel-btns{display:flex;gap:10px;margin-top:18px}
+  .panel-btns .bar-btn{flex:2}
+  .panel-btns .cancel{flex:1;padding:14px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:16px;font-weight:600;cursor:pointer;color:var(--ink);font-family:inherit}
+
+  .done{text-align:center;padding:50px 24px}
+  .done .check{width:64px;height:64px;border-radius:50%;background:var(--green-bg);
+    color:var(--green-tx);font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+  .done h2{font-size:20px;font-weight:600;margin-bottom:6px}
+  .done p{color:var(--ink-soft);font-size:15px;margin-bottom:4px}
+  .done .rules{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    text-align:left;padding:14px 16px;margin:22px 0;font-size:14px}
+  .done .rules div{display:flex;gap:9px;padding:4px 0;color:var(--green-tx)}
+  .done .rules b{color:var(--ink);font-weight:600}
+  .ghost{width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;font-family:inherit}
+
+  @media(prefers-reduced-motion:no-preference){
+    .item,.panel{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession } from './src/auth.js'
+import { ars, mostrarError } from './src/utils.js'
+
+const { usuario } = await requireSession()
+if (usuario.rol === 'preventista') {
+  alert('Solo depósito y admin pueden registrar ingresos.')
+  location.replace('./login_home.html')
+}
+
+// ── DATOS ─────────────────────────────────────────────────────────────
+let proveedoresList = []  // [{id, nombre, cargos_default:[]}]
+let productos = []        // [{id, nombre, u_bulto, costo, proveedor_id}]
+
+async function cargarDatos() {
+  const [{ data: provs, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
+    supabase.from('proveedores').select('id, nombre, cargos_default')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('productos').select('id, nombre, u_bulto, costo, proveedor_id')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre')
+  ])
+  if (e1) throw e1; if (e2) throw e2
+  proveedoresList = (provs || []).map(p => ({
+    ...p, cargos_default: Array.isArray(p.cargos_default) ? p.cargos_default : []
+  }))
+  productos = (prods || []).map(p => ({
+    ...p, u_bulto: p.u_bulto || 1, costo: Number(p.costo) || 0
+  }))
+  if (proveedoresList.length) {
+    proveedorId = proveedoresList[0].id
+    aplicarCargosDefault()
+  }
+}
+
+// ── ESTADO ────────────────────────────────────────────────────────────
+let proveedorId = ''
+let numBoleta = ''
+let fecha = new Date().toISOString().slice(0,10)
+let items = []   // {prodId, bultos, uPorBulto, costo}
+let totalDeclarado = ''
+let cargos = [
+  {nombre:'IVA',            pct:21, on:false},
+  {nombre:'Ret. IIBB',      pct: 3, on:false},
+  {nombre:'Ret. Ganancias', pct: 2, on:false},
+  {nombre:'Flete',          pct: 4, on:false},
+]
+let panelOpen = false
+let panelProd = { busq:'', selId:'', bultos:'', uPorBulto:'', costo:'' }
+let confirmado = false
+let resumenDone = {}
+
+// ── HELPERS ───────────────────────────────────────────────────────────
+const provActual = () => proveedoresList.find(p => p.id === proveedorId)
+const prod = id => productos.find(p => p.id === id)
+const cantTotal = it => it.bultos * it.uPorBulto
+const subNeto = it => cantTotal(it) * it.costo
+const subtotalNeto = () => items.reduce((s,it) => s + subNeto(it), 0)
+const totalCargosPct = () => cargos.filter(c => c.on).reduce((s,c) => s + c.pct, 0)
+const multiplicador = () => 1 + totalCargosPct() / 100
+const totalCalculado = () => subtotalNeto() * multiplicador()
+
+function diff() {
+  const dec = parseFloat(totalDeclarado)
+  if (!dec || isNaN(dec)) return null
+  return dec - totalCalculado()
+}
+
+function aplicarCargosDefault() {
+  const prov = provActual()
+  const def = prov?.cargos_default || []
+  cargos.forEach(c => c.on = def.includes(c.nombre))
+}
+
+function setProveedor(id) {
+  proveedorId = id
+  aplicarCargosDefault()
+  render()
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root')
+  el.innerHTML = ''
+  if (confirmado) { renderDone(); return }
+
+  const provNombre = provActual()?.nombre || ''
+  const cargosOn = cargos.filter(c => c.on)
+
+  el.innerHTML = `
+    <div class="hdr">
+      <button class="back" onclick="location.href='./login_home.html'" aria-label="Volver">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 5l-5 5 5 5"/>
+        </svg>
+      </button>
+      <span class="hdr-title">Nuevo ingreso</span>
+      <div class="hdr-right"></div>
+    </div>
+
+    <section>
+      <div class="lbl">Proveedor</div>
+      <select class="field" onchange="setProveedor(this.value)">
+        ${proveedoresList.map(p => `<option value="${p.id}" ${p.id===proveedorId?'selected':''}>${p.nombre}</option>`).join('')}
+      </select>
+    </section>
+    <div class="divider"></div>
+    <section>
+      <div class="row2">
+        <div>
+          <div class="lbl">N° de boleta</div>
+          <input class="field" placeholder="Ej: 12345" value="${numBoleta}"
+            oninput="setNumBoleta(this.value)">
+        </div>
+        <div>
+          <div class="lbl">Fecha</div>
+          <input class="field" type="date" value="${fecha}" oninput="setFecha(this.value)">
+        </div>
+      </div>
+    </section>
+    <div class="divider"></div>
+    <section>
+      <div class="lbl">Productos <span class="lbl-sub">(${items.length} ${items.length===1?'ítem':'ítems'}, precios netos)</span></div>
+      <div id="items-box"></div>
+      <button class="add-prod" onclick="abrirPanel()">+ Agregar producto</button>
+    </section>
+    <div class="divider"></div>
+    <section>
+      <div class="lbl">Cargos extra <span class="lbl-sub">(default de ${provNombre})</span></div>
+      <div class="cargos">
+        ${cargos.map((c,i) => `
+          <div class="cargo-row ${c.on?'on':''}">
+            <label class="cb">
+              <input type="checkbox" ${c.on?'checked':''} onchange="setCargoOn(${i},this.checked)">
+            </label>
+            <span class="cargo-nm">${c.nombre}</span>
+            <div class="pct-input">
+              <input type="number" min="0" step="0.1" value="${c.pct}"
+                oninput="setCargoPct(${i},this.value)"> %
+            </div>
+            <span class="cargo-monto">${c.on ? ars(subtotalNeto()*c.pct/100) : ''}</span>
+          </div>`).join('')}
+      </div>
+    </section>
+
+    <div class="resume">
+      <div class="line"><span class="k">Subtotal neto</span><span class="v">${ars(subtotalNeto())}</span></div>
+      ${cargosOn.map(c => {
+        const m = subtotalNeto() * c.pct/100
+        return `<div class="line"><span class="k">+ ${c.nombre} ${c.pct}%</span><span class="v">${ars(m)}</span></div>`
+      }).join('')}
+      ${cargosOn.length ? `<div class="line total"><span class="k">Total calculado</span><span class="v">${ars(totalCalculado())}</span></div>` : ''}
+      <div class="total-input">
+        <label for="tot">Total de la boleta</label>
+        <input id="tot" type="number" min="0" placeholder="0" value="${totalDeclarado}"
+          oninput="setTotalDeclarado(this.value)" inputmode="numeric">
+      </div>
+    </div>
+    <div id="verify-box"></div>`
+
+  renderItems()
+  renderVerify()
+  renderBar()
+  if (panelOpen) renderPanel()
+}
+
+function renderItems() {
+  const box = document.getElementById('items-box')
+  if (!box) return
+  if (!items.length) {
+    box.innerHTML = `<div class="empty-items">Todavía no hay productos.<br>Agregalos manualmente.</div>`
+    return
+  }
+  const mult = multiplicador()
+  const tieneCargos = totalCargosPct() > 0
+  box.innerHTML = items.map((it, i) => {
+    const p = prod(it.prodId)
+    const esBulto = it.uPorBulto > 1
+    return `<div class="item">
+      <div class="top">
+        <span class="nm">${p.nombre}</span>
+        <span class="lt">${ars(subNeto(it))}</span>
+        <button class="x" onclick="quitar(${i})" aria-label="Quitar">&times;</button>
+      </div>
+      <div class="ctrls">
+        <div class="stepper">
+          <button onclick="setBultos(${i},-1)">&minus;</button>
+          <span class="qty">${it.bultos}</span>
+          <button onclick="setBultos(${i},1)">+</button>
+        </div>
+        ${esBulto ? `<span class="bulto-mult">bultos × <input type="number" min="1"
+          value="${it.uPorBulto}" oninput="setUporBulto(${i},this.value)"> u/b</span>` : ''}
+        <div class="mini">$<input type="number" min="0" value="${it.costo}"
+          oninput="setCosto(${i},this.value)"> /u</div>
+      </div>
+      <div class="item-meta">
+        ${esBulto ? `<span class="units">= ${cantTotal(it)} unidades</span>` : `<span class="units">${cantTotal(it)} u</span>`}
+        ${tieneCargos ? `<span class="final">costo final ${ars(it.costo*mult)}/u</span>` : ''}
+      </div>
+    </div>`
+  }).join('')
+}
+
+function renderVerify() {
+  const box = document.getElementById('verify-box')
+  if (!box) return
+  const d = diff()
+  if (d === null) {
+    box.innerHTML = `<div class="verify idle">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="10" cy="10" r="7.5"/><path d="M10 6.5v4M10 13.5v.01"/>
+      </svg>
+      Ingresá el total de la boleta para verificar</div>`
+  } else if (Math.abs(d) < 1) {
+    box.innerHTML = `<div class="verify ok">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 10l4 4 8-8"/>
+      </svg>
+      Coincide con la boleta — todo OK</div>`
+  } else {
+    const signo = d > 0 ? 'falta cargar' : 'sobra'
+    box.innerHTML = `<div class="verify bad">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 2L2 17h16L10 2zM10 8v4M10 14.5v.01"/>
+      </svg>
+      Diferencia: ${ars(Math.abs(d))} (${signo}) — revisá cantidades, precios o cargos</div>`
+  }
+  renderBar()
+}
+
+function renderBar() {
+  let bar = document.getElementById('bar-fixed')
+  if (!bar) {
+    bar = document.createElement('div')
+    bar.id = 'bar-fixed'; bar.className = 'bar'
+    document.body.appendChild(bar)
+  }
+  const puede = items.length > 0
+  bar.innerHTML = `<button class="bar-btn" ${puede?'':'disabled'} onclick="confirmar()">
+    ${items.length ? 'Confirmar ingreso' : 'Agregá al menos un producto'}
+  </button>`
+}
+
+// ── PANEL ─────────────────────────────────────────────────────────────
+function abrirPanel() {
+  panelProd = { busq:'', selId:'', bultos:'', uPorBulto:'', costo:'' }
+  panelOpen = true; render()
+}
+function cerrarPanel() { panelOpen = false; render() }
+
+function renderPanel() {
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = e => { if (e.target === ov) cerrarPanel() }
+
+  // Mostrar todos los productos; filtrar por búsqueda
+  const q = panelProd.busq.trim().toLowerCase()
+  const lista = q
+    ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 8)
+    : productos.filter(p => p.proveedor_id === proveedorId).slice(0, 20)
+  const pSel = panelProd.selId ? prod(panelProd.selId) : null
+  const esBulto = pSel && pSel.u_bulto > 1
+
+  ov.innerHTML = `
+    <div class="panel">
+      <h3>Agregar producto</h3>
+      <label class="fl">Producto</label>
+      <input class="field" placeholder="Buscar..." value="${panelProd.busq}"
+        oninput="setPanelBusq(this.value)" autocomplete="off">
+      <div class="results">
+        ${lista.length ? lista.map(p => `
+          <div class="r ${panelProd.selId===p.id?'sel':''}" onclick="selProd('${p.id}')">
+            <span>${p.nombre}</span>
+            ${p.u_bulto>1 ? `<span class="ub">${p.u_bulto} u/bulto</span>` : ''}
+          </div>`).join('')
+        : `<div class="r" style="color:var(--ink-soft)">Sin resultados</div>`}
+      </div>
+      ${pSel ? `<div class="sel-prod-info">
+        ${esBulto ? `Bulto estándar: <b>${pSel.u_bulto} unidades</b>` : `Se vende por unidad`}
+      </div>` : ''}
+      <div class="row2" style="margin-top:14px">
+        <div>
+          <label class="fl">${esBulto ? 'Bultos' : 'Cantidad'}</label>
+          <input class="field" type="number" min="1" placeholder="1"
+            value="${panelProd.bultos}" oninput="setPanelBultos(this.value)" inputmode="numeric">
+        </div>
+        <div>
+          <label class="fl">Costo unitario neto</label>
+          <input class="field" type="number" min="0" placeholder="0"
+            value="${panelProd.costo}" oninput="setPanelCosto(this.value)" inputmode="numeric">
+        </div>
+      </div>
+      ${esBulto ? `<label class="fl">Unidades por bulto (en esta boleta)</label>
+        <input class="field" type="number" min="1" placeholder="${pSel.u_bulto}"
+          value="${panelProd.uPorBulto || pSel.u_bulto}" oninput="setPanelUb(this.value)"
+          inputmode="numeric">` : ''}
+      <div class="panel-btns">
+        <button class="cancel" onclick="cerrarPanel()">Cancelar</button>
+        <button class="bar-btn" onclick="confirmarPanelItem()">Agregar</button>
+      </div>
+    </div>`
+  document.getElementById('root').appendChild(ov)
+}
+
+function rerenderPanel() {
+  const ov = document.querySelector('.overlay')
+  if (ov) ov.remove()
+  renderPanel()
+}
+function selProd(id) {
+  const p = prod(id)
+  panelProd.selId = id
+  panelProd.uPorBulto = p.u_bulto
+  if (!panelProd.costo) panelProd.costo = p.costo
+  rerenderPanel()
+}
+function confirmarPanelItem() {
+  const p = prod(panelProd.selId); if (!p) return
+  const b = parseFloat(panelProd.bultos)
+  const co = parseFloat(panelProd.costo)
+  const ub = p.u_bulto > 1 ? (parseFloat(panelProd.uPorBulto) || p.u_bulto) : 1
+  if (!b || b <= 0 || !co || co <= 0) return
+  items.push({ prodId: panelProd.selId, bultos: b, uPorBulto: ub, costo: co })
+  panelOpen = false; render()
+}
+
+function setBultos(i, d) { items[i].bultos = Math.max(1, items[i].bultos + d); render() }
+function setUporBulto(i, v) { const n = parseInt(v); items[i].uPorBulto = (!n||n<1) ? 1 : n; render() }
+function setCosto(i, v) { const n = parseFloat(v); items[i].costo = (!n||n<0) ? 0 : n; render() }
+function quitar(i) { items.splice(i, 1); render() }
+
+// ── CONFIRMAR → SUPABASE ──────────────────────────────────────────────
+async function confirmar() {
+  const btn = document.getElementById('bar-fixed')?.querySelector('button')
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…' }
+
+  const mult = multiplicador()
+  const totCalc = totalCalculado()
+  const totDecl = parseFloat(totalDeclarado) || totCalc
+  const cargosAplicados = cargos.filter(c => c.on).map(c => ({ nombre: c.nombre, pct: c.pct }))
+
+  try {
+    // 1. Crear ingreso
+    const { data: ingreso, error: e1 } = await supabase
+      .from('ingresos')
+      .insert({
+        empresa_id: usuario.empresa_id,
+        proveedor_id: proveedorId,
+        usuario_id: usuario.id,
+        numero_boleta: numBoleta || null,
+        fecha,
+        cargos_aplicados: cargosAplicados,
+        total_declarado: totDecl,
+        total_calculado: totCalc
+      })
+      .select('id').single()
+    if (e1) throw e1
+
+    // 2. Insertar items
+    const { error: e2 } = await supabase.from('ingreso_items').insert(
+      items.map(it => ({
+        empresa_id: usuario.empresa_id,
+        ingreso_id: ingreso.id,
+        producto_id: it.prodId,
+        bultos: it.bultos,
+        u_por_bulto: it.uPorBulto,
+        cantidad: cantTotal(it),
+        costo_unit_neto: it.costo,
+        costo_unit_final: Math.round(it.costo * mult)
+      }))
+    )
+    if (e2) throw e2
+
+    // 3. Confirmar (actualiza costos + genera mov_stock)
+    const { error: e3 } = await supabase.rpc('confirmar_ingreso', { p_ingreso_id: ingreso.id })
+    if (e3) throw e3
+
+    resumenDone = {
+      provNombre: provActual()?.nombre || '',
+      totalUnidades: items.reduce((s, it) => s + cantTotal(it), 0),
+      itemsCount: items.length,
+      total: totCalc,
+      cargosOn: [...cargosAplicados],
+      checksumOk: Math.abs(totDecl - totCalc) < 1
+    }
+    confirmado = true
+    render()
+  } catch (e) {
+    mostrarError('Error al confirmar: ' + e.message)
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar ingreso' }
+  }
+}
+
+function renderDone() {
+  const r = resumenDone
+  document.getElementById('root').innerHTML = `
+    <div class="hdr">
+      <div class="hdr-right"></div>
+      <span class="hdr-title">Ingreso registrado</span>
+      <div class="hdr-right"></div>
+    </div>
+    <div class="done">
+      <div class="check">&#10003;</div>
+      <h2>Ingreso confirmado</h2>
+      <p>${r.provNombre}${numBoleta ? ` · Boleta N° ${numBoleta}` : ''}</p>
+      <p>${r.itemsCount} ${r.itemsCount===1?'ítem':'ítems'} · ${r.totalUnidades} unidades · ${ars(r.total)}</p>
+      <div class="rules">
+        <div>&#10003;&nbsp; <b>Stock actualizado</b> (+${r.totalUnidades} unidades)</div>
+        ${r.cargosOn.length ? `<div>&#10003;&nbsp; <b>Cargos:</b> ${r.cargosOn.map(c=>c.nombre).join(', ')}</div>` : ''}
+        ${r.checksumOk ? `<div>&#10003;&nbsp; <b>Total coincide</b> con la boleta</div>` : ''}
+      </div>
+      <button class="ghost" onclick="reset()">Cargar otro ingreso</button>
+    </div>`
+  const bar = document.getElementById('bar-fixed')
+  if (bar) bar.remove()
+}
+
+async function reset() {
+  numBoleta = ''; items = []; totalDeclarado = ''; confirmado = false
+  fecha = new Date().toISOString().slice(0,10)
+  await cargarDatos()
+  render()
+}
+
+// ── EXPONER AL DOM (módulo ES) ────────────────────────────────────────
+// Funciones setter para primitivos usados en oninput inline
+window.setNumBoleta      = v => { numBoleta = v }
+window.setFecha          = v => { fecha = v }
+window.setTotalDeclarado = v => { totalDeclarado = v; renderVerify() }
+window.setPanelBusq      = v => { panelProd.busq = v; rerenderPanel() }
+window.setPanelBultos    = v => { panelProd.bultos = v }
+window.setPanelCosto     = v => { panelProd.costo = v }
+window.setPanelUb        = v => { panelProd.uPorBulto = v }
+window.setCargoPct       = (i, v) => { cargos[i].pct = parseFloat(v) || 0; render() }
+window.setCargoOn        = (i, v) => { cargos[i].on = v; render() }
+
+Object.assign(window, {
+  render, setProveedor, abrirPanel, cerrarPanel,
+  confirmarPanelItem, rerenderPanel, selProd, confirmar, reset, quitar,
+  setBultos, setUporBulto, setCosto, cargos, panelProd
+})
+
+// ── INIT ──────────────────────────────────────────────────────────────
+document.getElementById('root').innerHTML =
+  `<div style="text-align:center;padding:60px 20px;color:var(--ink-soft)">Cargando…</div>`
+try {
+  await cargarDatos()
+  render()
+} catch(e) {
+  mostrarError('Error al cargar datos: ' + e.message)
+}
+</script>
+</body>
+</html>

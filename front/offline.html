@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Sin conexión</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#1C2B27">
+<style>
+  :root{--paper:#FBF9F2;--ink:#1C2B27;--ink-soft:#5B665F;--gold:#A9760E;--line:#E4DECF;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{max-width:480px;margin:0 auto;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:40px 28px;text-align:center}
+  .crown{font-size:52px;color:var(--gold);margin-bottom:8px}
+  .title{font-size:22px;font-weight:700;margin-bottom:6px}
+  .sub{font-size:15px;color:var(--ink-soft);margin-bottom:32px;line-height:1.5}
+  .icon{font-size:56px;margin-bottom:20px}
+  .msg{background:#fff;border:1px solid var(--line);border-radius:16px;
+    padding:20px 22px;margin-bottom:28px;text-align:left}
+  .msg h3{font-size:15px;font-weight:700;margin-bottom:10px}
+  .msg li{font-size:14px;color:var(--ink-soft);margin-bottom:6px;padding-left:4px}
+  .btn{width:100%;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn:active{background:#8A5F09}
+  .hint{font-size:13px;color:var(--ink-soft);margin-top:16px}
+</style>
+</head>
+<body>
+  <div class="crown">&#9818;</div>
+  <div class="title">El Rey</div>
+  <div class="icon">📡</div>
+  <div class="sub">Sin conexión a internet.<br>Algunas funciones siguen disponibles.</div>
+
+  <div class="msg">
+    <h3>Disponible sin señal</h3>
+    <ul>
+      <li>✓ Cargar pedidos (se sincronizan al reconectar)</li>
+      <li>✓ Ver clientes y saldos guardados</li>
+      <li>✓ Ver productos del catálogo</li>
+      <li>✓ Consultar hoja de ruta del día</li>
+    </ul>
+  </div>
+
+  <button class="btn" onclick="history.back()">Volver</button>
+  <button class="btn" style="background:none;border:1px solid var(--line);color:var(--ink);margin-top:10px"
+    onclick="location.href='./login_home.html'">Ir al inicio</button>
+  <div class="hint" id="hint"></div>
+
+<script>
+  window.addEventListener('online', () => {
+    document.getElementById('hint').textContent = '¡Conexión recuperada! Recargando…';
+    setTimeout(() => location.reload(), 800);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Cargar pedido</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF; --line-soft:#EEEADD;
+    --gold:#A9760E; --gold-dk:#8A5F09;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --red-bg:#F6E5E2; --red-tx:#A8392B;
+    --card:#FFFFFF; --bulto-bg:#FDF2DC; --bulto-tx:#8A5F09;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:140px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:10}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.02em}
+  .crown{color:var(--gold);font-size:20px;line-height:1}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .user{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-soft)}
+  .user b{color:var(--ink);font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--gold)}
+
+  section{padding:18px}
+  .lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+  .lbl span{font-weight:500;letter-spacing:0;text-transform:none}
+  select,input,button{font-family:inherit;font-size:16px;color:var(--ink)}
+  .field{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+  .saldo{margin-top:10px;display:inline-flex;align-items:center;gap:8px;
+    padding:7px 12px;border-radius:999px;font-size:14px;font-weight:600}
+  .saldo.deudor{background:var(--red-bg);color:var(--red-tx)}
+  .saldo.aldia{background:var(--green-bg);color:var(--green-tx)}
+  .divider{height:1px;background:var(--line-soft);margin:0 18px}
+
+  /* BÚSQUEDA */
+  .search-wrap{position:relative}
+  .results{margin-top:6px;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;background:var(--card)}
+  .results .row{padding:0;border-bottom:1px solid var(--line-soft)}
+  .results .row:last-child{border-bottom:none}
+  .results .row-main{display:flex;justify-content:space-between;align-items:center;
+    padding:12px 14px;cursor:pointer}
+  .results .row-main:active{background:var(--line-soft)}
+  .results .row-main .nm{font-size:15px;flex:1}
+  .results .row-main .pr{font-size:14px;color:var(--ink-soft);font-weight:600}
+  /* botones bulto en resultado */
+  .res-btns{display:flex;border-top:1px solid var(--line-soft)}
+  .res-btn{flex:1;padding:10px 8px;background:none;border:none;cursor:pointer;
+    font-size:13px;font-weight:600;color:var(--ink-soft)}
+  .res-btn:first-child{border-right:1px solid var(--line-soft)}
+  .res-btn.bulto{color:var(--bulto-tx);background:var(--bulto-bg)}
+  .res-btn:active{filter:brightness(.95)}
+  .empty-res{padding:14px;color:var(--ink-soft);font-size:14px}
+
+  /* ITEMS */
+  .item{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px}
+  .item.es-bulto{border-color:var(--bulto-tx);border-width:1.5px}
+  .item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .item .nm{font-size:15px;font-weight:600;flex:1}
+  .item .lt{font-size:16px;font-weight:700;white-space:nowrap}
+  .item .x{border:none;background:none;color:var(--ink-soft);font-size:20px;
+    line-height:1;padding:0 0 0 6px;cursor:pointer}
+  .bulto-tag{display:inline-flex;align-items:center;gap:5px;margin-top:6px;
+    padding:4px 9px;background:var(--bulto-bg);color:var(--bulto-tx);
+    border-radius:999px;font-size:12px;font-weight:600}
+  .item .ctrls{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+  .stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .stepper button{width:38px;height:38px;border:none;background:var(--card);font-size:20px;
+    color:var(--gold);cursor:pointer}
+  .stepper button:active{background:var(--line-soft)}
+  .stepper .qty{min-width:34px;text-align:center;font-weight:600;font-size:16px}
+  .unit-info{font-size:13px;color:var(--ink-soft)}
+  .disc{display:flex;align-items:center;gap:5px;font-size:14px;color:var(--ink-soft)}
+  .disc input{width:48px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;text-align:center}
+  .empty-order{text-align:center;color:var(--ink-soft);font-size:15px;
+    padding:30px 10px;border:1px dashed var(--line);border-radius:14px}
+
+  .genrow{display:flex;align-items:center;justify-content:space-between;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px}
+  .genrow label{font-size:15px}
+  .genrow .disc input{width:56px}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar .tot{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .bar .tot .k{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+  .bar .tot .v{font-size:28px;font-weight:700;letter-spacing:-.01em}
+  .confirm{width:100%;padding:16px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:17px;font-weight:600;cursor:pointer;letter-spacing:.01em}
+  .confirm:active{background:var(--gold-dk)}
+  .confirm:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+
+  .done{text-align:center;padding:40px 24px}
+  .done .check{width:64px;height:64px;border-radius:50%;background:var(--green-bg);
+    color:var(--green-tx);font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+  .done h2{font-size:20px;font-weight:600;margin-bottom:6px}
+  .done p{color:var(--ink-soft);font-size:15px;margin-bottom:4px}
+  .done .rules{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    text-align:left;padding:14px 16px;margin:22px 0;font-size:14px}
+  .done .rules div{display:flex;gap:9px;padding:4px 0;color:var(--green-tx)}
+  .done .rules b{color:var(--ink);font-weight:600}
+  .ghost{width:100%;padding:15px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:16px;font-weight:600;color:var(--ink);cursor:pointer}
+
+  @media(prefers-reduced-motion:no-preference){
+    .item,.results{animation:fade .18s ease}
+    @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="bar" id="bar"></div>
+
+<script src="./src/register-sw.js"></script>
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, getUsuario } from './src/auth.js'
+import { ars, mostrarError } from './src/utils.js'
+import { db } from './src/db.js'
+import { initSync, pushOp, mountStatusBadge } from './src/sync.js'
+
+const ROLES = { admin:'admin', preventista:'preventista', deposito:'depósito' };
+
+// Datos desde Supabase
+let clientes = [];   // {id, nombre, saldo}  saldo>0 = debe, saldo<0 = a favor
+let productos = []; // {id, nombre, precio, u_bulto, desc_bulto}
+
+// orden: { productoId, cant, disc, esBulto, uPorBulto }
+let clienteId = '';
+let orden = [];
+let descGeneral = 0;
+let busqueda = '';
+let confirmado = false;
+let confirmando = false;
+let confirmadoData = null;     // {pedido_id, boleta_id, total, saldo_anterior, total_a_cobrar}
+let expandido = null;          // id producto con opciones abiertas en el buscador
+let pendienteSync = false;     // true cuando confirmado offline y aún no se sincronizó
+
+// expongo handlers
+Object.assign(window, {
+  addUnidad, addBulto, setCant, setDisc, quitar,
+  toggleExpandido, confirmar, nuevo,
+  setCliente: v => { clienteId = v; render(); },
+  setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
+  setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
+});
+
+const prod = id => productos.find(p => p.id === id);
+const lineTotal = it => it.cant * prod(it.productoId).precio * (1 - it.disc/100);
+const subtotal  = () => orden.reduce((s, it) => s + lineTotal(it), 0);
+const total     = () => subtotal() * (1 - descGeneral/100);
+
+// ── DATOS ─────────────────────────────────────────────────────────────
+async function cargarTodo(){
+  if (!navigator.onLine) {
+    return cargarDesdeLocal();
+  }
+  const [cliResp, salResp, prodResp] = await Promise.all([
+    supabase.from('clientes')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase.from('saldo_actual').select('cliente_id, saldo'),
+    supabase.from('productos')
+      .select('id, nombre, precio, u_bulto, desc_bulto')
+      .eq('activo', true)
+      .order('nombre'),
+  ]);
+  // si la red falló en el intento, caer a local silenciosamente
+  if (cliResp.error || salResp.error || prodResp.error) {
+    console.warn('[pedido] red falló, usando datos locales');
+    return cargarDesdeLocal();
+  }
+
+  const saldoMap = Object.fromEntries((salResp.data || []).map(s => [s.cliente_id, Number(s.saldo) || 0]));
+  clientes  = (cliResp.data || []).map(c => ({ ...c, saldo: saldoMap[c.id] || 0 }));
+  productos = (prodResp.data || []).map(p => ({
+    ...p,
+    precio: Number(p.precio) || 0,
+    u_bulto: p.u_bulto || 1,
+    desc_bulto: Number(p.desc_bulto) || 0,
+  }));
+}
+
+async function cargarDesdeLocal(){
+  const [cliRows, salRows, prodRows] = await Promise.all([
+    db.clientes.where('activo').equals(1).sortBy('nombre'),
+    db.saldo_actual.toArray(),
+    db.productos.where('activo').equals(1).sortBy('nombre'),
+  ]);
+  const saldoMap = Object.fromEntries(salRows.map(s => [s.cliente_id, Number(s.saldo) || 0]));
+  clientes  = cliRows.map(c => ({ ...c, saldo: saldoMap[c.id] || 0 }));
+  productos = prodRows.map(p => ({
+    ...p,
+    precio: Number(p.precio) || 0,
+    u_bulto: p.u_bulto || 1,
+    desc_bulto: Number(p.desc_bulto) || 0,
+  }));
+  if (!clientes.length && !productos.length) {
+    mostrarError('Sin datos locales. Conectate una vez para sincronizar.');
+  }
+}
+
+function addUnidad(id){
+  const ex = orden.find(o=>o.productoId===id && !o.esBulto);
+  if(ex){ ex.cant++; }
+  else { orden.push({productoId:id, cant:1, disc:0, esBulto:false, uPorBulto:1}); }
+  busqueda=''; expandido=null; render();
+}
+
+function addBulto(id){
+  const p = prod(id);
+  const ex = orden.find(o=>o.productoId===id && o.esBulto);
+  if(ex){ ex.cant += p.u_bulto; }
+  else {
+    orden.push({
+      productoId:id,
+      cant: p.u_bulto,
+      disc: p.desc_bulto,
+      esBulto: true,
+      uPorBulto: p.u_bulto
+    });
+  }
+  busqueda=''; expandido=null; render();
+}
+
+function setCant(i,d){
+  const it = orden[i];
+  const step = it.esBulto ? it.uPorBulto : 1;
+  it.cant = Math.max(it.esBulto ? it.uPorBulto : 1, it.cant + d*step);
+  render();
+}
+function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); renderBar(); }
+function quitar(i){ orden.splice(i,1); render(); }
+function toggleExpandido(id){ expandido = expandido===id ? null : id; renderResults(); }
+
+// ── CONFIRMAR (RPC atómica, con fallback offline) ─────────────────────
+async function confirmar(){
+  if (!clienteId || !orden.length || confirmando) return;
+  confirmando = true;
+  renderBar();
+
+  const payload = {
+    cliente_id: clienteId,
+    descuento: descGeneral,
+    observaciones: null,
+    items: orden.map(it => ({
+      producto_id: it.productoId,
+      cantidad: it.cant,
+      precio_unit: prod(it.productoId).precio,
+      descuento: it.disc,
+      es_bulto: it.esBulto,
+      u_por_bulto: it.uPorBulto,
+    })),
+  };
+
+  if (!navigator.onLine) {
+    // guardar en cola local y marcar como pendiente de sync
+    await pushOp('confirmar_pedido', payload);
+    confirmando = false;
+    pendienteSync = true;
+    confirmadoData = null;
+    confirmado = true;
+    render();
+    return;
+  }
+
+  const { data, error } = await supabase.rpc('confirmar_pedido', { p_payload: payload });
+  confirmando = false;
+
+  if (error) {
+    // si la red falló durante el intento, encolar para reintentar
+    if (!navigator.onLine || error.message?.includes('fetch')) {
+      await pushOp('confirmar_pedido', payload);
+      pendienteSync = true;
+      confirmadoData = null;
+      confirmado = true;
+      render();
+    } else {
+      mostrarError('Error al confirmar el pedido: ' + error.message);
+      renderBar();
+    }
+    return;
+  }
+
+  confirmadoData = data;
+  pendienteSync = false;
+  confirmado = true;
+  render();
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(confirmado){ renderDone(app); renderBar(); return; }
+
+  const cli = clientes.find(c=>c.id===clienteId);
+  const usr = getUsuario();
+  const rolTxt = ROLES[usr?.rol] || usr?.rol || '';
+
+  app.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Cargar pedido</small></div>
+      </div>
+      <div class="user" style="flex-direction:column;align-items:flex-end;gap:2px">
+        <div style="display:flex;align-items:center;gap:6px"><span class="dot"></span><b>${usr?.nombre || ''}</b> · ${rolTxt}</div>
+        <div id="sync-badge-ped"></div>
+      </div>
+    </div>
+
+    <section>
+      <div class="lbl">Cliente</div>
+      <select class="field" onchange="window.setCliente(this.value)">
+        <option value="">Elegí un cliente…</option>
+        ${clientes.map(c=>`<option value="${c.id}" ${c.id===clienteId?'selected':''}>${c.nombre}</option>`).join('')}
+      </select>
+      ${cli ? `<div class="saldo ${cli.saldo>0?'deudor':'aldia'}">
+        ${cli.saldo>0 ? 'Debe '+ars(cli.saldo) : (cli.saldo<0?'A favor '+ars(-cli.saldo):'Cuenta al día')}
+      </div>` : ''}
+    </section>
+    <div class="divider"></div>
+    <section class="search-wrap">
+      <div class="lbl">Agregar producto</div>
+      <input class="field" placeholder="Buscar por nombre…" value="${busqueda}"
+        oninput="window.setBusqueda(this.value)" autocomplete="off">
+      <div id="res"></div>
+    </section>
+    <div class="divider"></div>
+    <section>
+      <div class="lbl">Pedido <span>${orden.length} ${orden.length===1?'ítem':'ítems'}</span></div>
+      <div id="items"></div>
+    </section>
+    ${orden.length ? `
+    <section style="padding-top:0">
+      <div class="genrow">
+        <label for="dg">Descuento general</label>
+        <div class="disc">
+          <input id="dg" type="number" min="0" max="100" value="${descGeneral}"
+            oninput="window.setDescGeneral(this.value)"> %
+        </div>
+      </div>
+    </section>` : ''}
+  `;
+
+  renderResults();
+  renderItems();
+  renderBar();
+
+  const badgeEl = document.getElementById('sync-badge-ped');
+  if (badgeEl) mountStatusBadge(badgeEl);
+}
+
+function renderResults(){
+  const box = document.getElementById('res'); if(!box) return;
+  const f = busqueda.trim().toLowerCase();
+  if(!f){ box.innerHTML=''; return; }
+  const m = productos.filter(p=>p.nombre.toLowerCase().includes(f));
+  if(!m.length){ box.innerHTML=`<div class="results"><div class="empty-res">Sin resultados para "${busqueda}"</div></div>`; return; }
+
+  box.innerHTML = `<div class="results">${m.map(p=>{
+    const tieneBulto = p.u_bulto > 1;
+    const abierto = expandido === p.id;
+    return `<div class="row">
+      <div class="row-main" onclick="${tieneBulto ? `window.toggleExpandido('${p.id}')` : `window.addUnidad('${p.id}')`}">
+        <span class="nm">${p.nombre}${tieneBulto ? ` <span style="font-size:12px;color:var(--ink-soft);font-weight:500">· bulto ${p.u_bulto}u</span>` : ''}</span>
+        <span class="pr">${ars(p.precio)}</span>
+      </div>
+      ${tieneBulto && abierto ? `
+      <div class="res-btns">
+        <button class="res-btn" onclick="window.addUnidad('${p.id}')">+ Por unidad</button>
+        <button class="res-btn bulto" onclick="window.addBulto('${p.id}')">📦 Bulto (${p.u_bulto}u · −${p.desc_bulto}%)</button>
+      </div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderItems(){
+  const box = document.getElementById('items'); if(!box) return;
+  if(!orden.length){
+    box.innerHTML=`<div class="empty-order">Todavía no agregaste productos.<br>Buscalos arriba para sumarlos.</div>`;
+    return;
+  }
+  box.innerHTML = orden.map((it,i)=>{
+    const p = prod(it.productoId);
+    const bultos = it.esBulto ? it.cant / it.uPorBulto : null;
+    return `<div class="item ${it.esBulto?'es-bulto':''}">
+      <div class="top">
+        <span class="nm">${p.nombre}</span>
+        <span class="lt">${ars(lineTotal(it))}</span>
+        <button class="x" onclick="window.quitar(${i})" aria-label="Quitar">&times;</button>
+      </div>
+      ${it.esBulto ? `<div><span class="bulto-tag">📦 Bulto</span></div>` : ''}
+      <div class="ctrls">
+        <div class="stepper">
+          <button onclick="window.setCant(${i},-1)" aria-label="Menos">&minus;</button>
+          <span class="qty">${it.esBulto ? bultos : it.cant}</span>
+          <button onclick="window.setCant(${i},1)" aria-label="Más">+</button>
+        </div>
+        <span class="unit-info">
+          ${it.esBulto
+            ? `${bultos} bulto${bultos!==1?'s':''} × ${it.uPorBulto}u = ${it.cant}u · ${ars(p.precio)}/u`
+            : `× ${ars(p.precio)}`}
+        </span>
+        <div class="disc">
+          <input type="number" min="0" max="100" value="${it.disc}"
+            oninput="window.setDisc(${i},this.value)"> % desc.
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderBar(){
+  const bar = document.getElementById('bar');
+  if(confirmado){ bar.innerHTML=''; return; }
+  const puede = clienteId && orden.length>0 && !confirmando;
+  const label = confirmando ? 'Guardando…'
+              : clienteId ? (orden.length ? 'Confirmar pedido' : 'Agregá un producto')
+              : 'Elegí un cliente';
+  bar.innerHTML = `
+    <div class="tot"><span class="k">Total</span><span class="v">${ars(total())}</span></div>
+    <button class="confirm" ${puede?'':'disabled'} onclick="window.confirmar()">${label}</button>`;
+}
+
+function renderDone(app){
+  const cli = clientes.find(c=>c.id===clienteId);
+  const bultos = orden.filter(o=>o.esBulto).length;
+  const d = confirmadoData || {};
+  const totalNum = Number(d.total) || total();
+  const saldoAnt = Number(d.saldo_anterior) || 0;
+  const totalCob = Number(d.total_a_cobrar) || totalNum;
+
+  if (pendienteSync) {
+    app.innerHTML=`
+      <div class="done">
+        <div class="check" style="background:var(--bulto-bg);color:var(--bulto-tx)">⏳</div>
+        <h2>Pedido guardado</h2>
+        <p>${cli?.nombre || ''}</p>
+        <p>${orden.length} ${orden.length===1?'ítem':'ítems'} · ${ars(totalNum)}</p>
+        <div class="rules" style="border-color:var(--bulto-tx)">
+          <div style="color:var(--bulto-tx)">⚡&nbsp; <b>Sin conexión</b> — pedido en cola local</div>
+          <div style="color:var(--bulto-tx)">🔄&nbsp; Se enviará al servidor al <b>reconectar</b></div>
+        </div>
+        <button class="ghost" onclick="window.nuevo()">Cargar otro pedido</button>
+      </div>`;
+    return;
+  }
+
+  app.innerHTML=`
+    <div class="done">
+      <div class="check">&#10003;</div>
+      <h2>Pedido confirmado</h2>
+      <p>${cli?.nombre || ''}</p>
+      <p>${orden.length} ${orden.length===1?'ítem':'ítems'} · ${ars(totalNum)}</p>
+      ${saldoAnt > 0 ? `<p style="color:var(--red-tx);font-weight:600;margin-top:8px">
+        Saldo anterior: ${ars(saldoAnt)} · Total a cobrar: ${ars(totalCob)}
+      </p>` : ''}
+      <div class="rules">
+        <div>&#10003;&nbsp; <b>Stock descontado</b> al confirmar</div>
+        <div>&#10003;&nbsp; <b>Cargo en cuenta</b> de ${cli?.nombre || ''}</div>
+        ${bultos ? `<div>&#10003;&nbsp; <b>${bultos} ítem${bultos>1?'s':''} por bulto</b> con descuento aplicado</div>` : ''}
+        <div>&#10003;&nbsp; Boleta generada para Seba</div>
+      </div>
+      <button class="ghost" onclick="window.nuevo()">Cargar otro pedido</button>
+    </div>`;
+}
+
+async function nuevo(){
+  clienteId=''; orden=[]; descGeneral=0; busqueda='';
+  confirmado=false; confirmadoData=null; expandido=null; pendienteSync=false;
+  // refrescar datos (saldos pueden haber cambiado, stock también)
+  await cargarTodo();
+  render();
+}
+
+// ── ARRANQUE ──────────────────────────────────────────────────────────
+async function arrancar(){
+  await requireSession();
+  initSync(supabase); // no await — corre en background
+  render();           // muestra UI con listas vacías mientras carga
+  await cargarTodo();
+  render();
+}
+arrancar();
+</script>
+</body>
+</html>

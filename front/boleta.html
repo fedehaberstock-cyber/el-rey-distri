@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Boleta</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:80px}
+
+  /* HEADER APP */
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .hdr-btn{padding:7px 14px;border:1px solid var(--line);border-radius:999px;
+    background:var(--card);font-size:13px;font-weight:600;cursor:pointer;
+    font-family:inherit;color:var(--ink)}
+  .hdr-btn.gold{background:var(--gold);color:#fff;border-color:var(--gold)}
+  .hdr-btn:active{filter:brightness(.95)}
+  .hdr-right{display:flex;gap:8px}
+
+  /* BOLETA — vista pantalla */
+  .boleta-wrap{margin:16px 18px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden}
+
+  .bol-header{padding:18px 18px 14px;border-bottom:1px solid var(--line-soft);
+    text-align:center}
+  .bol-empresa{font-size:18px;font-weight:700;letter-spacing:.01em}
+  .bol-sub{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .bol-num{font-size:13px;font-weight:600;color:var(--ink-soft);margin-top:8px}
+
+  .bol-cliente{padding:12px 18px;border-bottom:1px solid var(--line-soft)}
+  .bol-cliente .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px}
+  .bol-cliente .nm{font-size:15px;font-weight:700}
+  .bol-cliente .dir{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .bol-cliente .meta{display:flex;gap:16px;margin-top:6px;font-size:13px;color:var(--ink-soft)}
+  .bol-cliente .meta b{color:var(--ink);font-weight:600}
+
+  /* items */
+  .bol-items{padding:10px 18px}
+  .item-hdr{display:flex;justify-content:space-between;padding:4px 0 8px;
+    font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);border-bottom:1px solid var(--line-soft)}
+  .item-row{display:flex;justify-content:space-between;align-items:baseline;
+    padding:7px 0;border-bottom:1px solid var(--line-soft);gap:8px}
+  .item-row:last-child{border-bottom:none}
+  .item-nm{font-size:14px;flex:1}
+  .item-cant{font-size:13px;color:var(--ink-soft);white-space:nowrap;text-align:right;min-width:70px}
+  .item-total{font-size:14px;font-weight:600;white-space:nowrap;text-align:right;min-width:80px}
+  .item-desc{font-size:11px;color:var(--amber-tx);margin-top:1px}
+
+  /* totales */
+  .bol-totales{border-top:1px solid var(--line-soft);padding:12px 18px}
+  .tot-row{display:flex;justify-content:space-between;align-items:baseline;
+    padding:4px 0;font-size:14px}
+  .tot-row .k{color:var(--ink-soft)}
+  .tot-row .v{font-weight:600}
+  .tot-row.desc-gen .v{color:var(--amber-tx)}
+  .divider-line{height:1px;background:var(--line-soft);margin:6px 0}
+
+  /* saldo anterior — destacado */
+  .saldo-ant-row{display:flex;justify-content:space-between;align-items:baseline;
+    padding:8px 10px;margin:6px 0;background:var(--red-bg);border-radius:8px;font-size:14px}
+  .saldo-ant-row .k{color:var(--red-tx);font-weight:600}
+  .saldo-ant-row .v{color:var(--red-tx);font-weight:700}
+
+  /* total a cobrar */
+  .total-cobrar{display:flex;justify-content:space-between;align-items:baseline;
+    padding:12px 10px;background:var(--ink);border-radius:10px;margin-top:8px}
+  .total-cobrar .k{font-size:14px;font-weight:600;color:rgba(255,255,255,.7)}
+  .total-cobrar .v{font-size:22px;font-weight:700;color:#fff;letter-spacing:-.01em}
+
+  /* sin saldo — total normal */
+  .total-normal{display:flex;justify-content:space-between;align-items:baseline;
+    padding:10px 0;border-top:2px solid var(--ink);margin-top:4px}
+  .total-normal .k{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .total-normal .v{font-size:22px;font-weight:700;letter-spacing:-.01em}
+
+  /* nota saldo */
+  .nota-saldo{margin:10px 18px;padding:10px 12px;background:var(--amber-bg);
+    border-radius:8px;font-size:12px;color:var(--amber-tx);font-weight:500;line-height:1.4}
+
+  /* firma */
+  .bol-firma{padding:14px 18px;border-top:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;align-items:flex-end}
+  .firma-box{text-align:center}
+  .firma-line{width:120px;height:1px;background:var(--ink-soft);margin-bottom:4px}
+  .firma-lbl{font-size:11px;color:var(--ink-soft)}
+
+  /* estado chip */
+  .estado-wrap{padding:10px 18px 0;display:flex;justify-content:center}
+  .estado-chip{padding:5px 14px;border-radius:999px;font-size:13px;font-weight:600}
+  .estado-chip.emitida  {background:var(--blue-bg,#E8F0FB);color:#2A4E9A}
+  .estado-chip.modificada{background:var(--amber-bg);color:var(--amber-tx)}
+  .estado-chip.anulada  {background:var(--red-bg);color:var(--red-tx)}
+
+  /* BARRA */
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);
+    padding:12px 18px 18px;z-index:20;display:flex;gap:10px}
+  .bar-btn{flex:1;padding:14px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .bar-ghost{flex:1;padding:14px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:16px;font-weight:600;color:var(--ink);
+    cursor:pointer;font-family:inherit}
+
+  /* PRINT */
+  @media print{
+    .hdr,.bar,.no-print,.estado-wrap{display:none!important}
+    body{padding:0;background:#fff}
+    .boleta-wrap{margin:0;border:none;border-radius:0}
+    .nota-saldo{border:1px solid #c8a84b}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession } from './src/auth.js'
+import { ars, fechaCorta, mostrarError } from './src/utils.js'
+
+const { usuario } = await requireSession()
+const puedeEditarEstado = usuario.rol === 'admin' || usuario.rol === 'deposito'
+
+// Leer boleta_id del query param ?id=xxx
+const params = new URLSearchParams(location.search)
+const boletaId = params.get('id')
+
+if (!boletaId) {
+  document.getElementById('root').innerHTML =
+    `<div style="text-align:center;padding:60px 20px;color:var(--ink-soft)">No se indicó boleta. Agregá ?id=UUID a la URL.</div>`
+  throw new Error('sin id')
+}
+
+let boleta = null
+
+async function cargarBoleta() {
+  const { data, error } = await supabase
+    .from('boletas')
+    .select(`
+      id, total, saldo_anterior, total_a_cobrar, estado, fecha,
+      pedidos (
+        id, descuento, observaciones,
+        usuarios(nombre),
+        clientes(nombre, direccion, telefono),
+        pedido_items(
+          cantidad, precio_unit, descuento, es_bulto, u_por_bulto,
+          productos(nombre)
+        )
+      )
+    `)
+    .eq('id', boletaId)
+    .single()
+  if (error) throw error
+  boleta = data
+}
+
+const fmtF = s => {
+  if (!s) return ''
+  const d = new Date(s)
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function calcItem(it) {
+  return Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento || 0) / 100)
+}
+
+function render() {
+  const el = document.getElementById('root')
+  const ped = boleta.pedidos
+  const cli = ped?.clientes || {}
+  const items = ped?.pedido_items || []
+  const prev = ped?.usuarios?.nombre || ''
+  const desc = Number(ped?.descuento || 0)
+  const saldoAnt = Number(boleta.saldo_anterior) || 0
+  const total = Number(boleta.total) || 0
+  const totalCobrar = Number(boleta.total_a_cobrar) || 0
+  const numCorto = boleta.id.slice(-4).toUpperCase()
+
+  const subtotal = items.reduce((s, it) => s + Number(it.cantidad) * Number(it.precio_unit), 0)
+  const descMonto = desc > 0 ? subtotal * desc / 100 : 0
+  const tieneSaldo = saldoAnt > 0
+
+  el.innerHTML = `
+    <div class="hdr no-print">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Boleta #${numCorto}</small></div>
+      </div>
+      <div class="hdr-right">
+        <button class="hdr-btn" onclick="window.print()">🖨 Imprimir</button>
+      </div>
+    </div>
+
+    <div class="estado-wrap no-print">
+      <span class="estado-chip ${boleta.estado}">${
+        boleta.estado==='emitida'?'Emitida':
+        boleta.estado==='modificada'?'Modificada':'Anulada'}</span>
+    </div>
+
+    <div class="boleta-wrap">
+      <div class="bol-header">
+        <div class="bol-empresa">Distribuidora El Rey</div>
+        <div class="bol-sub">Alta Gracia, Córdoba</div>
+        <div class="bol-num">Boleta N° ${numCorto} &nbsp;·&nbsp; ${fmtF(boleta.fecha)}</div>
+      </div>
+
+      <div class="bol-cliente">
+        <div class="lbl">Cliente</div>
+        <div class="nm">${cli.nombre || ''}</div>
+        <div class="dir">${cli.direccion || ''}</div>
+        <div class="meta">
+          <span>📞 <b>${cli.telefono || ''}</b></span>
+          <span>Vendedor: <b>${prev}</b></span>
+        </div>
+      </div>
+
+      <div class="bol-items">
+        <div class="item-hdr">
+          <span style="flex:1">Producto</span>
+          <span style="min-width:70px;text-align:right">Cant. · Precio</span>
+          <span style="min-width:80px;text-align:right">Total</span>
+        </div>
+        ${items.map(it => {
+          const d = Number(it.descuento || 0)
+          return `<div class="item-row">
+            <div style="flex:1">
+              <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:11px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
+              ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
+            </div>
+            <div class="item-cant">${it.cantidad} × ${ars(it.precio_unit)}</div>
+            <div class="item-total">${ars(calcItem(it))}</div>
+          </div>`
+        }).join('')}
+      </div>
+
+      <div class="bol-totales">
+        <div class="tot-row">
+          <span class="k">Subtotal</span>
+          <span class="v">${ars(subtotal)}</span>
+        </div>
+        ${desc > 0 ? `
+        <div class="tot-row desc-gen">
+          <span class="k">Descuento general ${desc}%</span>
+          <span class="v">− ${ars(descMonto)}</span>
+        </div>` : ''}
+        <div class="divider-line"></div>
+        <div class="tot-row" style="font-weight:700">
+          <span class="k" style="color:var(--ink)">Total pedido</span>
+          <span class="v">${ars(total)}</span>
+        </div>
+
+        ${tieneSaldo ? `
+        <div class="saldo-ant-row">
+          <span class="k">⚠ Saldo anterior</span>
+          <span class="v">+ ${ars(saldoAnt)}</span>
+        </div>
+        <div class="total-cobrar">
+          <span class="k">Total a cobrar</span>
+          <span class="v">${ars(totalCobrar)}</span>
+        </div>` : `
+        <div class="total-normal">
+          <span class="k">Total</span>
+          <span class="v">${ars(total)}</span>
+        </div>`}
+      </div>
+
+      <div class="bol-firma">
+        <div class="firma-box">
+          <div class="firma-line"></div>
+          <div class="firma-lbl">Recibí conforme</div>
+        </div>
+        <div class="firma-box">
+          <div class="firma-line"></div>
+          <div class="firma-lbl">Vendedor</div>
+        </div>
+      </div>
+    </div>
+
+    ${tieneSaldo ? `
+    <div class="nota-saldo no-print">
+      ⚠ El saldo anterior de ${ars(saldoAnt)} corresponde a deuda preexistente al momento de confirmar este pedido. Al cobrar, se imputa primero contra el saldo anterior.
+    </div>` : ''}`
+
+  const bar = document.createElement('div')
+  bar.className = 'bar no-print'
+  bar.innerHTML = `
+    ${puedeEditarEstado && boleta.estado !== 'anulada' ? `
+      <button class="bar-ghost" onclick="cambiarEstado()">
+        ${boleta.estado === 'emitida' ? 'Marcar modificada' : 'Anular'}
+      </button>` : ''}
+    <button class="bar-btn" onclick="window.print()">🖨 Imprimir</button>`
+  el.appendChild(bar)
+}
+
+async function cambiarEstado() {
+  const nuevo = boleta.estado === 'emitida' ? 'modificada' : 'anulada'
+  if (nuevo === 'anulada' && !confirm('¿Seguro que querés anular esta boleta?')) return
+  const { error } = await supabase.from('boletas')
+    .update({ estado: nuevo })
+    .eq('id', boleta.id)
+  if (error) { mostrarError(error.message); return }
+  boleta.estado = nuevo
+  render()
+}
+
+window.cambiarEstado = cambiarEstado
+
+document.getElementById('root').innerHTML =
+  `<div style="text-align:center;padding:60px 20px;color:var(--ink-soft)">Cargando boleta…</div>`
+try {
+  await cargarBoleta()
+  render()
+} catch(e) {
+  mostrarError('Error: ' + e.message)
+}
+</script>
+</body>
+</html>

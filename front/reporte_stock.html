@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Reporte Stock</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF; --line-soft:#EEEADD;
+    --gold:#A9760E; --gold-dk:#8A5F09;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+
+  .main-tabs{display:flex;border-bottom:2px solid var(--line);background:var(--paper);
+    position:sticky;top:57px;z-index:19;overflow-x:auto}
+  .main-tab{flex:1;min-width:80px;padding:12px 8px;text-align:center;font-size:13px;
+    font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;
+    margin-bottom:-2px;white-space:nowrap}
+  .main-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  .filters{padding:12px 18px 8px;background:var(--paper);
+    position:sticky;top:104px;z-index:18;border-bottom:1px solid var(--line-soft)}
+  .search-input{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);
+    margin-bottom:8px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:12px center}
+  .search-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    white-space:nowrap;cursor:pointer;flex-shrink:0}
+  .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  .list{padding:12px 18px}
+  .prod-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px}
+  .prod-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .prod-card .nm{font-size:15px;font-weight:600;flex:1}
+  .stock-badge{padding:5px 10px;border-radius:8px;font-size:15px;font-weight:700;white-space:nowrap}
+  .stock-badge.neg {background:var(--red-bg);  color:var(--red-tx)}
+  .stock-badge.zero{background:var(--red-bg);  color:var(--red-tx)}
+  .stock-badge.bajo{background:var(--amber-bg);color:var(--amber-tx)}
+  .stock-badge.ok  {background:transparent;    color:var(--ink);border:1px solid var(--line)}
+  .prod-card .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px}
+  .meta-tag{font-size:12px;color:var(--ink-soft);font-weight:500}
+  .meta-tag b{color:var(--ink);font-weight:600}
+  .alert-row{display:flex;align-items:center;gap:6px;margin-top:8px;
+    padding:7px 10px;border-radius:8px;font-size:12px;font-weight:600}
+  .alert-row.critical{background:var(--red-bg);color:var(--red-tx)}
+  .alert-row.warn{background:var(--amber-bg);color:var(--amber-tx)}
+  .alert-row svg{width:14px;height:14px;flex-shrink:0}
+
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px 4px}
+  .sum-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px;text-align:center}
+  .sum-card .num{font-size:28px;font-weight:700;line-height:1}
+  .sum-card .num.red{color:var(--red-tx)}
+  .sum-card .num.amber{color:var(--amber-tx)}
+  .sum-card .num.green{color:var(--green-tx)}
+  .sum-card .lbl{font-size:12px;color:var(--ink-soft);font-weight:500;margin-top:4px}
+
+  .rank-item{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px}
+  .rank-item .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .rank-item .nm{font-size:15px;font-weight:600;flex:1}
+  .rank-item .val{font-size:14px;font-weight:700;color:var(--ink-soft);white-space:nowrap}
+  .bar-track{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:999px;background:var(--gold)}
+  .bar-fill.red{background:var(--red-tx)}
+  .bar-fill.amber{background:var(--amber-tx)}
+
+  .section-lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);padding:14px 18px 6px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .empty{text-align:center;padding:40px 10px;color:var(--ink-soft);font-size:15px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .prod-card,.rank-item{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPA_URL = 'https://rqbpzmkcwxruzszbtsjv.supabase.co';
+const SUPA_KEY = 'sb_publishable_tdI7VSKRcEqhaTVY0ipprA_umkrtiQb';
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+// ── AUTH + PERMISOS ────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login.html'; }
+
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, nombre, rol, empresa_id').eq('id', session.user.id).single();
+if (!usuario) { location.href = './login.html'; }
+
+if (usuario.rol !== 'admin') {
+  const { data: perm } = await supabase.from('permisos')
+    .select('nivel').eq('usuario_id', usuario.id).eq('modulo', 'reportes_stock').single();
+  if (!perm || perm.nivel === 'ninguno') { location.href = './login_home.html'; }
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+const ars = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+const HOY = new Date();
+const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 9999;
+const DIAS_ALERTA_INGRESO = 45;
+const DIAS_ALERTA_PRECIO  = 45;
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let tab = 'stock';
+let filtroGrupo = 'todo';
+let agrupar = 'cat';
+let busqueda = '';
+let productos = [];
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargarTodo() {
+  const [
+    { data: prods, error: errP },
+    { data: stocks, error: errS },
+    { data: ingresoItems, error: errI },
+  ] = await Promise.all([
+    supabase.from('productos')
+      .select('id, nombre, categoria, costo, precio_lista, updated_at, proveedores(nombre)')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('activo', true)
+      .order('nombre'),
+    supabase.from('stock_actual')
+      .select('producto_id, stock'),
+    supabase.from('ingreso_items')
+      .select('producto_id, ingresos(fecha)')
+      .not('ingresos', 'is', null),
+  ]);
+
+  if (errP) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error al cargar productos: ${errP.message}</div>`;
+    return;
+  }
+
+  // build stock map
+  const stockMap = {};
+  for (const s of (stocks || [])) stockMap[s.producto_id] = s.stock ?? 0;
+
+  // build ultimo_ingreso map: max fecha per producto_id
+  const ingresoMap = {};
+  for (const ii of (ingresoItems || [])) {
+    const f = ii.ingresos?.fecha;
+    if (!f) continue;
+    if (!ingresoMap[ii.producto_id] || f > ingresoMap[ii.producto_id]) {
+      ingresoMap[ii.producto_id] = f;
+    }
+  }
+
+  productos = (prods || []).map(p => ({
+    id: p.id,
+    nombre: p.nombre,
+    cat: p.categoria || 'Sin categoría',
+    prov: p.proveedores?.nombre || 'Sin proveedor',
+    costo: p.costo || 0,
+    precio: p.precio_lista || 0,
+    stock: stockMap[p.id] ?? 0,
+    ultimo_ingreso: ingresoMap[p.id] || null,
+    ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
+  }));
+
+  render();
+}
+
+// ── HELPERS FILTRO ─────────────────────────────────────────────────────────
+const uniq = arr => [...new Set(arr)];
+function grupos() {
+  const vals = agrupar === 'cat'
+    ? uniq(productos.map(p => p.cat)).sort()
+    : uniq(productos.map(p => p.prov)).sort();
+  return ['todo', ...vals];
+}
+function campoGrupo() { return agrupar === 'cat' ? 'cat' : 'prov'; }
+
+function prodsFiltrados() {
+  return productos.filter(p => {
+    if (filtroGrupo !== 'todo' && p[campoGrupo()] !== filtroGrupo) return false;
+    if (busqueda.trim() && !p.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
+    return true;
+  });
+}
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root');
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Reporte stock</small></div>
+      </div>
+      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+        onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    <div class="main-tabs">
+      ${[['stock','Stock'],['sin_ingreso','Sin ingreso'],['precio','Precios'],['resumen','Resumen']].map(([id, lbl]) =>
+        `<div class="main-tab ${tab === id ? 'active' : ''}" onclick="window._setTabStock('${id}')">${lbl}</div>`
+      ).join('')}
+    </div>`;
+
+  if (tab === 'stock')           renderStock(el);
+  else if (tab === 'sin_ingreso') renderSinIngreso(el);
+  else if (tab === 'precio')      renderPrecio(el);
+  else                            renderResumen(el);
+}
+
+// ── TAB STOCK ──────────────────────────────────────────────────────────────
+function renderStock(el) {
+  const gs = grupos();
+  el.innerHTML += `
+    <div class="filters">
+      <input class="search-input" placeholder="Buscar producto…" value="${busqueda}"
+        oninput="window._setBusqueda(this.value)" autocomplete="off">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <div class="chip ${agrupar === 'cat' ? 'active' : ''}" onclick="window._setAgrupar('cat')">Por categoría</div>
+        <div class="chip ${agrupar === 'prov' ? 'active' : ''}" onclick="window._setAgrupar('prov')">Por proveedor</div>
+      </div>
+      <div class="chips">
+        ${gs.map((g, i) => `<div class="chip ${filtroGrupo === g ? 'active' : ''}"
+          onclick="window._setFiltroGrupo(${i})">${g === 'todo' ? 'Todos' : g}</div>`).join('')}
+      </div>
+    </div>
+    <div id="stock-list" class="list"></div>`;
+  window._gruposCache = gs;
+  renderStockList();
+}
+
+function renderStockList() {
+  const box = document.getElementById('stock-list'); if (!box) return;
+  const lista = prodsFiltrados().sort((a, b) => a.stock - b.stock);
+  if (!lista.length) { box.innerHTML = `<div class="empty">Sin resultados.</div>`; return; }
+  box.innerHTML = lista.map(p => {
+    const cl = p.stock < 0 ? 'neg' : p.stock === 0 ? 'zero' : p.stock <= 5 ? 'bajo' : 'ok';
+    const diI = diasDesde(p.ultimo_ingreso);
+    const diP = diasDesde(p.ultimo_cambio_costo);
+    const alertaI = diI >= DIAS_ALERTA_INGRESO;
+    const alertaP = diP >= DIAS_ALERTA_PRECIO;
+    return `<div class="prod-card">
+      <div class="top">
+        <span class="nm">${p.nombre}</span>
+        <span class="stock-badge ${cl}">${p.stock}</span>
+      </div>
+      <div class="meta">
+        <span class="meta-tag">${p.cat}</span>
+        <span class="meta-tag">·</span>
+        <span class="meta-tag">${p.prov}</span>
+        <span class="meta-tag">·</span>
+        <span class="meta-tag">Costo <b>${ars(p.costo)}</b></span>
+      </div>
+      ${alertaI ? `<div class="alert-row ${diI > 60 ? 'critical' : 'warn'}">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 2L2 17h16L10 2zM10 8v4M10 14v.01"/>
+        </svg>
+        Sin ingreso hace <b>${diI === 9999 ? 'siempre' : diI + ' días'}</b> — costo posiblemente desactualizado
+      </div>` : ''}
+      ${alertaP && !alertaI ? `<div class="alert-row warn">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="10" cy="10" r="7.5"/><path d="M10 6.5v4M10 13.5v.01"/>
+        </svg>
+        Precio sin cambios hace <b>${diP} días</b>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── TAB SIN INGRESO ────────────────────────────────────────────────────────
+function renderSinIngreso(el) {
+  const lista = [...productos].sort((a, b) => diasDesde(b.ultimo_ingreso) - diasDesde(a.ultimo_ingreso));
+  const maxDias = diasDesde(lista[0]?.ultimo_ingreso) || 1;
+  const gs = grupos();
+
+  el.innerHTML += `
+    <div class="filters">
+      <div class="chips">
+        ${gs.map((g, i) => `<div class="chip ${filtroGrupo === g ? 'active' : ''}"
+          onclick="window._setFiltroGrupoFull(${i})">${g === 'todo' ? 'Todos' : g}</div>`).join('')}
+      </div>
+    </div>
+    <div class="section-lbl">Ordenados por días sin reingreso</div>
+    <div class="list">
+      ${lista.filter(p => filtroGrupo === 'todo' || p[campoGrupo()] === filtroGrupo).map(p => {
+        const d = diasDesde(p.ultimo_ingreso);
+        const pct = Math.round(d / maxDias * 100);
+        const cl = d >= 60 ? 'red' : d >= 45 ? 'amber' : '';
+        const dStr = d === 9999 ? 'Sin ingresos' : d + ' días';
+        return `<div class="rank-item">
+          <div class="top">
+            <span class="nm">${p.nombre}</span>
+            <span class="val" style="${d >= 60 ? 'color:var(--red-tx)' : d >= 45 ? 'color:var(--amber-tx)' : ''}">${dStr}</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill ${cl}" style="width:${pct}%"></div></div>
+          <div style="margin-top:6px;font-size:12px;color:var(--ink-soft)">
+            ${p.prov} · ${p.cat}${p.ultimo_ingreso ? ' · último: ' + p.ultimo_ingreso.split('-').reverse().join('/') : ''}
+            ${d >= DIAS_ALERTA_INGRESO ? `<span style="color:${d >= 60 ? 'var(--red-tx)' : 'var(--amber-tx)'};font-weight:600"> — ⚠ revisar costo</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  window._gruposCache = gs;
+}
+
+// ── TAB PRECIOS ────────────────────────────────────────────────────────────
+function renderPrecio(el) {
+  const lista = [...productos].sort((a, b) => diasDesde(b.ultimo_cambio_costo) - diasDesde(a.ultimo_cambio_costo));
+  const maxDias = diasDesde(lista[0]?.ultimo_cambio_costo) || 1;
+  const gs = grupos();
+
+  el.innerHTML += `
+    <div class="filters">
+      <div class="chips">
+        ${gs.map((g, i) => `<div class="chip ${filtroGrupo === g ? 'active' : ''}"
+          onclick="window._setFiltroGrupoFull(${i})">${g === 'todo' ? 'Todos' : g}</div>`).join('')}
+      </div>
+    </div>
+    <div class="section-lbl">Ordenados por días sin cambio de costo</div>
+    <div class="list">
+      ${lista.filter(p => filtroGrupo === 'todo' || p[campoGrupo()] === filtroGrupo).map(p => {
+        const d = diasDesde(p.ultimo_cambio_costo);
+        const pct = Math.round(d / maxDias * 100);
+        const cl = d >= 60 ? 'red' : d >= 45 ? 'amber' : '';
+        return `<div class="rank-item">
+          <div class="top">
+            <span class="nm">${p.nombre}</span>
+            <span class="val" style="${d >= 60 ? 'color:var(--red-tx)' : d >= 45 ? 'color:var(--amber-tx)' : ''}">${d} días</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill ${cl}" style="width:${pct}%"></div></div>
+          <div style="margin-top:6px;font-size:12px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+            <span>${p.prov} · costo actual ${ars(p.costo)}</span>
+            ${d >= DIAS_ALERTA_PRECIO ? `<span style="color:${d >= 60 ? 'var(--red-tx)' : 'var(--amber-tx)'};font-weight:600">⚠ posible desactualización</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  window._gruposCache = gs;
+}
+
+// ── TAB RESUMEN ────────────────────────────────────────────────────────────
+function renderResumen(el) {
+  const neg      = productos.filter(p => p.stock < 0).length;
+  const sinStock = productos.filter(p => p.stock === 0).length;
+  const bajo     = productos.filter(p => p.stock > 0 && p.stock <= 5).length;
+  const sinI45   = productos.filter(p => diasDesde(p.ultimo_ingreso) >= 45).length;
+  const sinP45   = productos.filter(p => diasDesde(p.ultimo_cambio_costo) >= 45).length;
+
+  const top5I = [...productos].sort((a, b) => diasDesde(b.ultimo_ingreso) - diasDesde(a.ultimo_ingreso)).slice(0, 5);
+  const top5P = [...productos].sort((a, b) => diasDesde(b.ultimo_cambio_costo) - diasDesde(a.ultimo_cambio_costo)).slice(0, 5);
+  const maxI = diasDesde(top5I[0]?.ultimo_ingreso) || 1;
+  const maxP = diasDesde(top5P[0]?.ultimo_cambio_costo) || 1;
+
+  el.innerHTML += `
+    <div class="summary">
+      <div class="sum-card"><div class="num red">${neg + sinStock}</div><div class="lbl">Sin stock / negativos</div></div>
+      <div class="sum-card"><div class="num amber">${bajo}</div><div class="lbl">Stock bajo (≤5)</div></div>
+      <div class="sum-card"><div class="num red">${sinI45}</div><div class="lbl">Sin ingreso +45 días</div></div>
+      <div class="sum-card"><div class="num amber">${sinP45}</div><div class="lbl">Precio +45 días sin cambio</div></div>
+    </div>
+    <div class="section-lbl" style="margin-top:8px">Top 5 sin reingreso</div>
+    <div class="list" style="padding-top:0">
+      ${top5I.map(p => {
+        const d = diasDesde(p.ultimo_ingreso);
+        return `<div class="rank-item">
+          <div class="top"><span class="nm">${p.nombre}</span>
+            <span class="val" style="${d >= 60 ? 'color:var(--red-tx)' : d >= 45 ? 'color:var(--amber-tx)' : ''}">${d === 9999 ? '∞' : d + 'd'}</span></div>
+          <div class="bar-track"><div class="bar-fill ${d >= 60 ? 'red' : d >= 45 ? 'amber' : ''}" style="width:${Math.round(d / maxI * 100)}%"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="section-lbl">Top 5 precio sin cambio</div>
+    <div class="list" style="padding-top:0">
+      ${top5P.map(p => {
+        const d = diasDesde(p.ultimo_cambio_costo);
+        return `<div class="rank-item">
+          <div class="top"><span class="nm">${p.nombre}</span>
+            <span class="val" style="${d >= 60 ? 'color:var(--red-tx)' : d >= 45 ? 'color:var(--amber-tx)' : ''}">${d}d</span></div>
+          <div class="bar-track"><div class="bar-fill ${d >= 60 ? 'red' : d >= 45 ? 'amber' : ''}" style="width:${Math.round(d / maxP * 100)}%"></div></div>
+          <div style="margin-top:5px;font-size:12px;color:var(--ink-soft)">${p.prov} · ${ars(p.costo)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._setTabStock = (t) => { tab = t; filtroGrupo = 'todo'; busqueda = ''; render(); };
+window._setAgrupar  = (v) => { agrupar = v; filtroGrupo = 'todo'; render(); };
+window._setBusqueda = (v) => { busqueda = v; renderStockList(); };
+// index-based group selection (avoids special chars in onclick strings)
+window._setFiltroGrupo     = (i) => { filtroGrupo = (window._gruposCache || grupos())[i]; renderStockList(); };
+window._setFiltroGrupoFull = (i) => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargarTodo();
+</script>
+</body>
+</html>

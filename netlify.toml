@@ -1,0 +1,63 @@
+# ── El Rey · Netlify config ───────────────────────────────────────────────
+# App 100% estática: no hay build step ni node_modules.
+# Publicar el directorio front/ tal cual.
+
+[build]
+  publish = "front"
+  # Sin comando de build — sólo HTML/JS/CSS planos.
+
+# ── HEADERS GLOBALES ─────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options            = "DENY"
+    X-Content-Type-Options     = "nosniff"
+    Referrer-Policy            = "strict-origin-when-cross-origin"
+    Permissions-Policy         = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security  = "max-age=63072000; includeSubDomains; preload"
+
+# Service Worker: nunca cachear — el browser debe verificar cada visita
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control          = "no-cache, no-store, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+# Manifest: leve cache (24h)
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type  = "application/manifest+json; charset=utf-8"
+    Cache-Control = "public, max-age=86400"
+
+# Íconos: inmutables (1 año) — cambiar nombre si cambian
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# JS del src/: caché de 1h (se invalida con deploy)
+[[headers]]
+  for = "/src/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Páginas HTML: network-first ya maneja el cache en el SW,
+# pero Netlify no debe cachearlas con CDN para que actualizaciones lleguen.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+# ── REDIRECTS ────────────────────────────────────────────────────────────
+# Raíz → login
+[[redirects]]
+  from   = "/"
+  to     = "/login_home.html"
+  status = 302
+
+# 404 → offline (el SW no está activo todavía si es primer acceso)
+[[redirects]]
+  from   = "/*"
+  to     = "/offline.html"
+  status = 404

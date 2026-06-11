@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Rey · Ventas</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --blue-bg:#E8F0FB;  --blue-tx:#2A4E9A;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20;gap:10px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+
+  .periodo-wrap{padding:14px 18px;border-bottom:1px solid var(--line-soft);
+    background:var(--paper);position:sticky;top:57px;z-index:19}
+  .periodo-chips{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}
+  .periodo-chips::-webkit-scrollbar{display:none}
+  .pchip{padding:7px 14px;border-radius:999px;font-size:14px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    white-space:nowrap;cursor:pointer;flex-shrink:0}
+  .pchip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+  .date-range{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .date-range input{width:100%;padding:9px 12px;border:1px solid var(--line);
+    border-radius:10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--card)}
+  .date-range input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .tabs{display:flex;border-bottom:2px solid var(--line);background:var(--paper);
+    position:sticky;top:155px;z-index:18}
+  .tab{flex:1;padding:11px 6px;text-align:center;font-size:13px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .kpi .num{font-size:24px;font-weight:700;line-height:1;letter-spacing:-.01em}
+  .kpi .num.gold{color:var(--gold)}
+  .kpi .num.green{color:var(--green-tx)}
+  .kpi .lbl{font-size:12px;color:var(--ink-soft);font-weight:500;margin-top:4px}
+  .kpi.wide{grid-column:span 2;display:flex;justify-content:space-between;align-items:center}
+  .kpi.wide .num{font-size:28px}
+
+  .chart-wrap{padding:0 18px 18px}
+  .chart-title{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:12px}
+  .bars{display:flex;align-items:flex-end;gap:4px;height:120px}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .bar-col .b{width:100%;background:var(--gold);border-radius:4px 4px 0 0;min-height:3px}
+  .bar-col .b.dim{background:var(--line)}
+  .bar-col .x{font-size:10px;color:var(--ink-soft);text-align:center;line-height:1.2}
+  .bar-col .tip{font-size:10px;color:var(--ink-soft);font-weight:600}
+
+  .section-lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);padding:14px 18px 8px}
+  .rank-item{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;margin:0 18px 10px}
+  .rank-item .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
+  .rank-item .nm{font-size:15px;font-weight:600;flex:1}
+  .rank-item .val{font-size:14px;font-weight:700;white-space:nowrap}
+  .rank-item .sub{font-size:12px;color:var(--ink-soft);margin-bottom:6px}
+  .bar-track{height:6px;background:var(--line-soft);border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:999px;background:var(--gold)}
+  .num-badge{display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:50%;background:var(--gold-lt);
+    color:var(--gold-dk);font-size:12px;font-weight:700;flex-shrink:0}
+  .num-badge.top1{background:var(--gold);color:#fff}
+
+  .prev-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px}
+  .prev-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .prev-card .name{font-size:15px;font-weight:700;margin-bottom:10px;
+    display:flex;align-items:center;gap:6px}
+  .prev-dot{width:8px;height:8px;border-radius:50%}
+  .prev-stat{margin-bottom:7px}
+  .prev-stat .k{font-size:11px;color:var(--ink-soft);font-weight:500;
+    text-transform:uppercase;letter-spacing:.05em}
+  .prev-stat .v{font-size:18px;font-weight:700;line-height:1.2}
+  .prev-bar-wrap{margin-top:12px}
+  .prev-bar-lbl{display:flex;justify-content:space-between;font-size:11px;
+    color:var(--ink-soft);margin-bottom:4px}
+  .prev-bar-track{height:8px;background:var(--line-soft);border-radius:999px;overflow:hidden}
+  .prev-bar-fill{height:100%;border-radius:999px}
+  .share-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 18px;margin:0 18px 14px}
+  .share-title{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:10px}
+  .share-bar{height:18px;border-radius:999px;overflow:hidden;display:flex}
+  .share-seg{height:100%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:#fff;transition:width .4s ease}
+  .share-legend{display:flex;gap:16px;margin-top:8px}
+  .sl{display:flex;align-items:center;gap:5px;font-size:13px}
+  .sl-dot{width:10px;height:10px;border-radius:50%}
+
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft);font-size:15px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .kpi,.rank-item{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPA_URL = 'https://rqbpzmkcwxruzszbtsjv.supabase.co';
+const SUPA_KEY = 'sb_publishable_tdI7VSKRcEqhaTVY0ipprA_umkrtiQb';
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+// ── AUTH + PERMISOS ────────────────────────────────────────────────────────
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) { location.href = './login.html'; }
+
+const { data: usuario } = await supabase
+  .from('usuarios').select('id, nombre, rol, empresa_id').eq('id', session.user.id).single();
+if (!usuario) { location.href = './login.html'; }
+
+if (usuario.rol !== 'admin') {
+  const { data: perm } = await supabase.from('permisos')
+    .select('nivel').eq('usuario_id', usuario.id).eq('modulo', 'ventas_totales').single();
+  if (!perm || perm.nivel === 'ninguno') { location.href = './login_home.html'; }
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+const ars = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+const arsK = n => n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n / 1000) + 'k' : '$' + n;
+
+function formatFecha(s) {
+  const [y, m, d] = s.split('-');
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`;
+}
+
+function isoHoy() { return new Date().toISOString().slice(0, 10); }
+function isoOffset(days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function inicioMes() {
+  const d = new Date(); d.setDate(1);
+  return d.toISOString().slice(0, 10);
+}
+
+const COLORES_PREV = ['#A9760E', '#2A4E9A', '#2C6B3F', '#A8392B', '#5E3A98', '#1A7A6E'];
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let periodo = 'mes';
+let desde = inicioMes();
+let hasta = isoHoy();
+let tab = 'resumen';
+let todosPedidos = [];  // cache full dataset
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargarPedidos() {
+  // load last 6 months; filter client-side for speed
+  const hace180 = isoOffset(-180);
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select(`
+      id, fecha_pedido, estado, descuento,
+      usuarios(nombre),
+      pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, productos(nombre))
+    `)
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('estado', 'entregado')
+    .gte('fecha_pedido', hace180)
+    .order('fecha_pedido', { ascending: false });
+
+  if (error) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error al cargar pedidos: ${error.message}</div>`;
+    return;
+  }
+  todosPedidos = data || [];
+  render();
+}
+
+function totalPedido(p) {
+  return (p.pedido_items || []).reduce((s, it) => {
+    const base = it.cantidad * it.precio_unit * (it.es_bulto ? (it.u_por_bulto || 1) : 1);
+    return s + base * (1 - (it.descuento || 0) / 100);
+  }, 0);
+}
+
+function pedidosFiltrados() {
+  return todosPedidos.filter(p => p.fecha_pedido >= desde && p.fecha_pedido <= hasta);
+}
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root');
+  const pf = pedidosFiltrados();
+  const totalVentas = pf.reduce((s, p) => s + totalPedido(p), 0);
+  const cantPedidos = pf.length;
+  const ticket = cantPedidos ? Math.round(totalVentas / cantPedidos) : 0;
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Ventas</small></div>
+      </div>
+      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;margin-left:auto;font-family:inherit"
+        onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+
+    <div class="periodo-wrap">
+      <div class="periodo-chips">
+        ${[['hoy','Hoy'],['semana','Semana'],['mes','Este mes'],['rango','Rango libre']].map(([id, lbl]) =>
+          `<div class="pchip ${periodo === id ? 'active' : ''}" onclick="window._setPeriodo('${id}')">${lbl}</div>`
+        ).join('')}
+      </div>
+      ${periodo === 'rango' ? `
+        <div class="date-range">
+          <input type="date" value="${desde}" onchange="window._setDesde(this.value)">
+          <input type="date" value="${hasta}" onchange="window._setHasta(this.value)">
+        </div>` : `
+        <div style="font-size:13px;color:var(--ink-soft);padding-top:2px">
+          ${desde === hasta ? formatFecha(desde) : `${formatFecha(desde)} → ${formatFecha(hasta)}`}
+        </div>`}
+    </div>
+
+    <div class="tabs">
+      ${[['resumen','Resumen'],['productos','Productos'],['preventistas','Preventistas']].map(([id, lbl]) =>
+        `<div class="tab ${tab === id ? 'active' : ''}" onclick="window._setTab('${id}')">${lbl}</div>`
+      ).join('')}
+    </div>
+
+    <div id="content"></div>`;
+
+  if (tab === 'resumen')         renderResumen(pf, totalVentas, cantPedidos, ticket);
+  else if (tab === 'productos')  renderProductos(pf);
+  else                           renderPreventistas(pf, totalVentas);
+}
+
+// ── TAB RESUMEN ────────────────────────────────────────────────────────────
+function renderResumen(pf, totalVentas, cantPedidos, ticket) {
+  const box = document.getElementById('content');
+  box.innerHTML = `
+    <div class="kpis">
+      <div class="kpi wide">
+        <div>
+          <div class="num gold">${ars(totalVentas)}</div>
+          <div class="lbl">Total vendido</div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="num">${cantPedidos}</div>
+        <div class="lbl">Pedidos</div>
+      </div>
+      <div class="kpi">
+        <div class="num green">${ars(ticket)}</div>
+        <div class="lbl">Ticket promedio</div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">Ventas por día</div>
+      <div id="chart"></div>
+    </div>`;
+  renderChart(pf);
+}
+
+function renderChart(pf) {
+  const box = document.getElementById('chart'); if (!box) return;
+  const d1 = new Date(desde), d2 = new Date(hasta);
+  const dias = [];
+  for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+    dias.push(d.toISOString().slice(0, 10));
+  }
+  if (dias.length > 31) {
+    box.innerHTML = `<div style="font-size:13px;color:var(--ink-soft)">Seleccioná un rango menor a 31 días para ver el gráfico.</div>`;
+    return;
+  }
+  const porDia = dias.map(f => ({
+    f, total: pf.filter(p => p.fecha_pedido === f).reduce((s, p) => s + totalPedido(p), 0)
+  }));
+  const max = Math.max(...porDia.map(d => d.total), 1);
+  const mostrar = (i, total) => total <= 10 || i % (Math.ceil(total / 7)) === 0;
+  box.innerHTML = `<div class="bars">
+    ${porDia.map((d, i) => {
+      const h = Math.round(d.total / max * 110);
+      return `<div class="bar-col">
+        <span class="tip" style="visibility:${d.total ? 'visible' : 'hidden'};font-size:${porDia.length > 14 ? '9px' : '10px'}">${d.total ? arsK(d.total) : ''}</span>
+        <div class="b ${d.total ? '' : 'dim'}" style="height:${Math.max(h, d.total ? 4 : 3)}px"></div>
+        <span class="x">${mostrar(i, porDia.length) ? d.f.slice(8) : ''}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ── TAB PRODUCTOS ──────────────────────────────────────────────────────────
+function renderProductos(pf) {
+  const box = document.getElementById('content');
+  const mapa = {};
+  pf.forEach(ped => (ped.pedido_items || []).forEach(it => {
+    const nom = it.productos?.nombre || '(sin nombre)';
+    if (!mapa[nom]) mapa[nom] = { nom, u: 0, monto: 0 };
+    const cant = it.cantidad * (it.es_bulto ? (it.u_por_bulto || 1) : 1);
+    mapa[nom].u += cant;
+    mapa[nom].monto += cant * it.precio_unit * (1 - (it.descuento || 0) / 100);
+  }));
+  const lista = Object.values(mapa).sort((a, b) => b.monto - a.monto);
+  if (!lista.length) { box.innerHTML = `<div class="empty">Sin ventas en este período.</div>`; return; }
+  const maxMonto = lista[0].monto || 1;
+  const maxU = Math.max(...lista.map(p => p.u), 1);
+  box.innerHTML = `
+    <div class="section-lbl">Por monto vendido</div>
+    ${lista.map((p, i) => `
+      <div class="rank-item">
+        <div class="top">
+          <span class="num-badge ${i === 0 ? 'top1' : ''}">${i + 1}</span>
+          <span class="nm">${p.nom}</span>
+          <span class="val">${ars(p.monto)}</span>
+        </div>
+        <div class="sub">${p.u} unidades</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.monto / maxMonto * 100)}%"></div></div>
+      </div>`).join('')}
+    <div class="section-lbl" style="margin-top:8px">Por unidades</div>
+    ${[...lista].sort((a, b) => b.u - a.u).map((p, i) => `
+      <div class="rank-item">
+        <div class="top">
+          <span class="num-badge ${i === 0 ? 'top1' : ''}">${i + 1}</span>
+          <span class="nm">${p.nom}</span>
+          <span class="val">${p.u} u</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.u / maxU * 100)}%"></div></div>
+      </div>`).join('')}`;
+}
+
+// ── TAB PREVENTISTAS ───────────────────────────────────────────────────────
+function renderPreventistas(pf, totalVentas) {
+  const box = document.getElementById('content');
+  // derive preventistas from data
+  const nombresSet = new Set(pf.map(p => p.usuarios?.nombre).filter(Boolean));
+  const preventistas = [...nombresSet].map((nombre, i) => ({ nombre, color: COLORES_PREV[i % COLORES_PREV.length] }));
+
+  if (!preventistas.length) { box.innerHTML = `<div class="empty">Sin datos de preventistas en este período.</div>`; return; }
+
+  const stats = preventistas.map(prev => {
+    const mis = pf.filter(p => p.usuarios?.nombre === prev.nombre);
+    const monto = mis.reduce((s, p) => s + totalPedido(p), 0);
+    const cant = mis.length;
+    const ticket = cant ? Math.round(monto / cant) : 0;
+    const share = totalVentas ? Math.round(monto / totalVentas * 100) : 0;
+    return { ...prev, monto, cant, ticket, share };
+  });
+
+  box.innerHTML = `
+    <div class="section-lbl">Participación en ventas</div>
+    <div class="share-card">
+      <div class="share-bar">
+        ${stats.map(s => `<div class="share-seg" style="width:${s.share}%;background:${s.color}">
+          ${s.share > 8 ? s.share + '%' : ''}</div>`).join('')}
+      </div>
+      <div class="share-legend">
+        ${stats.map(s => `<div class="sl">
+          <div class="sl-dot" style="background:${s.color}"></div>
+          <span>${s.nombre} ${s.share}%</span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="prev-cards">
+      ${stats.map(s => `<div class="prev-card">
+        <div class="name">
+          <div class="prev-dot" style="background:${s.color}"></div>${s.nombre}
+        </div>
+        <div class="prev-stat"><div class="k">Vendido</div>
+          <div class="v" style="color:${s.color}">${ars(s.monto)}</div></div>
+        <div class="prev-stat"><div class="k">Pedidos</div><div class="v">${s.cant}</div></div>
+        <div class="prev-stat"><div class="k">Ticket prom.</div><div class="v">${ars(s.ticket)}</div></div>
+        <div class="prev-bar-wrap">
+          <div class="prev-bar-lbl"><span>Participación</span><span>${s.share}%</span></div>
+          <div class="prev-bar-track">
+            <div class="prev-bar-fill" style="width:${s.share}%;background:${s.color}"></div>
+          </div>
+        </div>
+      </div>`).join('')}
+    </div>`;
+}
+
+// ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._setPeriodo = (p) => {
+  periodo = p;
+  const hoy = isoHoy();
+  if (p === 'hoy')    { desde = hoy;         hasta = hoy; }
+  if (p === 'semana') { desde = isoOffset(-6); hasta = hoy; }
+  if (p === 'mes')    { desde = inicioMes();  hasta = hoy; }
+  render();
+};
+window._setDesde = v => { desde = v; render(); };
+window._setHasta = v => { hasta = v; render(); };
+window._setTab   = v => { tab = v; render(); };
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+await cargarPedidos();
+</script>
+</body>
+</html>
