@@ -151,12 +151,18 @@ function render() {
                         <div class="ped-total">${ars(p.total)}</div>
                       </div>`).join('')}
                   ${esAdmin && h.estado !== 'cerrada' ? `
-                    <div style="padding:12px 14px;background:var(--paper);border-top:1px solid var(--line-soft)">
-                      <button onclick="window._cerrarHoja('${h.id}')"
+                    <div style="padding:12px 14px;background:var(--paper);border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:8px">
+                      <button onclick="location.href='./hoja_ruta.html?hoja_id=${h.id}'"
                         style="width:100%;padding:11px;border:none;border-radius:10px;
-                          background:var(--red-tx);color:#fff;font-size:14px;font-weight:600;
+                          background:var(--gold);color:#fff;font-size:14px;font-weight:600;
                           cursor:pointer;font-family:inherit">
-                        Cerrar hoja (pedidos pasan al día siguiente)
+                        Cerrar normal (registrar cobros y entregas)
+                      </button>
+                      <button onclick="window._cerrarHoja('${h.id}')"
+                        style="width:100%;padding:11px;border:1px solid var(--red-tx);border-radius:10px;
+                          background:transparent;color:var(--red-tx);font-size:13px;font-weight:600;
+                          cursor:pointer;font-family:inherit">
+                        Cerrar sin cobros (pedidos rollean al día siguiente)
                       </button>
                     </div>` : ''}
                 </div>` : ''}

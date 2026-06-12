@@ -226,14 +226,39 @@ let pedidos  = []  // adaptados del mockup
 let hojaId   = null
 let qrToken  = null
 let HOY      = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date())
+const _hojaIdParam = new URLSearchParams(location.search).get('hoja_id')
 
 async function cargarTodo() {
-  // Pedidos del día
-  const { data: rows, error: e1 } = await supabase
-    .from('hoja_ruta_hoy')
-    .select('*')
-    .eq('empresa_id', usuario.empresa_id)
-  if (e1) throw e1
+  let rows
+  if (_hojaIdParam) {
+    // Modo "cerrar hoja vieja": cargar pedidos de ESA hoja específica
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select(`id, hoja_ruta_id,
+        clientes(id, nombre, direccion, telefono, posicion_zona, zonas(nombre, orden)),
+        usuarios!pedidos_usuario_id_fkey(nombre)`)
+      .eq('hoja_ruta_id', _hojaIdParam)
+    if (error) throw error
+    rows = (data || []).map(p => ({
+      pedido_id:           p.id,
+      empresa_id:          usuario.empresa_id,
+      cliente_id:          p.clientes?.id,
+      cliente_nombre:      p.clientes?.nombre,
+      direccion:           p.clientes?.direccion,
+      telefono:            p.clientes?.telefono,
+      posicion_zona:       p.clientes?.posicion_zona,
+      zona_nombre:         p.clientes?.zonas?.nombre,
+      zona_orden:          p.clientes?.zonas?.orden,
+      preventista_nombre:  p.usuarios?.nombre,
+    }))
+  } else {
+    const { data, error } = await supabase
+      .from('hoja_ruta_hoy')
+      .select('*')
+      .eq('empresa_id', usuario.empresa_id)
+    if (error) throw error
+    rows = data
+  }
 
   if (!rows?.length) { pedidos = []; return }
 
@@ -264,34 +289,42 @@ async function cargarTodo() {
     }
   })
 
-  // Hoja del día (crear si no existe)
-  const { data: hojas, error: e3 } = await supabase
-    .from('hojas_ruta')
-    .select('id, qr_token, estado')
-    .eq('empresa_id', usuario.empresa_id)
-    .eq('fecha', HOY)
-    .neq('estado', 'cerrada')
-    .limit(1)
-  if (e3) throw e3
-
-  if (hojas?.length) {
-    hojaId  = hojas[0].id
-    qrToken = hojas[0].qr_token
+  if (_hojaIdParam) {
+    // Modo "cerrar hoja vieja"
+    const { data: h, error } = await supabase.from('hojas_ruta')
+      .select('id, qr_token, fecha, estado')
+      .eq('id', _hojaIdParam).single()
+    if (error) throw error
+    if (h.estado === 'cerrada') { alert('Esta hoja ya está cerrada.'); confirmado = true; return }
+    hojaId = h.id; qrToken = h.qr_token
+    HOY = h.fecha  // mostrar la fecha real de la hoja
   } else {
-    const { data: nueva, error: e4 } = await supabase
+    const { data: hojas, error: e3 } = await supabase
       .from('hojas_ruta')
-      .insert({ empresa_id: usuario.empresa_id, usuario_id: usuario.id,
-                fecha: HOY, estado: 'pendiente' })
-      .select('id, qr_token').single()
-    if (e4) throw e4
-    hojaId  = nueva.id
-    qrToken = nueva.qr_token
+      .select('id, qr_token, estado')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('fecha', HOY)
+      .neq('estado', 'cerrada')
+      .limit(1)
+    if (e3) throw e3
+    if (hojas?.length) {
+      hojaId  = hojas[0].id
+      qrToken = hojas[0].qr_token
+    } else {
+      const { data: nueva, error: e4 } = await supabase
+        .from('hojas_ruta')
+        .insert({ empresa_id: usuario.empresa_id, usuario_id: usuario.id,
+                  fecha: HOY, estado: 'pendiente' })
+        .select('id, qr_token').single()
+      if (e4) throw e4
+      hojaId  = nueva.id
+      qrToken = nueva.qr_token
+    }
+    await supabase.from('pedidos')
+      .update({ hoja_ruta_id: hojaId })
+      .in('id', pedidoIds)
+      .is('hoja_ruta_id', null)
   }
-  // Linkear cualquier pedido del día que aún no tenga hoja_ruta_id asignada
-  await supabase.from('pedidos')
-    .update({ hoja_ruta_id: hojaId })
-    .in('id', pedidoIds)
-    .is('hoja_ruta_id', null)
 
   // Inicializar cierres
   pedidos.forEach(p => {
