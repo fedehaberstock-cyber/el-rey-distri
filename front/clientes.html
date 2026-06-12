@@ -144,6 +144,8 @@ let busqueda = '';
 let cobroOpen = false;
 let cobroMonto = '';
 let cobroFormaPago = 'efectivo';
+let cobroTipo = 'pago';      // 'pago' = ingreso de dinero, 'cargo' = registrar deuda
+let cobroMotivo = '';
 
 let clientes = [];       // {id, nombre, direccion, telefono, saldo}
 let movsCache = {};      // cliId -> [{id, tipo, monto, descripcion, fecha, forma_pago}]
@@ -225,6 +227,7 @@ window.setBusqueda = (v) => { busqueda = v; renderCliList(); };
 window.setNuevoCampo = (k, v) => { nuevoForm[k] = v; };
 window.setCobroMonto = (v) => { cobroMonto = v; };
 window.setCobroForma = (v) => { cobroFormaPago = v; };
+window.setCobroMotivo = (v) => { cobroMotivo = v; };
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────
 function render(){
@@ -353,7 +356,7 @@ function renderDetalle(){
     <div class="sec-lbl">Movimientos</div>
     <div class="movs">
       ${movsCli.length ? movsCli.map(m=>{
-        const editable = esAdminUsr() && m.tipo === 'pago';
+        const editable = esAdminUsr() && (m.tipo === 'pago' || (m.tipo === 'cargo' && m.referencia_tipo === 'ajuste_manual'));
         return `
         <div class="mov">
           <div class="left">
@@ -369,7 +372,11 @@ function renderDetalle(){
 
   const bar = document.createElement('div');
   bar.className = 'bar';
-  bar.innerHTML = `<button class="bar-btn" onclick="abrirCobro()">Registrar cobro</button>`;
+  bar.innerHTML = `
+    <div style="display:flex;gap:8px;width:100%">
+      <button class="bar-btn" style="flex:1" onclick="abrirCobro('pago')">+ Cobro</button>
+      <button class="bar-btn" style="flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line)" onclick="abrirCobro('cargo')">+ Deuda</button>
+    </div>`;
   el.appendChild(bar);
 }
 
@@ -378,40 +385,49 @@ function renderCobro(){
   const c = clientes.find(x=>x.id===cliSelId);
   const ov = document.createElement('div');
   ov.className = 'overlay';
+  const esCargo = cobroTipo === 'cargo';
+  const titulo = editandoMovId
+    ? (esCargo ? 'Editar deuda' : 'Editar cobro')
+    : (esCargo ? 'Registrar deuda' : 'Registrar cobro');
   ov.innerHTML = `
     <div class="cobro-panel">
-      <h3>${editandoMovId ? 'Editar cobro' : 'Registrar cobro'}</h3>
+      <h3>${titulo}</h3>
       <p>${c.nombre}</p>
       <input id="cobro-input" class="field" type="number" min="1" placeholder="Monto en $"
         value="${cobroMonto}" oninput="window.setCobroMonto(this.value)" inputmode="numeric">
-      <div style="display:flex;gap:8px;margin-bottom:14px">
-        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
-          padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;
-          ${cobroFormaPago==='efectivo'?'border-color:var(--gold);background:var(--card)':''}">
-          <input type="radio" name="fp" value="efectivo" ${cobroFormaPago==='efectivo'?'checked':''}
-            onchange="window.setCobroForma('efectivo');" style="accent-color:var(--gold)">
-          Efectivo
-        </label>
-        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
-          padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;
-          ${cobroFormaPago==='transferencia'?'border-color:var(--gold)':''}">
-          <input type="radio" name="fp" value="transferencia" ${cobroFormaPago==='transferencia'?'checked':''}
-            onchange="window.setCobroForma('transferencia');" style="accent-color:var(--gold)">
-          Transferencia
-        </label>
-      </div>
+      ${esCargo ? `
+        <input class="field" placeholder="Motivo (opcional)" value="${cobroMotivo}"
+          oninput="window.setCobroMotivo(this.value)" style="margin-bottom:14px">
+      ` : `
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+            padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;
+            ${cobroFormaPago==='efectivo'?'border-color:var(--gold);background:var(--card)':''}">
+            <input type="radio" name="fp" value="efectivo" ${cobroFormaPago==='efectivo'?'checked':''}
+              onchange="window.setCobroForma('efectivo');" style="accent-color:var(--gold)">
+            Efectivo
+          </label>
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+            padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;
+            ${cobroFormaPago==='transferencia'?'border-color:var(--gold)':''}">
+            <input type="radio" name="fp" value="transferencia" ${cobroFormaPago==='transferencia'?'checked':''}
+              onchange="window.setCobroForma('transferencia');" style="accent-color:var(--gold)">
+            Transferencia
+          </label>
+        </div>
+      `}
       <div id="cobro-err" class="" style="color:var(--red-tx);font-size:13px;text-align:center;margin-bottom:8px;display:none"></div>
       <div class="cobro-btns">
         <button class="cancel" onclick="cerrarCobro()">Cancelar</button>
         ${editandoMovId ? `<button id="cobro-anular" class="cancel" style="color:var(--red-tx);border-color:var(--red-tx)" onclick="window.anularMov()">Anular</button>` : ''}
-        <button id="cobro-confirm" class="bar-btn" onclick="confirmarCobro()">${editandoMovId ? 'Guardar' : 'Confirmar cobro'}</button>
+        <button id="cobro-confirm" class="bar-btn" onclick="confirmarCobro()">${editandoMovId ? 'Guardar' : (esCargo ? 'Confirmar deuda' : 'Confirmar cobro')}</button>
       </div>
     </div>`;
   document.getElementById('root').appendChild(ov);
   setTimeout(()=>{ const i=document.getElementById('cobro-input'); if(i) i.focus(); },50);
 }
 
-function abrirCobro(){ editandoMovId=null; cobroOpen=true; cobroMonto=''; cobroFormaPago='efectivo'; render(); }
+function abrirCobro(tipo='pago'){ editandoMovId=null; cobroOpen=true; cobroTipo=tipo; cobroMonto=''; cobroMotivo=''; cobroFormaPago='efectivo'; render(); }
 function cerrarCobro(){ cobroOpen=false; editandoMovId=null; render(); }
 
 window.editarMov = (movId) => {
@@ -419,8 +435,10 @@ window.editarMov = (movId) => {
   const m = (movsCache[cliSelId]||[]).find(x => x.id === movId);
   if (!m) return;
   editandoMovId = movId;
+  cobroTipo = m.tipo === 'cargo' ? 'cargo' : 'pago';
   cobroMonto = String(Math.abs(Number(m.monto) || 0));
-  cobroFormaPago = m.forma_pago || 'efectivo';
+  cobroFormaPago = (m.forma_pago && m.forma_pago !== 'cuenta_corriente') ? m.forma_pago : 'efectivo';
+  cobroMotivo = '';
   cobroOpen = true;
   render();
 };
@@ -447,10 +465,14 @@ async function confirmarCobro(){
 
   btn.disabled = true; btn.textContent = 'Guardando…';
 
+  const esCargo = cobroTipo === 'cargo';
+  const monto = esCargo ? n : -n;
+  const forma = esCargo ? 'cuenta_corriente' : cobroFormaPago;
+
   let error;
   if (editandoMovId) {
     ({ error } = await supabase.from('mov_cuenta')
-      .update({ monto: -n, forma_pago: cobroFormaPago })
+      .update({ monto, forma_pago: forma })
       .eq('id', editandoMovId));
   } else {
     const { data: { user } } = await supabase.auth.getUser();
@@ -459,9 +481,9 @@ async function confirmarCobro(){
     ({ error } = await supabase.from('mov_cuenta').insert({
       empresa_id: usr.empresa_id,
       cliente_id: cliSelId,
-      tipo: 'pago',
-      monto: -n,
-      forma_pago: cobroFormaPago,
+      tipo: esCargo ? 'cargo' : 'pago',
+      monto,
+      forma_pago: forma,
       referencia_tipo: 'ajuste_manual',
       usuario_id: usr.id,
     }));
