@@ -224,7 +224,7 @@ const puedeAdminCierre = usuario.rol === 'admin' || usuario.rol === 'deposito'
 let pedidos  = []  // adaptados del mockup
 let hojaId   = null
 let qrToken  = null
-let HOY      = new Date().toISOString().slice(0,10)
+let HOY      = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date())
 
 async function cargarTodo() {
   // Pedidos del día

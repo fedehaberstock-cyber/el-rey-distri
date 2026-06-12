@@ -146,6 +146,15 @@ let productos = []; // {id, nombre, precio, u_bulto, desc_bulto}
 let clienteId = '';
 let orden = [];
 let descGeneral = 0;
+// fecha de reparto — por defecto mañana (zona Córdoba)
+function _mañanaArg(){
+  const fmt = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'})
+  const partes = fmt.format(new Date()).split('-')
+  const d = new Date(Date.UTC(+partes[0], +partes[1]-1, +partes[2]))
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0,10)
+}
+let fechaReparto = _mañanaArg();
 let busqueda = '';
 let confirmado = false;
 let confirmando = false;
@@ -160,6 +169,7 @@ Object.assign(window, {
   setCliente: v => { clienteId = v; render(); },
   setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
   setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
+  setFechaReparto: v => { fechaReparto = v; },
 });
 
 const prod = id => productos.find(p => p.id === id);
@@ -261,6 +271,7 @@ async function confirmar(){
     cliente_id: clienteId,
     descuento: descGeneral,
     observaciones: null,
+    fecha_reparto: fechaReparto,
     items: orden.map(it => ({
       producto_id: it.productoId,
       cantidad: it.cant,
@@ -334,6 +345,9 @@ function render(){
       ${cli ? `<div class="saldo ${cli.saldo>0?'deudor':'aldia'}">
         ${cli.saldo>0 ? 'Debe '+ars(cli.saldo) : (cli.saldo<0?'A favor '+ars(-cli.saldo):'Cuenta al día')}
       </div>` : ''}
+      <div class="lbl" style="margin-top:10px">Fecha de reparto</div>
+      <input class="field" type="date" value="${fechaReparto}"
+        onchange="window.setFechaReparto(this.value)">
     </section>
     <div class="divider"></div>
     <section class="search-wrap">
