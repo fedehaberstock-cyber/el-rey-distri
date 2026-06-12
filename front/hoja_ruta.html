@@ -240,6 +240,8 @@ async function cargarTodo() {
   // Resolver qué hoja mostrar:
   //   - si llegamos con ?hoja_id=, esa
   //   - sino, la próxima pendiente con fecha >= hoy
+  //   - sino, buscar pedidos huérfanos (confirmados sin hoja, fecha_reparto >= hoy)
+  //     y crear la hoja correspondiente al día más próximo, linkear esos pedidos
   if (!_hojaIdParam) {
     const { data: prox, error: eP } = await supabase
       .from('hojas_ruta')
@@ -252,6 +254,31 @@ async function cargarTodo() {
     if (eP) throw eP
     if (prox?.length) {
       _resolvedHojaId = prox[0].id
+    } else {
+      // fallback: pedidos viejos sin hoja todavía
+      const { data: huerf, error: eHu } = await supabase
+        .from('pedidos')
+        .select('id, fecha_reparto')
+        .eq('empresa_id', usuario.empresa_id)
+        .eq('estado', 'confirmado')
+        .is('hoja_ruta_id', null)
+        .gte('fecha_reparto', HOY)
+        .order('fecha_reparto', { ascending: true })
+      if (eHu) throw eHu
+      if (huerf?.length) {
+        const fechaTarget = huerf[0].fecha_reparto
+        const { data: nueva, error: eN } = await supabase
+          .from('hojas_ruta')
+          .insert({ empresa_id: usuario.empresa_id, usuario_id: usuario.id,
+                    fecha: fechaTarget, estado: 'pendiente' })
+          .select('id').single()
+        if (eN) throw eN
+        const idsAMover = huerf.filter(p => p.fecha_reparto === fechaTarget).map(p => p.id)
+        await supabase.from('pedidos')
+          .update({ hoja_ruta_id: nueva.id })
+          .in('id', idsAMover)
+        _resolvedHojaId = nueva.id
+      }
     }
   }
 
