@@ -353,7 +353,7 @@ function renderDetalle(){
     <div class="sec-lbl">Movimientos</div>
     <div class="movs">
       ${movsCli.length ? movsCli.map(m=>{
-        const editable = esAdminUsr() && m.referencia_tipo === 'ajuste_manual';
+        const editable = esAdminUsr() && m.tipo === 'pago';
         return `
         <div class="mov">
           <div class="left">

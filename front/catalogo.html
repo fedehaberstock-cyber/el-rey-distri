@@ -226,7 +226,7 @@ import { requireSession, tienePermiso } from './src/auth.js';
 
 // ── AUTH ───────────────────────────────────────────────────────────────
 const { usuario } = await requireSession();
-if (!tienePermiso('configuracion')) { location.href = './login_home.html'; }
+if (!tienePermiso('catalogo')) { location.href = './login_home.html'; }
 
 // ── DATOS ──────────────────────────────────────────────────────────────
 let productos = [];
