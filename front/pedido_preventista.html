@@ -48,8 +48,8 @@
 
   /* BÚSQUEDA */
   .search-wrap{position:relative}
-  /* sección de búsqueda siempre pegada al tope */
-  .search-wrap{position:sticky;top:0;background:var(--paper);z-index:15;padding:10px 0 6px}
+  /* cuando el input está enfocado, fijar la sección arriba */
+  section.search-wrap:focus-within{position:sticky;top:0;background:var(--paper);z-index:15;padding-top:10px;padding-bottom:6px}
   .results{margin-top:6px;border:1px solid var(--line);border-radius:12px;
     overflow:hidden;background:var(--card)}
   .results .row{padding:0;border-bottom:1px solid var(--line-soft)}
@@ -464,7 +464,7 @@ function renderItems(){
     box.innerHTML=`<div class="empty-order">Todavía no agregaste productos.<br>Buscalos arriba para sumarlos.</div>`;
     return;
   }
-  box.innerHTML = orden.map((it,i)=>({it,i})).reverse().map(({it,i})=>{
+  box.innerHTML = orden.map((it,i)=>{
     const p = prod(it.productoId);
     const bultos = it.esBulto ? it.cant / it.uPorBulto : null;
     return `<div class="item ${it.esBulto?'es-bulto':''}">
