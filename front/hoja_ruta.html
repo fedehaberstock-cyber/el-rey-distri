@@ -285,11 +285,12 @@ async function cargarTodo() {
     if (e4) throw e4
     hojaId  = nueva.id
     qrToken = nueva.qr_token
-    // Asociar pedidos a la hoja
-    await supabase.from('pedidos')
-      .update({ hoja_ruta_id: hojaId })
-      .in('id', pedidoIds)
   }
+  // Linkear cualquier pedido del día que aún no tenga hoja_ruta_id asignada
+  await supabase.from('pedidos')
+    .update({ hoja_ruta_id: hojaId })
+    .in('id', pedidoIds)
+    .is('hoja_ruta_id', null)
 
   // Inicializar cierres
   pedidos.forEach(p => {
