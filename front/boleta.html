@@ -247,6 +247,7 @@ function render() {
 
       <div class="bol-items">
         <div class="item-hdr">
+          <span style="min-width:40px">Cant.</span>
           <span style="flex:1">Producto</span>
           <span style="min-width:70px;text-align:right">Precio unit.</span>
           <span style="min-width:80px;text-align:right">Total</span>
@@ -254,6 +255,7 @@ function render() {
         ${items.map(it => {
           const d = Number(it.descuento || 0)
           return `<div class="item-row">
+            <div style="min-width:40px;font-weight:600">${it.cantidad}</div>
             <div style="flex:1">
               <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:11px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
               ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
