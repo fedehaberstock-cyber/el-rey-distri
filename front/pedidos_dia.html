@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Pedidos del día</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF; --line-soft:#EEEADD;
+    --gold:#A9760E; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2; --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:30px}
+  .hdr{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:20;background:var(--paper);gap:10px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;color:var(--ink-soft);
+    text-transform:uppercase;letter-spacing:.06em}
+  .back{margin-left:auto;background:none;border:none;font-size:13px;color:var(--gold);
+    font-weight:600;cursor:pointer;font-family:inherit}
+
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .kpi .num{font-size:22px;font-weight:700}
+  .kpi .num.gold{color:var(--gold)}
+  .kpi .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px}
+
+  .ped{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    margin:8px 18px;padding:10px 14px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ped:hover{background:var(--gold-lt)}
+  .ped-cli{font-size:14px;font-weight:600}
+  .ped-meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .ped-total{font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap}
+  .estado-chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;
+    font-weight:600;margin-left:4px;vertical-align:middle}
+  .estado-chip.confirmado{background:var(--amber-bg);color:var(--amber-tx)}
+  .estado-chip.entregado{background:var(--green-bg);color:var(--green-tx)}
+  .estado-chip.no_entregado{background:var(--red-bg);color:var(--red-tx)}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft)}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:10px;color:var(--red-tx);font-size:14px}
+  .sec-lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);padding:14px 18px 4px}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession } from './src/auth.js'
+
+const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n)
+const fmtHora = ts => {
+  const d = new Date(ts)
+  return new Intl.DateTimeFormat('es-AR', { timeZone:'America/Argentina/Cordoba',
+    hour:'2-digit', minute:'2-digit' }).format(d)
+}
+
+const { usuario } = await requireSession()
+const esAdminODep = usuario.rol === 'admin' || usuario.rol === 'deposito'
+const hoyArg = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date())
+
+async function cargar() {
+  let q = supabase
+    .from('pedidos')
+    .select(`
+      id, fecha, fecha_reparto, estado,
+      clientes(nombre),
+      usuarios!pedidos_usuario_id_fkey(nombre),
+      boletas(id, total)
+    `)
+    .eq('empresa_id', usuario.empresa_id)
+    .gte('fecha', hoyArg + 'T00:00:00-03:00')
+    .lte('fecha', hoyArg + 'T23:59:59-03:00')
+    .order('fecha', { ascending: false })
+
+  if (!esAdminODep) q = q.eq('usuario_id', usuario.id)
+
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+function render(pedidos) {
+  const el = document.getElementById('root')
+  const total = pedidos.reduce((s, p) => {
+    const bol = Array.isArray(p.boletas) ? p.boletas[0] : p.boletas
+    return s + (Number(bol?.total) || 0)
+  }, 0)
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>Pedidos del día<small>${esAdminODep ? 'todos los preventistas' : usuario.nombre}</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="num">${pedidos.length}</div><div class="lbl">Pedidos</div></div>
+      <div class="kpi"><div class="num gold">${ars(total)}</div><div class="lbl">Total cargado</div></div>
+    </div>
+
+    ${pedidos.length === 0 ? `<div class="empty">No hay pedidos cargados hoy.</div>` : `
+      <div class="sec-lbl">Hoy ${hoyArg.split('-').reverse().join('/')}</div>
+      ${pedidos.map(p => {
+        const bol = Array.isArray(p.boletas) ? p.boletas[0] : p.boletas
+        const tot = Number(bol?.total) || 0
+        return `
+          <div class="ped" onclick="${bol?.id ? `location.href='./boleta.html?id=${bol.id}'` : `alert('Pedido sin boleta')`}">
+            <div style="flex:1;min-width:0">
+              <div class="ped-cli">${p.clientes?.nombre || '(sin cliente)'}
+                <span class="estado-chip ${p.estado}">${p.estado}</span></div>
+              <div class="ped-meta">${fmtHora(p.fecha)} · ${p.usuarios?.nombre || ''} · entrega ${p.fecha_reparto}</div>
+            </div>
+            <div class="ped-total">${ars(tot)}</div>
+          </div>`
+      }).join('')}
+    `}
+  `
+}
+
+try {
+  const pedidos = await cargar()
+  render(pedidos)
+} catch (e) {
+  document.getElementById('root').innerHTML = `<div class="err-box">Error: ${e.message || e}</div>`
+}
+</script>
+</body>
+</html>
