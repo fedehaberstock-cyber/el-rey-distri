@@ -34,11 +34,16 @@
   .bol-num{font-size:12px;font-weight:600;color:var(--ink-soft);margin-top:6px}
   .bol-cliente{padding:10px 14px;border-bottom:1px solid var(--line-soft)}
   .bol-cliente .lbl{font-size:10px;font-weight:600;letter-spacing:.07em;
-    text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
+    text-transform:uppercase;color:var(--ink-soft)}
   .bol-cliente .nm{font-size:14px;font-weight:700}
-  .bol-cliente .dir{font-size:12px;color:var(--ink-soft);margin-top:2px}
-  .bol-cliente .meta{display:flex;gap:14px;margin-top:5px;font-size:12px;color:var(--ink-soft)}
-  .bol-cliente .meta b{color:var(--ink);font-weight:600}
+  .bol-cliente .dir{font-size:12px;color:var(--ink-soft)}
+  .bol-cliente .vend{font-size:12px;color:var(--ink-soft);white-space:nowrap}
+  .bol-cliente .vend b{color:var(--ink);font-weight:600}
+  .bol-cliente .bol-num{font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap}
+  .cli-row1,.cli-row2{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .cli-row2{margin-top:3px}
+  .item-tag{font-size:9px;font-weight:600;background:var(--line-soft,#eee);color:var(--ink-soft);
+    padding:1px 5px;border-radius:999px;text-transform:lowercase;margin-left:3px}
   .bol-items{padding:8px 14px}
   .item-hdr{display:flex;justify-content:space-between;padding:3px 0 6px;font-size:10px;
     font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);
@@ -54,9 +59,9 @@
   .tot-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
   .tot-row .k{color:var(--ink-soft)}
   .tot-row .v{font-weight:600}
-  .saldo-ant-row{display:flex;justify-content:space-between;padding:6px 8px;margin:5px 0;
-    background:var(--red-bg);border-radius:6px;font-size:13px}
-  .saldo-ant-row .k,.saldo-ant-row .v{color:var(--red-tx);font-weight:700}
+  .saldo-ant-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+  .saldo-ant-row .k{color:var(--ink-soft);font-weight:600}
+  .saldo-ant-row .v{font-weight:700}
   .total-cobrar{display:flex;justify-content:space-between;padding:10px 8px;
     background:var(--ink);border-radius:8px;margin-top:6px}
   .total-cobrar .k{font-size:13px;font-weight:600;color:rgba(255,255,255,.7)}
@@ -82,12 +87,13 @@
     .boleta-wrap{margin:0;border:none;border-radius:0;page-break-after:always;break-after:page}
     .boleta-wrap:last-child{page-break-after:auto;break-after:auto}
     .bol-empresa{font-size:14px}
-    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .meta,.tot-row,.item-cant{font-size:11px}
-    .bol-cliente .nm,.item-nm,.item-total{font-size:12px}
+    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .vend,.tot-row{font-size:11px}
+    .bol-cliente .nm{font-size:12px}
+    .item-nm,.item-total,.item-cant{font-size:11px}
+    .item-tag{font-size:9px}
     .total-cobrar .v,.total-normal .v{font-size:16px}
     .item-row{padding:4px 0}
-    .bol-header,.bol-cliente,.bol-items,.bol-totales,.bol-firma{padding:8px 10px}
-    .firma-line{width:90px}
+    .bol-header,.bol-cliente,.bol-items,.bol-totales{padding:8px 10px}
   }
 </style>
 </head>
@@ -159,15 +165,15 @@ function renderBoleta(boleta) {
       <div class="bol-header">
         <div class="bol-empresa">Distribuidora El Rey</div>
         <div class="bol-sub">Alta Gracia, Córdoba</div>
-        <div class="bol-num">Boleta N° ${numCorto} · ${fmtF(boleta.fecha)}</div>
       </div>
       <div class="bol-cliente">
-        <div class="lbl">Cliente</div>
-        <div class="nm">${cli.nombre || ''}</div>
-        <div class="dir">${cli.direccion || ''}</div>
-        <div class="meta">
-          <span>📞 <b>${cli.telefono || ''}</b></span>
-          <span>Vendedor: <b>${prev}</b></span>
+        <div class="cli-row1">
+          <div><span class="lbl">CLIENTE:</span> <span class="nm">${cli.nombre || ''}</span></div>
+          <div class="bol-num">Boleta N° ${numCorto} · ${fmtF(boleta.fecha)}</div>
+        </div>
+        <div class="cli-row2">
+          <div class="dir">${cli.direccion || ''}${cli.telefono ? ' · 📞 '+cli.telefono : ''}</div>
+          <div class="vend">Vendedor: <b>${prev}</b></div>
         </div>
       </div>
       <div class="bol-items">
@@ -182,8 +188,7 @@ function renderBoleta(boleta) {
           return `<div class="item-row">
             <div style="min-width:40px;font-weight:600">${it.cantidad}</div>
             <div style="flex:1">
-              <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:10px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
-              ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
+              <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span class="item-tag">bulto</span>` : ''}${d > 0 ? ` <span class="item-tag">desc ${d}%</span>` : ''}</div>
             </div>
             <div class="item-cant">${ars(Number(it.precio_unit) * (1 - Number(it.descuento||0)/100))}</div>
             <div class="item-total">${ars(calcItem(it))}</div>
@@ -192,18 +197,14 @@ function renderBoleta(boleta) {
       </div>
       <div class="bol-totales">
         <div class="tot-row"><span class="k">Subtotal</span><span class="v">${ars(subtotal)}</span></div>
-        ${desc > 0 ? `<div class="tot-row" style="color:var(--amber-tx)"><span class="k">Descuento ${desc}%</span><span class="v">− ${ars(descMonto)}</span></div>` : ''}
+        ${desc > 0 ? `<div class="tot-row"><span class="k">Descuento ${desc}%</span><span class="v">− ${ars(descMonto)}</span></div>` : ''}
         <div class="tot-row" style="font-weight:700"><span class="k" style="color:var(--ink)">Total pedido</span><span class="v">${ars(total)}</span></div>
         ${tieneSaldo ? `
-          <div class="saldo-ant-row"><span class="k">⚠ Saldo anterior</span><span class="v">+ ${ars(saldoAnt)}</span></div>
+          <div class="saldo-ant-row"><span class="k">Saldo anterior</span><span class="v">+ ${ars(saldoAnt)}</span></div>
           <div class="total-cobrar"><span class="k">Total a cobrar</span><span class="v">${ars(totalCobrar)}</span></div>
         ` : `
           <div class="total-normal"><span class="k">Total</span><span class="v">${ars(total)}</span></div>
         `}
-      </div>
-      <div class="bol-firma">
-        <div class="firma-box"><div class="firma-line"></div><div class="firma-lbl">Recibí conforme</div></div>
-        <div class="firma-box"><div class="firma-line"></div><div class="firma-lbl">Vendedor</div></div>
       </div>
     </div>`
 }
