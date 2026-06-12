@@ -129,7 +129,7 @@
 
 <script type="module">
 import { supabase } from './src/supabase.js'
-import { requireSession, tienePermiso } from './src/auth.js'
+import { requireSession, tienePermiso, getUsuario } from './src/auth.js'
 import { ars as arsFmt, fechaCorta, mostrarError } from './src/utils.js'
 
 // expongo handlers a onclick inline
@@ -200,6 +200,10 @@ async function cargarClientes(){
     saldo: saldoMap[c.id] || 0,
   }));
 }
+
+const esAdminUsr = () => usuarioActual?.rol === 'admin';
+let usuarioActual = null;
+let editandoMovId = null;
 
 async function cargarMovimientos(cliId){
   const { data, error } = await supabase
@@ -348,14 +352,17 @@ function renderDetalle(){
 
     <div class="sec-lbl">Movimientos</div>
     <div class="movs">
-      ${movsCli.length ? movsCli.map(m=>`
+      ${movsCli.length ? movsCli.map(m=>{
+        const editable = esAdminUsr() && m.referencia_tipo === 'ajuste_manual';
+        return `
         <div class="mov">
           <div class="left">
             <div class="desc">${m.descripcion}</div>
             <div class="fecha">${fmtFecha(m.fecha)}</div>
           </div>
           <div class="monto ${m.tipo}">${m.tipo==='cargo'?'+':''} ${ars(m.monto)}</div>
-        </div>`).join('')
+          ${editable ? `<button onclick="window.editarMov('${m.id}')" style="background:none;border:none;color:var(--gold);font-size:18px;cursor:pointer;padding:0 6px;font-family:inherit" title="Editar">✏</button>` : ''}
+        </div>`}).join('')
       : `<div class="no-movs">Sin movimientos todavía.</div>`}
     </div>`;
   el.appendChild(body);
@@ -373,7 +380,7 @@ function renderCobro(){
   ov.className = 'overlay';
   ov.innerHTML = `
     <div class="cobro-panel">
-      <h3>Registrar cobro</h3>
+      <h3>${editandoMovId ? 'Editar cobro' : 'Registrar cobro'}</h3>
       <p>${c.nombre}</p>
       <input id="cobro-input" class="field" type="number" min="1" placeholder="Monto en $"
         value="${cobroMonto}" oninput="window.setCobroMonto(this.value)" inputmode="numeric">
@@ -396,15 +403,38 @@ function renderCobro(){
       <div id="cobro-err" class="" style="color:var(--red-tx);font-size:13px;text-align:center;margin-bottom:8px;display:none"></div>
       <div class="cobro-btns">
         <button class="cancel" onclick="cerrarCobro()">Cancelar</button>
-        <button id="cobro-confirm" class="bar-btn" onclick="confirmarCobro()">Confirmar cobro</button>
+        ${editandoMovId ? `<button id="cobro-anular" class="cancel" style="color:var(--red-tx);border-color:var(--red-tx)" onclick="window.anularMov()">Anular</button>` : ''}
+        <button id="cobro-confirm" class="bar-btn" onclick="confirmarCobro()">${editandoMovId ? 'Guardar' : 'Confirmar cobro'}</button>
       </div>
     </div>`;
   document.getElementById('root').appendChild(ov);
   setTimeout(()=>{ const i=document.getElementById('cobro-input'); if(i) i.focus(); },50);
 }
 
-function abrirCobro(){ cobroOpen=true; cobroMonto=''; cobroFormaPago='efectivo'; render(); }
-function cerrarCobro(){ cobroOpen=false; render(); }
+function abrirCobro(){ editandoMovId=null; cobroOpen=true; cobroMonto=''; cobroFormaPago='efectivo'; render(); }
+function cerrarCobro(){ cobroOpen=false; editandoMovId=null; render(); }
+
+window.editarMov = (movId) => {
+  const cli = clientes.find(x=>x.id===cliSelId);
+  const m = (movsCache[cliSelId]||[]).find(x => x.id === movId);
+  if (!m) return;
+  editandoMovId = movId;
+  cobroMonto = String(Math.abs(Number(m.monto) || 0));
+  cobroFormaPago = m.forma_pago || 'efectivo';
+  cobroOpen = true;
+  render();
+};
+
+window.anularMov = async () => {
+  if (!editandoMovId) return;
+  if (!confirm('¿Anular este cobro? El saldo del cliente se ajusta de inmediato.')) return;
+  const btn = document.getElementById('cobro-anular');
+  if (btn) { btn.disabled = true; btn.textContent = 'Anulando…'; }
+  const { error } = await supabase.from('mov_cuenta').delete().eq('id', editandoMovId);
+  if (error) { alert('Error: ' + error.message); if (btn) { btn.disabled=false; btn.textContent='Anular'; } return; }
+  await Promise.all([cargarClientes(), cargarMovimientos(cliSelId)]);
+  cobroOpen=false; editandoMovId=null; cobroMonto=''; render();
+};
 
 async function confirmarCobro(){
   const n = parseFloat(cobroMonto);
@@ -416,31 +446,35 @@ async function confirmarCobro(){
   }
 
   btn.disabled = true; btn.textContent = 'Guardando…';
-  // empresa_id se completa por trigger via empresa_actual() en la policy;
-  // pero la columna es NOT NULL → lo pasamos explícito desde el usuario actual.
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: usr } = await supabase.from('usuarios')
-    .select('id, empresa_id').eq('auth_id', user.id).single();
 
-  const { error } = await supabase.from('mov_cuenta').insert({
-    empresa_id: usr.empresa_id,
-    cliente_id: cliSelId,
-    tipo: 'pago',
-    monto: -n,
-    forma_pago: cobroFormaPago,
-    referencia_tipo: 'ajuste_manual',
-    usuario_id: usr.id,
-  });
+  let error;
+  if (editandoMovId) {
+    ({ error } = await supabase.from('mov_cuenta')
+      .update({ monto: -n, forma_pago: cobroFormaPago })
+      .eq('id', editandoMovId));
+  } else {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: usr } = await supabase.from('usuarios')
+      .select('id, empresa_id').eq('auth_id', user.id).single();
+    ({ error } = await supabase.from('mov_cuenta').insert({
+      empresa_id: usr.empresa_id,
+      cliente_id: cliSelId,
+      tipo: 'pago',
+      monto: -n,
+      forma_pago: cobroFormaPago,
+      referencia_tipo: 'ajuste_manual',
+      usuario_id: usr.id,
+    }));
+  }
 
   if (error) {
-    btn.disabled = false; btn.textContent = 'Confirmar cobro';
+    btn.disabled = false; btn.textContent = editandoMovId ? 'Guardar' : 'Confirmar cobro';
     if (errEl) { errEl.textContent = error.message; errEl.style.display='block'; }
     return;
   }
 
-  // refrescar saldo del cliente y movimientos
   await Promise.all([cargarClientes(), cargarMovimientos(cliSelId)]);
-  cobroOpen=false; cobroMonto=''; render();
+  cobroOpen=false; editandoMovId=null; cobroMonto=''; render();
 }
 
 // ── NUEVO CLIENTE ─────────────────────────────────────────────────────
@@ -549,6 +583,7 @@ function irNuevo()          { nuevoForm={nombre:'',dir:'',tel:''}; vista='nuevo'
 async function arrancar(){
   await requireSession();
   if (!tienePermiso('clientes')) { location.href = './login_home.html'; return; }
+  usuarioActual = getUsuario();
   render();   // muestra "Cargando…"
   await cargarClientes();
   render();
