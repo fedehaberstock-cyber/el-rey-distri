@@ -317,6 +317,10 @@ function render() {
   const bar = document.createElement('div')
   bar.className = 'bar no-print'
   bar.innerHTML = `
+    ${usuario.rol === 'admin' ? `
+      <button class="bar-ghost" style="color:var(--red-tx);border-color:var(--red-tx)" onclick="eliminarBoleta()">
+        🗑 Eliminar
+      </button>` : ''}
     ${puedeEditarEstado && boleta.estado !== 'anulada' ? `
       <button class="bar-ghost" onclick="cambiarEstado()">
         ${boleta.estado === 'emitida' ? 'Marcar modificada' : 'Anular'}
@@ -324,6 +328,15 @@ function render() {
     <button class="bar-btn" onclick="window.print()">🖨 Imprimir</button>`
   el.appendChild(bar)
 }
+
+async function eliminarBoleta() {
+  if (!confirm('¿Eliminar esta boleta? Se borran items, pedido y movimientos de stock/cuenta asociados. No se puede deshacer.')) return
+  const { error } = await supabase.rpc('eliminar_boleta', { p_boleta_id: boleta.id })
+  if (error) { mostrarError('Error: ' + error.message); return }
+  alert('Boleta eliminada')
+  history.back()
+}
+window.eliminarBoleta = eliminarBoleta
 
 async function cambiarEstado() {
   const nuevo = boleta.estado === 'emitida' ? 'modificada' : 'anulada'
