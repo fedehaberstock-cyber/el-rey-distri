@@ -48,6 +48,8 @@
 
   /* BÚSQUEDA */
   .search-wrap{position:relative}
+  /* cuando el input está enfocado, fijar la sección arriba para que siempre quede al tope */
+  section.search-wrap:focus-within{position:sticky;top:0;background:var(--paper);z-index:15;padding-top:10px;padding-bottom:6px}
   .results{margin-top:6px;border:1px solid var(--line);border-radius:12px;
     overflow:hidden;background:var(--card)}
   .results .row{padding:0;border-bottom:1px solid var(--line-soft)}
