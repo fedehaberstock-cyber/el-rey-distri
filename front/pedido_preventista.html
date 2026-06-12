@@ -172,10 +172,14 @@ Object.assign(window, {
   limpiarCliente: () => { clienteId = ''; busquedaCli = ''; render(); },
   setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
   scrollAProductos: () => {
-    const el = document.querySelector('.search-wrap');
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY;
-    window.scrollTo({ top: top + el.offsetHeight, behavior:'smooth' });
+    // esperar a que el teclado abra antes de medir
+    setTimeout(() => {
+      const input = document.querySelector('.search-wrap input.field');
+      if (!input) return;
+      const r = input.getBoundingClientRect();
+      // dejar el input a 8px del borde superior del viewport
+      window.scrollBy({ top: r.top - 8, behavior:'smooth' });
+    }, 350);
   },
   setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
   setFechaReparto: v => { fechaReparto = v; },
