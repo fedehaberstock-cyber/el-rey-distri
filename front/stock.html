@@ -207,8 +207,10 @@ let prodSelId  = null;
 let filtroGrupo = 'todo';
 let agrupar    = 'cat';
 let busqueda   = '';
-let panelOpen  = null;      // 'ingreso' | 'ajuste' | null
+let panelOpen  = null;      // 'ingreso' | 'ajuste' | 'editar' | null
 let pInput     = { prodId: '', busq: '', cant: '', motivo: '' };
+let proveedores = [];
+let edit       = null;      // {nombre, categoria, proveedor_id, costo, precio, u_bulto, desc_bulto, activo}
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
 async function cargarTodo() {
@@ -216,13 +218,16 @@ async function cargarTodo() {
     { data: prods, error: errP },
     { data: stocks },
     { data: ingresoItems },
+    { data: provs },
   ] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, costo, precio, updated_at, proveedores(nombre)')
+      .select('id, nombre, categoria, costo, precio, updated_at, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
+    supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
   ]);
+  proveedores = provs || [];
 
   if (errP) {
     document.getElementById('root').innerHTML =
@@ -245,13 +250,51 @@ async function cargarTodo() {
     nombre: p.nombre,
     cat: p.categoria || 'Sin categoría',
     prov: p.proveedores?.nombre || 'Sin proveedor',
+    proveedor_id: p.proveedor_id || null,
     costo: p.costo || 0,
     precio: p.precio || 0,
+    u_bulto: p.u_bulto || 1,
+    desc_bulto: p.desc_bulto || 0,
     stock: stockMap[p.id] ?? 0,
     ultimo_ingreso: ingresoMap[p.id] || null,
     ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
   }));
 }
+
+window._editarProducto = (id) => {
+  const p = productos.find(x => x.id === id); if (!p) return;
+  edit = {
+    nombre: p.nombre, categoria: p.cat === 'Sin categoría' ? '' : p.cat,
+    proveedor_id: p.proveedor_id || '',
+    costo: p.costo, precio: p.precio,
+    u_bulto: p.u_bulto, desc_bulto: p.desc_bulto,
+    activo: true,
+  };
+  panelOpen = 'editar';
+  pInput.prodId = id;
+  render();
+};
+
+async function guardarEdicion() {
+  if (!edit || !pInput.prodId) return;
+  const payload = {
+    nombre: edit.nombre.trim(),
+    categoria: edit.categoria.trim() || null,
+    proveedor_id: edit.proveedor_id || null,
+    costo: Number(edit.costo) || 0,
+    precio: Number(edit.precio) || 0,
+    u_bulto: Math.max(1, parseInt(edit.u_bulto) || 1),
+    desc_bulto: Math.min(100, Math.max(0, Number(edit.desc_bulto) || 0)),
+    activo: !!edit.activo,
+  };
+  const { error } = await supabase.from('productos').update(payload).eq('id', pInput.prodId);
+  if (error) { alert('Error: ' + error.message); return; }
+  panelOpen = null; edit = null;
+  await cargarTodo();
+  render();
+}
+window._guardarEdicion = guardarEdicion;
+window._setEdit = (k, v) => { if (edit) edit[k] = v; };
 
 async function cargarMovs(prodId) {
   const { data, error } = await supabase
@@ -405,6 +448,7 @@ function renderDetalle() {
     const bar = document.createElement('div');
     bar.className = 'bar';
     bar.innerHTML = `<div class="bar-2">
+      <button class="ghost" onclick="window._editarProducto('${p.id}')">✏ Editar producto</button>
       <button class="ghost" onclick="window._abrirPanel('ajuste','${p.id}')">Ajuste</button>
       <button class="bar-btn" onclick="window._abrirPanel('ingreso','${p.id}')">Registrar ingreso</button>
     </div>`;
@@ -414,8 +458,9 @@ function renderDetalle() {
   if (panelOpen) renderPanel();
 }
 
-// ── PANEL INGRESO / AJUSTE ─────────────────────────────────────────────────
+// ── PANEL INGRESO / AJUSTE / EDITAR ────────────────────────────────────────
 function renderPanel() {
+  if (panelOpen === 'editar') { renderPanelEditar(); return; }
   const esIngreso = panelOpen === 'ingreso';
   const prodPrefill = pInput.prodId ? productos.find(p => p.id === pInput.prodId) : null;
   const busqMatch = pInput.busq.trim().length > 1
@@ -456,6 +501,54 @@ function renderPanel() {
     const f = document.getElementById('pbusq') || document.getElementById('pcant');
     if (f) f.focus();
   }, 50);
+}
+
+function renderPanelEditar() {
+  if (!edit) return;
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) window._cerrarPanel(); };
+  ov.innerHTML = `
+    <div class="panel" style="max-height:85vh;overflow-y:auto">
+      <h3>Editar producto</h3>
+      <label class="fl">Nombre</label>
+      <input class="field" value="${edit.nombre}" oninput="window._setEdit('nombre', this.value)">
+
+      <label class="fl">Categoría</label>
+      <input class="field" value="${edit.categoria}" oninput="window._setEdit('categoria', this.value)" placeholder="Ej: Bebidas">
+
+      <label class="fl">Proveedor</label>
+      <select class="field" onchange="window._setEdit('proveedor_id', this.value)">
+        <option value="">— Sin proveedor —</option>
+        ${proveedores.map(pv => `<option value="${pv.id}" ${pv.id===edit.proveedor_id?'selected':''}>${pv.nombre}</option>`).join('')}
+      </select>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label class="fl">Costo</label>
+          <input class="field" type="number" min="0" step="0.01" value="${edit.costo}" oninput="window._setEdit('costo', this.value)"></div>
+        <div><label class="fl">Precio</label>
+          <input class="field" type="number" min="0" step="0.01" value="${edit.precio}" oninput="window._setEdit('precio', this.value)"></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label class="fl">U. por bulto</label>
+          <input class="field" type="number" min="1" value="${edit.u_bulto}" oninput="window._setEdit('u_bulto', this.value)"></div>
+        <div><label class="fl">Desc. bulto %</label>
+          <input class="field" type="number" min="0" max="100" value="${edit.desc_bulto}" oninput="window._setEdit('desc_bulto', this.value)"></div>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;cursor:pointer">
+        <input type="checkbox" ${edit.activo?'checked':''} onchange="window._setEdit('activo', this.checked)"
+          style="width:18px;height:18px;accent-color:var(--gold)">
+        Activo (visible en pedidos)
+      </label>
+
+      <div class="panel-btns" style="margin-top:16px">
+        <button class="cancel" onclick="window._cerrarPanel()">Cancelar</button>
+        <button class="bar-btn" onclick="window._guardarEdicion()">Guardar</button>
+      </div>
+    </div>`;
+  document.getElementById('root').appendChild(ov);
 }
 
 // ── TAB SIN INGRESO ────────────────────────────────────────────────────────
@@ -637,7 +730,7 @@ window._abrirPanel        = (tipo, id) => {
   if (!puedeAjustar) return;
   panelOpen = tipo; pInput = { prodId: id || '', busq: '', cant: '', motivo: '' }; render();
 };
-window._cerrarPanel       = () => { panelOpen = null; render(); };
+window._cerrarPanel       = () => { panelOpen = null; edit = null; render(); };
 window._confirmarPanel    = () => confirmarPanel();
 window._selProd           = id => { pInput.prodId = id; pInput.busq = ''; window._rerenderPanel(); };
 window._setPBusq          = v  => { pInput.busq = v; window._rerenderPanel(); };
