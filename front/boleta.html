@@ -288,16 +288,16 @@ function render() {
         </div>
 
         ${tieneSaldo ? `
-        <div class="saldo-ant-row">
+        <div class="tot-row">
           <span class="k">Saldo anterior</span>
           <span class="v">+ ${ars(saldoAnt)}</span>
         </div>
-        <div class="total-cobrar">
-          <span class="k">Total a cobrar</span>
+        <div class="tot-row" style="font-weight:700">
+          <span class="k" style="color:var(--ink)">Total a cobrar</span>
           <span class="v">${ars(totalCobrar)}</span>
         </div>` : `
-        <div class="total-normal">
-          <span class="k">Total</span>
+        <div class="tot-row" style="font-weight:700">
+          <span class="k" style="color:var(--ink)">Total</span>
           <span class="v">${ars(total)}</span>
         </div>`}
       </div>
