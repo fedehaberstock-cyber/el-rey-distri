@@ -1,3 +1,6 @@
+-- Columna para guardar la URL pública de la foto
+alter table productos add column if not exists foto_url text;
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- Storage bucket "productos" para fotos del catálogo.
 -- Público (URLs accesibles sin auth) — solo admin/deposito pueden subir.
