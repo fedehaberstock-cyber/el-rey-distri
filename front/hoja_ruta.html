@@ -182,26 +182,24 @@
   .print-line{display:none}
   .print-header{display:none}
   @media print{
-    @page{margin:12mm}
+    @page{size:A5;margin:10mm}
     .tabs,.bar,.no-print,.ped-items,.pos-badge,.ped-totales,.resumen-hoja,.qr-wrap{display:none!important}
-    html,body{background:#fff;max-width:100%;font-size:11px;padding:0}
+    html,body{background:#fff;max-width:100%;font-size:12px;padding:0;color:#000}
     .print-header{display:block!important;text-align:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}
     .print-header h1{font-size:14px;font-weight:700}
-    .print-header p{font-size:10px;color:#555}
-    .zona-hdr{padding:5px 0 2px;font-size:9px;color:#555;background:none}
+    .print-header p{font-size:11px;color:#333}
+    .zona-hdr{padding:6px 0 3px;font-size:10px;color:#333;background:none;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
     .zona-hdr::after{background:#999}
-    .ped-card{margin:0;border:none;border-radius:0;border-bottom:1px solid #ddd;break-inside:avoid}
-    .ped-main{padding:3px 0}
+    .ped-card{margin:0;border:none;border-radius:0;border-bottom:1px solid #ccc;break-inside:avoid;padding:6px 0}
+    .ped-main{padding:0}
     .ped-num,.ped-nm,.ped-dir{display:none!important}
-    .ped-top{display:flex!important;align-items:baseline;flex-wrap:nowrap}
-    .print-line{display:flex!important;align-items:baseline;gap:3px;font-size:24px;flex:1;flex-wrap:nowrap;overflow:hidden}
-    .print-num{font-weight:700;white-space:nowrap;flex-shrink:0;min-width:44px}
-    .print-nm{font-weight:700;white-space:nowrap;flex-shrink:0;max-width:140px;overflow:hidden;text-overflow:ellipsis}
-    .print-sep{color:#bbb;flex-shrink:0}
-    .print-dir{color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-    .print-tel{white-space:nowrap;flex-shrink:0;color:#555}
-    .print-importe{font-weight:700;white-space:nowrap;flex-shrink:0;font-size:11px;text-align:right;min-width:72px}
-    .print-saldo{font-size:9px;color:#c00;white-space:nowrap;flex-shrink:0}
+    .ped-top{display:flex!important;align-items:stretch;flex-wrap:nowrap}
+    .print-line{display:flex!important;align-items:stretch;gap:8px;font-size:12px;flex:1;flex-wrap:nowrap;overflow:hidden}
+    .print-sep,.print-num,.print-tel,.print-saldo{display:none!important}
+    .print-nm{font-weight:700;white-space:nowrap;flex-shrink:0;max-width:32%;overflow:hidden;text-overflow:ellipsis}
+    .print-dir{color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+    .print-importe{font-weight:700;white-space:nowrap;flex-shrink:0;font-size:12px;text-align:right;min-width:60px}
+    .print-anot{display:inline-block!important;flex-shrink:0;min-width:100px;border-bottom:1px solid #000;margin-left:6px}
   }
   @media(prefers-reduced-motion:no-preference){
     .cierre-card,.ped-card{animation:fd .15s ease}
@@ -460,14 +458,10 @@ function renderHoja(el) {
                 <div class="ped-dir">📍 ${p.dir} · 📞 ${p.tel}</div>
               </div>
               <div class="print-line">
-                <span class="print-num">${p.num}</span>
-                <span class="print-sep">·</span>
                 <span class="print-nm">${p.cliente}</span>
-                <span class="print-sep">·</span>
                 <span class="print-dir">${p.dir}</span>
-                <span class="print-tel"> ${p.tel}</span>
                 <span class="print-importe">${ars(totalACobrar(p))}</span>
-                ${p.saldoAnt > 0 ? `<span class="print-saldo">(s.${ars(p.saldoAnt)})</span>` : ''}
+                <span class="print-anot"></span>
               </div>
             </div>
             <div><span class="pos-badge">Posición ${p.pos}</span></div>
