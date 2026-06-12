@@ -147,6 +147,7 @@ let cobroFormaPago = 'efectivo';
 
 let clientes = [];       // {id, nombre, direccion, telefono, saldo}
 let movsCache = {};      // cliId -> [{id, tipo, monto, descripcion, fecha, forma_pago}]
+let boletasCache = {};   // cliId -> [{id, fecha, total, estado}]
 let cargando = false;
 
 let nuevoForm = {nombre:'', dir:'', tel:''};
@@ -320,6 +321,19 @@ function renderDetalle(){
       ${c.telefono ? `<div class="meta-row">&#128222; <b>${c.telefono}</b></div>` : ''}
       ${c.direccion ? `<div class="meta-row">&#128205; <span>${c.direccion}</span></div>` : ''}
     </div>
+    <div class="sec-lbl">Boletas</div>
+    <div class="movs">
+      ${(boletasCache[c.id] || []).length ? boletasCache[c.id].map(b => `
+        <div class="mov" style="cursor:pointer" onclick="location.href='./boleta.html?id=${b.id}'">
+          <div class="left">
+            <div class="desc">Boleta #${b.id.slice(-4).toUpperCase()} <span style="font-size:11px;color:var(--ink-soft)">· ${b.estado}</span></div>
+            <div class="fecha">${fmtFecha(b.fecha)}</div>
+          </div>
+          <div class="monto cargo">${ars(b.total)}</div>
+        </div>`).join('')
+      : `<div class="no-movs">${boletasCache[c.id] ? 'Sin boletas todavía.' : 'Cargando…'}</div>`}
+    </div>
+
     <div class="sec-lbl">Movimientos</div>
     <div class="movs">
       ${movsCli.length ? movsCli.map(m=>`
@@ -496,10 +510,26 @@ async function guardarCliente(){
 function irLista()          { vista='lista'; cobroOpen=false; busqueda=''; render(); }
 async function irDetalle(id){
   cliSelId=id; vista='detalle'; render();
-  if (!movsCache[id]) {
-    await cargarMovimientos(id);
+  const tareas = []
+  if (!movsCache[id]) tareas.push(cargarMovimientos(id))
+  if (!boletasCache[id]) tareas.push(cargarBoletasCliente(id))
+  if (tareas.length) {
+    await Promise.all(tareas)
     if (vista==='detalle' && cliSelId===id) render();
   }
+}
+
+async function cargarBoletasCliente(cliId) {
+  const { data, error } = await supabase
+    .from('boletas')
+    .select('id, fecha, total, estado, pedidos!inner(cliente_id)')
+    .eq('pedidos.cliente_id', cliId)
+    .order('fecha', { ascending: false })
+    .limit(100)
+  if (error) { boletasCache[cliId] = []; return }
+  boletasCache[cliId] = (data || []).map(b => ({
+    id: b.id, fecha: b.fecha, total: Number(b.total) || 0, estado: b.estado,
+  }))
 }
 function irNuevo()          { nuevoForm={nombre:'',dir:'',tel:''}; vista='nuevo'; render(); }
 
