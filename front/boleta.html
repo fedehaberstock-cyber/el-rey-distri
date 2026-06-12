@@ -125,10 +125,19 @@
 
   /* PRINT */
   @media print{
+    @page{size:A5;margin:8mm}
     .hdr,.bar,.no-print,.estado-wrap{display:none!important}
-    body{padding:0;background:#fff}
+    html,body{padding:0;background:#fff;font-size:12px;max-width:100%}
     .boleta-wrap{margin:0;border:none;border-radius:0}
-    .nota-saldo{border:1px solid #c8a84b}
+    .bol-empresa{font-size:14px}
+    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .meta,.tot-row,.item-cant{font-size:11px}
+    .bol-cliente .nm,.item-nm,.item-total{font-size:12px}
+    .total-cobrar .v,.total-normal .v{font-size:16px}
+    .item-row{padding:4px 0}
+    .bol-header{padding:8px 10px}
+    .bol-cliente,.bol-items,.bol-totales,.bol-firma{padding:8px 10px}
+    .nota-saldo{border:1px solid #c8a84b;font-size:10px}
+    .firma-line{width:90px}
   }
 </style>
 </head>
@@ -248,7 +257,7 @@ function render() {
               <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:11px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
               ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
             </div>
-            <div class="item-cant">${it.cantidad} × ${ars(it.precio_unit)}</div>
+            <div class="item-cant">${it.cantidad} × ${ars(Number(it.precio_unit) * (1 - Number(it.descuento||0)/100))}</div>
             <div class="item-total">${ars(calcItem(it))}</div>
           </div>`
         }).join('')}

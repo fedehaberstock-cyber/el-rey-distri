@@ -76,11 +76,18 @@
     border-radius:10px;color:var(--red-tx);font-size:14px}
 
   @media print{
+    @page{size:A5;margin:8mm}
     .topbar,.no-print{display:none!important}
-    body{padding:0;background:#fff;max-width:100%}
+    html,body{padding:0;background:#fff;max-width:100%;font-size:12px}
     .boleta-wrap{margin:0;border:none;border-radius:0;page-break-after:always;break-after:page}
     .boleta-wrap:last-child{page-break-after:auto;break-after:auto}
-    @page{margin:10mm}
+    .bol-empresa{font-size:14px}
+    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .meta,.tot-row,.item-cant{font-size:11px}
+    .bol-cliente .nm,.item-nm,.item-total{font-size:12px}
+    .total-cobrar .v,.total-normal .v{font-size:16px}
+    .item-row{padding:4px 0}
+    .bol-header,.bol-cliente,.bol-items,.bol-totales,.bol-firma{padding:8px 10px}
+    .firma-line{width:90px}
   }
 </style>
 </head>
@@ -176,7 +183,7 @@ function renderBoleta(boleta) {
               <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:10px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
               ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
             </div>
-            <div class="item-cant">${it.cantidad} × ${ars(it.precio_unit)}</div>
+            <div class="item-cant">${it.cantidad} × ${ars(Number(it.precio_unit) * (1 - Number(it.descuento||0)/100))}</div>
             <div class="item-total">${ars(calcItem(it))}</div>
           </div>`
         }).join('')}
