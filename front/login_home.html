@@ -120,7 +120,7 @@
 <body>
 <div id="root"></div>
 <script type="module">
-import { login, logout as authLogout, requireSession, getSession, getUsuario, getPermisos } from './src/auth.js'
+import { login, logout as authLogout, requireSession, getSession, getUsuario, getPermisos, tienePermiso } from './src/auth.js'
 import { cap, fechaLarga } from './src/utils.js'
 import { supabase } from './src/supabase.js'
 import { initSync, mountStatusBadge } from './src/sync.js'
@@ -295,82 +295,65 @@ async function renderHomeAdmin(){
       <div class="qs"><div class="num red">${deudores}</div><div class="lbl">Deudores</div></div>
     </div>
 
-    <div class="sec-title">Operaciones</div>
-    <div class="grid">
-      <div class="action-card accent" onclick="location.href='./hoja_ruta.html'">
-        <div class="icon">🚚</div>
-        <div class="ac-title">Hoja de ruta</div>
-        <div class="ac-desc">Reparto del día</div>
-      </div>
-      <div class="action-card" onclick="location.href='./pedido_preventista.html'">
-        <div class="icon">📋</div>
-        <div class="ac-title">Nuevo pedido</div>
-        <div class="ac-desc">Cargar pedido a un cliente</div>
-      </div>
-      <div class="action-card" onclick="location.href='./ingreso_boleta.html'">
-        <div class="icon">📦</div>
-        <div class="ac-title">Ingresos</div>
-        <div class="ac-desc">Cargar boleta de proveedor</div>
-      </div>
-      <div class="action-card" onclick="location.href='./clientes.html'">
-        <div class="icon">👥</div>
-        <div class="ac-title">Clientes</div>
-        <div class="ac-desc">Ver y gestionar clientes</div>
-      </div>
-      <div class="action-card" onclick="location.href='./stock.html'">
-        <div class="icon">🏪</div>
-        <div class="ac-title">Stock</div>
-        <div class="ac-desc">Estado del depósito</div>
-      </div>
-      <div class="action-card" onclick="location.href='./pedidos_dia.html'">
-        <div class="icon">📝</div>
-        <div class="ac-title">Pedidos del día</div>
-        <div class="ac-desc">Lo cargado hoy</div>
-      </div>
-    </div>
+  `;
 
-    <div class="sec-title">Reportes</div>
-    <div class="grid">
-      <div class="action-card" onclick="location.href='./reporte_ventas.html'">
-        <div class="icon">📈</div>
-        <div class="ac-title">Ventas</div>
-        <div class="ac-desc">Por período y preventista</div>
-      </div>
-      <div class="action-card red" onclick="location.href='./reporte_deudores.html'">
-        <div class="icon">💸</div>
-        <div class="ac-title">Deudores</div>
-        <div class="ac-desc">Clientes con saldo pendiente</div>
-      </div>
-      <div class="action-card" onclick="location.href='./reporte_recaudacion.html'">
-        <div class="icon">💵</div>
-        <div class="ac-title">Recaudación</div>
-        <div class="ac-desc">Lo cobrado por preventista</div>
-      </div>
-      <div class="action-card" onclick="location.href='./historial_hojas.html'">
-        <div class="icon">📅</div>
-        <div class="ac-title">Historial de hojas</div>
-        <div class="ac-desc">Hojas pasadas y boletas</div>
-      </div>
-    </div>
+  // helper: arma un tile sólo si el usuario tiene acceso
+  const tile = (modulo, html) =>
+    (modulo === null || tienePermiso(modulo)) ? html : '';
 
-    <div class="sec-title">Configuración</div>
-    <div class="grid">
-      <div class="action-card" onclick="location.href='./proveedores.html'">
-        <div class="icon">🏭</div>
-        <div class="ac-title">Proveedores</div>
-        <div class="ac-desc">Cargos y condiciones</div>
-      </div>
-      <div class="action-card" onclick="location.href='./catalogo.html'">
-        <div class="icon">🗂️</div>
-        <div class="ac-title">Productos</div>
-        <div class="ac-desc">Catálogo completo</div>
-      </div>
-      <div class="action-card" onclick="location.href='./permisos.html'">
-        <div class="icon">🔐</div>
-        <div class="ac-title">Permisos</div>
-        <div class="ac-desc">Accesos del equipo</div>
-      </div>
-    </div>`;
+  const opsTiles = [
+    tile(null, `<div class="action-card accent" onclick="location.href='./hoja_ruta.html'">
+      <div class="icon">🚚</div><div class="ac-title">Hoja de ruta</div>
+      <div class="ac-desc">Reparto del día</div></div>`),
+    tile(null, `<div class="action-card" onclick="location.href='./pedido_preventista.html'">
+      <div class="icon">📋</div><div class="ac-title">Nuevo pedido</div>
+      <div class="ac-desc">Cargar pedido a un cliente</div></div>`),
+    tile('stock', `<div class="action-card" onclick="location.href='./ingreso_boleta.html'">
+      <div class="icon">📦</div><div class="ac-title">Ingresos</div>
+      <div class="ac-desc">Cargar boleta de proveedor</div></div>`),
+    tile('clientes', `<div class="action-card" onclick="location.href='./clientes.html'">
+      <div class="icon">👥</div><div class="ac-title">Clientes</div>
+      <div class="ac-desc">Ver y gestionar clientes</div></div>`),
+    tile('stock', `<div class="action-card" onclick="location.href='./stock.html'">
+      <div class="icon">🏪</div><div class="ac-title">Stock</div>
+      <div class="ac-desc">Estado del depósito</div></div>`),
+    tile(null, `<div class="action-card" onclick="location.href='./pedidos_dia.html'">
+      <div class="icon">📝</div><div class="ac-title">Pedidos del día</div>
+      <div class="ac-desc">Lo cargado hoy</div></div>`),
+  ].filter(Boolean).join('');
+
+  const repTiles = [
+    tile('ventas_totales', `<div class="action-card" onclick="location.href='./reporte_ventas.html'">
+      <div class="icon">📈</div><div class="ac-title">Ventas</div>
+      <div class="ac-desc">Por período y preventista</div></div>`),
+    tile('deudores', `<div class="action-card red" onclick="location.href='./reporte_deudores.html'">
+      <div class="icon">💸</div><div class="ac-title">Deudores</div>
+      <div class="ac-desc">Clientes con saldo pendiente</div></div>`),
+    tile('recaudacion', `<div class="action-card" onclick="location.href='./reporte_recaudacion.html'">
+      <div class="icon">💵</div><div class="ac-title">Recaudación</div>
+      <div class="ac-desc">Lo cobrado por preventista</div></div>`),
+    tile('ventas_totales', `<div class="action-card" onclick="location.href='./historial_hojas.html'">
+      <div class="icon">📅</div><div class="ac-title">Historial de hojas</div>
+      <div class="ac-desc">Hojas pasadas y boletas</div></div>`),
+  ].filter(Boolean).join('');
+
+  const cfgTiles = [
+    tile('configuracion', `<div class="action-card" onclick="location.href='./proveedores.html'">
+      <div class="icon">🏭</div><div class="ac-title">Proveedores</div>
+      <div class="ac-desc">Cargos y condiciones</div></div>`),
+    tile('configuracion', `<div class="action-card" onclick="location.href='./catalogo.html'">
+      <div class="icon">🗂️</div><div class="ac-title">Productos</div>
+      <div class="ac-desc">Catálogo completo</div></div>`),
+    tile('usuarios_permisos', `<div class="action-card" onclick="location.href='./permisos.html'">
+      <div class="icon">🔐</div><div class="ac-title">Permisos</div>
+      <div class="ac-desc">Accesos del equipo</div></div>`),
+  ].filter(Boolean).join('');
+
+  box.innerHTML += `
+    ${opsTiles ? `<div class="sec-title">Operaciones</div><div class="grid">${opsTiles}</div>` : ''}
+    ${repTiles ? `<div class="sec-title">Reportes</div><div class="grid">${repTiles}</div>` : ''}
+    ${cfgTiles ? `<div class="sec-title">Configuración</div><div class="grid">${cfgTiles}</div>` : ''}
+  `;
 }
 
 // ── HOME PREVENTISTA ───────────────────────────────────────────────────
