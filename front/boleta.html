@@ -247,7 +247,7 @@ function render() {
       <div class="bol-items">
         <div class="item-hdr">
           <span style="flex:1">Producto</span>
-          <span style="min-width:70px;text-align:right">Cant. · Precio</span>
+          <span style="min-width:70px;text-align:right">Precio unit.</span>
           <span style="min-width:80px;text-align:right">Total</span>
         </div>
         ${items.map(it => {
@@ -257,7 +257,7 @@ function render() {
               <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:11px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
               ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
             </div>
-            <div class="item-cant">${it.cantidad} × ${ars(Number(it.precio_unit) * (1 - Number(it.descuento||0)/100))}</div>
+            <div class="item-cant">${ars(Number(it.precio_unit) * (1 - Number(it.descuento||0)/100))}</div>
             <div class="item-total">${ars(calcItem(it))}</div>
           </div>`
         }).join('')}
