@@ -173,7 +173,9 @@ Object.assign(window, {
   setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
   scrollAProductos: () => {
     const el = document.querySelector('.search-wrap');
-    if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: top + el.offsetHeight, behavior:'smooth' });
   },
   setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
   setFechaReparto: v => { fechaReparto = v; },
