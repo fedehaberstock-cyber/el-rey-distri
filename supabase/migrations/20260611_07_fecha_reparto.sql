@@ -97,7 +97,7 @@ begin
        (v_item->>'precio_unit')::numeric,
        coalesce((v_item->>'descuento')::numeric, 0),
        coalesce((v_item->>'es_bulto')::boolean, false),
-       coalesce((v_item->>'u_por_bulto')::integer, 1));
+       (v_item->>'u_por_bulto')::integer);
 
     v_item_total :=
       (v_item->>'cantidad')::integer *
@@ -106,13 +106,11 @@ begin
     v_total := v_total + v_item_total;
 
     insert into mov_stock
-      (empresa_id, producto_id, tipo, cantidad, referencia_tipo, referencia_id, usuario_id)
+      (empresa_id, producto_id, tipo, cantidad, referencia, referencia_tipo, usuario_id)
     values
       (v_empresa_id, (v_item->>'producto_id')::uuid, 'venta',
-       -1 * (v_item->>'cantidad')::integer *
-         (case when coalesce((v_item->>'es_bulto')::boolean,false)
-               then coalesce((v_item->>'u_por_bulto')::integer,1) else 1 end),
-       'pedido', v_pedido_id, v_usuario_id);
+       -(v_item->>'cantidad')::integer,
+       v_pedido_id, 'pedido', v_usuario_id);
   end loop;
 
   -- aplicar descuento general al total
