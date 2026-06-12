@@ -561,20 +561,30 @@ function getProd(id){ return productos.find(p=>p.id===id); }
 async function guardarProd(id){
   const p=getProd(id);
   if(panelFotoTemp!==undefined) p.foto=panelFotoTemp;
-  await supabase.from('productos').update({ precio: p.precio, categoria: p.cat }).eq('id', id);
+  await supabase.from('productos')
+    .update({ precio: p.precio, categoria: p.cat, foto_url: panelFotoTemp || null })
+    .eq('id', id);
   panelProd=null; panelFotoTemp=null; render();
 }
 
 // ── SUBIDA DE FOTO ─────────────────────────────────────────────────────
-function onFotoChange(e){
+async function onFotoChange(e){
   const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    panelFotoTemp=ev.target.result;
-    rerenderPanel();
-  };
-  reader.readAsDataURL(file);
   e.target.value='';
+  const id=panelProd; if(!id) return;
+  // mostrar preview inmediato mientras sube
+  const reader=new FileReader();
+  reader.onload=ev=>{ panelFotoTemp=ev.target.result; rerenderPanel(); };
+  reader.readAsDataURL(file);
+
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${id}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from('productos')
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (error) { alert('Error al subir: '+error.message); return; }
+  const { data:{ publicUrl } } = supabase.storage.from('productos').getPublicUrl(path);
+  panelFotoTemp = publicUrl;
+  rerenderPanel();
 }
 
 function onLogoChange(e){
