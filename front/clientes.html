@@ -217,7 +217,7 @@ async function cargarMovimientos(cliId){
 }
 
 // expongo cambios de input a window para los oninput inline
-window.setBusqueda = (v) => { busqueda = v; render(); };
+window.setBusqueda = (v) => { busqueda = v; renderCliList(); };
 window.setNuevoCampo = (k, v) => { nuevoForm[k] = v; };
 window.setCobroMonto = (v) => { cobroMonto = v; };
 window.setCobroForma = (v) => { cobroFormaPago = v; };
@@ -255,33 +255,45 @@ function renderLista(){
 
   const body = document.createElement('div');
   body.className = 'cli-list';
+  body.id = 'cli-list';
+  el.appendChild(body);
+  renderCliList();
+}
+
+function renderCliList(){
+  const body = document.getElementById('cli-list');
+  if (!body) return;
+  const q = busqueda.trim().toLowerCase();
+  const lista = clientes.filter(c => !q || c.nombre.toLowerCase().includes(q));
 
   if (cargando) {
     body.innerHTML = `<div class="empty">Cargando…</div>`;
-  } else if(!lista.length){
+    return;
+  }
+  if (!lista.length) {
     body.innerHTML = busqueda
       ? `<div class="empty">Sin resultados para "${busqueda}"</div>`
       : `<div class="empty">No hay clientes todavía.<br>Tocá + para crear el primero.</div>`;
-  } else {
-    lista.forEach(c => {
-      const s = c.saldo;
-      const esDeudor = s > 0;
-      const chipTxt = esDeudor ? arsFmt(s) : (s < 0 ? 'A favor ' + arsFmt(-s) : 'Al día');
-      const chipClass = esDeudor ? 'deudor' : 'aldia';
-      const row = document.createElement('div');
-      row.className = 'cli-row';
-      row.innerHTML = `
-        <div class="info">
-          <div class="nm">${c.nombre}</div>
-          ${c.direccion ? `<div class="addr">&#128205; ${c.direccion}</div>` : ''}
-        </div>
-        <span class="chip ${chipClass}">${chipTxt}</span>
-        <span class="arr">&#8250;</span>`;
-      row.onclick = () => irDetalle(c.id);
-      body.appendChild(row);
-    });
+    return;
   }
-  el.appendChild(body);
+  body.innerHTML = '';
+  lista.forEach(c => {
+    const s = c.saldo;
+    const esDeudor = s > 0;
+    const chipTxt = esDeudor ? arsFmt(s) : (s < 0 ? 'A favor ' + arsFmt(-s) : 'Al día');
+    const chipClass = esDeudor ? 'deudor' : 'aldia';
+    const row = document.createElement('div');
+    row.className = 'cli-row';
+    row.innerHTML = `
+      <div class="info">
+        <div class="nm">${c.nombre}</div>
+        ${c.direccion ? `<div class="addr">&#128205; ${c.direccion}</div>` : ''}
+      </div>
+      <span class="chip ${chipClass}">${chipTxt}</span>
+      <span class="arr">&#8250;</span>`;
+    row.onclick = () => irDetalle(c.id);
+    body.appendChild(row);
+  });
 }
 
 // ── DETALLE ───────────────────────────────────────────────────────────
