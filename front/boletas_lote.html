@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Boletas (lote)</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;line-height:1.4}
+  body{max-width:560px;margin:0 auto;padding:10px}
+
+  .topbar{display:flex;justify-content:space-between;align-items:center;
+    padding:10px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+  .topbar h1{font-size:16px;font-weight:700}
+  .topbar button{padding:8px 16px;background:var(--gold);color:#fff;border:none;
+    border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+
+  .boleta-wrap{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;margin-bottom:18px}
+  .bol-header{padding:14px;border-bottom:1px solid var(--line-soft);text-align:center}
+  .bol-empresa{font-size:16px;font-weight:700}
+  .bol-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .bol-num{font-size:12px;font-weight:600;color:var(--ink-soft);margin-top:6px}
+  .bol-cliente{padding:10px 14px;border-bottom:1px solid var(--line-soft)}
+  .bol-cliente .lbl{font-size:10px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
+  .bol-cliente .nm{font-size:14px;font-weight:700}
+  .bol-cliente .dir{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .bol-cliente .meta{display:flex;gap:14px;margin-top:5px;font-size:12px;color:var(--ink-soft)}
+  .bol-cliente .meta b{color:var(--ink);font-weight:600}
+  .bol-items{padding:8px 14px}
+  .item-hdr{display:flex;justify-content:space-between;padding:3px 0 6px;font-size:10px;
+    font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);
+    border-bottom:1px solid var(--line-soft)}
+  .item-row{display:flex;justify-content:space-between;align-items:baseline;
+    padding:5px 0;border-bottom:1px solid var(--line-soft);gap:8px}
+  .item-row:last-child{border-bottom:none}
+  .item-nm{font-size:13px;flex:1}
+  .item-cant{font-size:12px;color:var(--ink-soft);white-space:nowrap;text-align:right;min-width:70px}
+  .item-total{font-size:13px;font-weight:600;white-space:nowrap;text-align:right;min-width:80px}
+  .item-desc{font-size:10px;color:var(--amber-tx)}
+  .bol-totales{border-top:1px solid var(--line-soft);padding:10px 14px}
+  .tot-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
+  .tot-row .k{color:var(--ink-soft)}
+  .tot-row .v{font-weight:600}
+  .saldo-ant-row{display:flex;justify-content:space-between;padding:6px 8px;margin:5px 0;
+    background:var(--red-bg);border-radius:6px;font-size:13px}
+  .saldo-ant-row .k,.saldo-ant-row .v{color:var(--red-tx);font-weight:700}
+  .total-cobrar{display:flex;justify-content:space-between;padding:10px 8px;
+    background:var(--ink);border-radius:8px;margin-top:6px}
+  .total-cobrar .k{font-size:13px;font-weight:600;color:rgba(255,255,255,.7)}
+  .total-cobrar .v{font-size:18px;font-weight:700;color:#fff}
+  .total-normal{display:flex;justify-content:space-between;padding:8px 0;
+    border-top:2px solid var(--ink);margin-top:4px}
+  .total-normal .k{font-size:13px;font-weight:700;text-transform:uppercase}
+  .total-normal .v{font-size:18px;font-weight:700}
+  .bol-firma{padding:12px 14px;border-top:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;align-items:flex-end}
+  .firma-box{text-align:center}
+  .firma-line{width:110px;height:1px;background:var(--ink-soft);margin-bottom:3px}
+  .firma-lbl{font-size:10px;color:var(--ink-soft)}
+
+  .loading{text-align:center;padding:40px;color:var(--ink-soft)}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:10px;color:var(--red-tx);font-size:14px}
+
+  @media print{
+    .topbar,.no-print{display:none!important}
+    body{padding:0;background:#fff;max-width:100%}
+    .boleta-wrap{margin:0;border:none;border-radius:0;page-break-after:always;break-after:page}
+    .boleta-wrap:last-child{page-break-after:auto;break-after:auto}
+    @page{margin:10mm}
+  }
+</style>
+</head>
+<body>
+<div class="topbar no-print">
+  <h1>Boletas (lote)</h1>
+  <button onclick="window.print()">🖨 Imprimir</button>
+</div>
+<div id="root"><div class="loading">Cargando boletas…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession } from './src/auth.js'
+
+await requireSession()
+
+const params = new URLSearchParams(location.search)
+const idsParam = params.get('ids') || ''
+const pedidoIds = idsParam.split(',').map(s => s.trim()).filter(Boolean)
+
+const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n)
+const fmtF = s => { if (!s) return ''; const d = new Date(s)
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` }
+const calcItem = it => Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento || 0) / 100)
+
+if (!pedidoIds.length) {
+  document.getElementById('root').innerHTML = `<div class="err-box">No se indicaron pedidos. Agregá ?ids=uuid,uuid a la URL.</div>`
+  throw new Error('sin ids')
+}
+
+const { data: boletas, error } = await supabase
+  .from('boletas')
+  .select(`
+    id, total, saldo_anterior, total_a_cobrar, fecha, pedido_id,
+    pedidos (
+      id, descuento,
+      usuarios!pedidos_usuario_id_fkey(nombre),
+      clientes(nombre, direccion, telefono),
+      pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, productos(nombre))
+    )
+  `)
+  .in('pedido_id', pedidoIds)
+
+if (error) {
+  document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`
+  throw error
+}
+
+// Ordenar respetando el orden recibido por URL
+const byPedidoId = new Map(boletas.map(b => [b.pedido_id, b]))
+const ordenadas = pedidoIds.map(id => byPedidoId.get(id)).filter(Boolean)
+
+function renderBoleta(boleta) {
+  const ped = boleta.pedidos
+  const cli = ped?.clientes || {}
+  const items = ped?.pedido_items || []
+  const prev = ped?.usuarios?.nombre || ''
+  const desc = Number(ped?.descuento || 0)
+  const saldoAnt = Number(boleta.saldo_anterior) || 0
+  const total = Number(boleta.total) || 0
+  const totalCobrar = Number(boleta.total_a_cobrar) || 0
+  const numCorto = boleta.id.slice(-4).toUpperCase()
+  const subtotal = items.reduce((s, it) => s + Number(it.cantidad) * Number(it.precio_unit), 0)
+  const descMonto = desc > 0 ? subtotal * desc / 100 : 0
+  const tieneSaldo = saldoAnt > 0
+
+  return `
+    <div class="boleta-wrap">
+      <div class="bol-header">
+        <div class="bol-empresa">Distribuidora El Rey</div>
+        <div class="bol-sub">Alta Gracia, Córdoba</div>
+        <div class="bol-num">Boleta N° ${numCorto} · ${fmtF(boleta.fecha)}</div>
+      </div>
+      <div class="bol-cliente">
+        <div class="lbl">Cliente</div>
+        <div class="nm">${cli.nombre || ''}</div>
+        <div class="dir">${cli.direccion || ''}</div>
+        <div class="meta">
+          <span>📞 <b>${cli.telefono || ''}</b></span>
+          <span>Vendedor: <b>${prev}</b></span>
+        </div>
+      </div>
+      <div class="bol-items">
+        <div class="item-hdr">
+          <span style="flex:1">Producto</span>
+          <span style="min-width:70px;text-align:right">Cant. · Precio</span>
+          <span style="min-width:80px;text-align:right">Total</span>
+        </div>
+        ${items.map(it => {
+          const d = Number(it.descuento || 0)
+          return `<div class="item-row">
+            <div style="flex:1">
+              <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:10px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
+              ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
+            </div>
+            <div class="item-cant">${it.cantidad} × ${ars(it.precio_unit)}</div>
+            <div class="item-total">${ars(calcItem(it))}</div>
+          </div>`
+        }).join('')}
+      </div>
+      <div class="bol-totales">
+        <div class="tot-row"><span class="k">Subtotal</span><span class="v">${ars(subtotal)}</span></div>
+        ${desc > 0 ? `<div class="tot-row" style="color:var(--amber-tx)"><span class="k">Descuento ${desc}%</span><span class="v">− ${ars(descMonto)}</span></div>` : ''}
+        <div class="tot-row" style="font-weight:700"><span class="k" style="color:var(--ink)">Total pedido</span><span class="v">${ars(total)}</span></div>
+        ${tieneSaldo ? `
+          <div class="saldo-ant-row"><span class="k">⚠ Saldo anterior</span><span class="v">+ ${ars(saldoAnt)}</span></div>
+          <div class="total-cobrar"><span class="k">Total a cobrar</span><span class="v">${ars(totalCobrar)}</span></div>
+        ` : `
+          <div class="total-normal"><span class="k">Total</span><span class="v">${ars(total)}</span></div>
+        `}
+      </div>
+      <div class="bol-firma">
+        <div class="firma-box"><div class="firma-line"></div><div class="firma-lbl">Recibí conforme</div></div>
+        <div class="firma-box"><div class="firma-line"></div><div class="firma-lbl">Vendedor</div></div>
+      </div>
+    </div>`
+}
+
+document.getElementById('root').innerHTML = ordenadas.map(renderBoleta).join('')
+
+// Auto-print al cargar
+setTimeout(() => window.print(), 400)
+</script>
+</body>
+</html>
