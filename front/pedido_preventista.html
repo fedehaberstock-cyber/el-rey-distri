@@ -464,7 +464,7 @@ function renderItems(){
     box.innerHTML=`<div class="empty-order">Todavía no agregaste productos.<br>Buscalos arriba para sumarlos.</div>`;
     return;
   }
-  box.innerHTML = orden.map((it,i)=>{
+  box.innerHTML = orden.map((it,i)=>({it,i})).reverse().map(({it,i})=>{
     const p = prod(it.productoId);
     const bultos = it.esBulto ? it.cant / it.uPorBulto : null;
     return `<div class="item ${it.esBulto?'es-bulto':''}">
