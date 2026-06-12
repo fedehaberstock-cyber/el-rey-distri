@@ -246,7 +246,7 @@ function addUnidad(id){
   const ex = orden.find(o=>o.productoId===id && !o.esBulto);
   if(ex){ ex.cant++; }
   else { orden.push({productoId:id, cant:1, disc:0, esBulto:false, uPorBulto:1}); }
-  busqueda=''; expandido=null; render();
+  busqueda=''; expandido=null; render(); focoBuscador();
 }
 
 function addBulto(id){
@@ -262,7 +262,14 @@ function addBulto(id){
       uPorBulto: p.u_bulto
     });
   }
-  busqueda=''; expandido=null; render();
+  busqueda=''; expandido=null; render(); focoBuscador();
+}
+
+function focoBuscador(){
+  setTimeout(() => {
+    const i = document.querySelector('.search-wrap input.field');
+    if (i) { i.focus(); i.select(); }
+  }, 80);
 }
 
 function setCant(i,d){
@@ -423,11 +430,17 @@ function renderCliResults(){
     </div>`).join('')}</div>`;
 }
 
+const _norm = s => (s || '').toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 function renderResults(){
   const box = document.getElementById('res'); if(!box) return;
-  const f = busqueda.trim().toLowerCase();
-  if(!f){ box.innerHTML=''; return; }
-  const m = productos.filter(p=>p.nombre.toLowerCase().includes(f));
+  const partes = _norm(busqueda).split(/\s+/).filter(Boolean);
+  if(!partes.length){ box.innerHTML=''; return; }
+  const m = productos.filter(p => {
+    const nom = _norm(p.nombre);
+    return partes.every(t => nom.includes(t));
+  });
   if(!m.length){ box.innerHTML=`<div class="results"><div class="empty-res">Sin resultados para "${busqueda}"</div></div>`; return; }
 
   box.innerHTML = `<div class="results">${m.map(p=>{
