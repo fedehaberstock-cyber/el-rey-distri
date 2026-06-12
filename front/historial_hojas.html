@@ -64,6 +64,7 @@ import { supabase } from './src/supabase.js'
 import { requireSession, tienePermiso } from './src/auth.js'
 
 const { usuario } = await requireSession()
+const esAdmin = usuario.rol === 'admin'
 if (!tienePermiso('ventas_totales') && !tienePermiso('reportes_stock') && usuario.rol !== 'admin') {
   location.href = './login_home.html'
 }
@@ -149,6 +150,15 @@ function render() {
                         </div>
                         <div class="ped-total">${ars(p.total)}</div>
                       </div>`).join('')}
+                  ${esAdmin && h.estado !== 'cerrada' ? `
+                    <div style="padding:12px 14px;background:var(--paper);border-top:1px solid var(--line-soft)">
+                      <button onclick="window._cerrarHoja('${h.id}')"
+                        style="width:100%;padding:11px;border:none;border-radius:10px;
+                          background:var(--red-tx);color:#fff;font-size:14px;font-weight:600;
+                          cursor:pointer;font-family:inherit">
+                        Cerrar hoja (pedidos pasan al día siguiente)
+                      </button>
+                    </div>` : ''}
                 </div>` : ''}
             </div>`
         }).join('')}
@@ -162,6 +172,21 @@ window._toggle = (id) => {
 window._verBoleta = (boletaId) => {
   if (!boletaId) { alert('Este pedido no tiene boleta asociada.'); return }
   window.open(`./boleta.html?id=${boletaId}`, '_blank')
+}
+
+window._cerrarHoja = async (hojaId) => {
+  if (!esAdmin) return
+  if (!confirm('¿Cerrar esta hoja? Los pedidos sin entregar pasan al día siguiente.')) return
+  // marcar entregado=false en pedidos que no se procesaron, para que rolleen
+  const { error: e1 } = await supabase.from('pedidos')
+    .update({ entregado: false })
+    .eq('hoja_ruta_id', hojaId)
+    .is('entregado', null)
+  if (e1) { alert('Error: ' + e1.message); return }
+  const { error: e2 } = await supabase.rpc('cerrar_hoja_ruta', { p_hoja_id: hojaId })
+  if (e2) { alert('Error al cerrar: ' + e2.message); return }
+  await cargar()
+  render()
 }
 
 try {
