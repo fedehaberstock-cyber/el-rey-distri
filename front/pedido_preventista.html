@@ -144,6 +144,7 @@ let productos = []; // {id, nombre, precio, u_bulto, desc_bulto}
 
 // orden: { productoId, cant, disc, esBulto, uPorBulto }
 let clienteId = '';
+let busquedaCli = '';
 let orden = [];
 let descGeneral = 0;
 // fecha de reparto — por defecto mañana (zona Córdoba)
@@ -166,8 +167,14 @@ let pendienteSync = false;     // true cuando confirmado offline y aún no se si
 Object.assign(window, {
   addUnidad, addBulto, setCant, setDisc, quitar,
   toggleExpandido, confirmar, nuevo,
-  setCliente: v => { clienteId = v; render(); },
+  setCliente: v => { clienteId = v; busquedaCli = ''; render(); },
+  setBusquedaCli: v => { busquedaCli = v; renderCliResults(); },
+  limpiarCliente: () => { clienteId = ''; busquedaCli = ''; render(); },
   setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
+  scrollAProductos: () => {
+    const el = document.querySelector('.search-wrap');
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  },
   setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
   setFechaReparto: v => { fechaReparto = v; },
 });
@@ -338,13 +345,20 @@ function render(){
 
     <section>
       <div class="lbl">Cliente</div>
-      <select class="field" onchange="window.setCliente(this.value)">
-        <option value="">Elegí un cliente…</option>
-        ${clientes.map(c=>`<option value="${c.id}" ${c.id===clienteId?'selected':''}>${c.nombre}</option>`).join('')}
-      </select>
-      ${cli ? `<div class="saldo ${cli.saldo>0?'deudor':'aldia'}">
-        ${cli.saldo>0 ? 'Debe '+ars(cli.saldo) : (cli.saldo<0?'A favor '+ars(-cli.saldo):'Cuenta al día')}
-      </div>` : ''}
+      ${cli ? `
+        <div class="field" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="font-weight:600">${cli.nombre}</span>
+          <button onclick="window.limpiarCliente()" style="background:none;border:none;
+            color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">Cambiar</button>
+        </div>
+        <div class="saldo ${cli.saldo>0?'deudor':'aldia'}">
+          ${cli.saldo>0 ? 'Debe '+ars(cli.saldo) : (cli.saldo<0?'A favor '+ars(-cli.saldo):'Cuenta al día')}
+        </div>
+      ` : `
+        <input class="field" placeholder="Buscar cliente por nombre…" value="${busquedaCli}"
+          oninput="window.setBusquedaCli(this.value)" autocomplete="off">
+        <div id="res-cli"></div>
+      `}
       <div class="lbl" style="margin-top:10px">Fecha de reparto</div>
       <input class="field" type="date" value="${fechaReparto}"
         onchange="window.setFechaReparto(this.value)">
@@ -353,7 +367,7 @@ function render(){
     <section class="search-wrap">
       <div class="lbl">Agregar producto</div>
       <input class="field" placeholder="Buscar por nombre…" value="${busqueda}"
-        oninput="window.setBusqueda(this.value)" autocomplete="off">
+        oninput="window.setBusqueda(this.value)" onfocus="window.scrollAProductos()" autocomplete="off">
       <div id="res"></div>
     </section>
     <div class="divider"></div>
@@ -379,6 +393,21 @@ function render(){
 
   const badgeEl = document.getElementById('sync-badge-ped');
   if (badgeEl) mountStatusBadge(badgeEl);
+}
+
+function renderCliResults(){
+  const box = document.getElementById('res-cli'); if(!box) return;
+  const f = busquedaCli.trim().toLowerCase();
+  if(!f){ box.innerHTML=''; return; }
+  const m = clientes.filter(c => c.nombre.toLowerCase().includes(f)).slice(0, 50);
+  if(!m.length){ box.innerHTML=`<div class="results"><div class="empty-res">Sin resultados para "${busquedaCli}"</div></div>`; return; }
+  box.innerHTML = `<div class="results">${m.map(c => `
+    <div class="row">
+      <div class="row-main" onclick="window.setCliente('${c.id}')">
+        <span class="nm">${c.nombre}</span>
+        ${c.saldo > 0 ? `<span class="pr" style="color:var(--red-tx,#A8392B);font-size:12px">Debe ${ars(c.saldo)}</span>` : ''}
+      </div>
+    </div>`).join('')}</div>`;
 }
 
 function renderResults(){
