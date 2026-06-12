@@ -131,7 +131,7 @@
 <script src="./src/register-sw.js"></script>
 <script type="module">
 import { supabase } from './src/supabase.js'
-import { requireSession, getUsuario } from './src/auth.js'
+import { requireSession, getUsuario, tienePermiso } from './src/auth.js'
 import { ars, mostrarError } from './src/utils.js'
 import { db } from './src/db.js'
 import { initSync, pushOp, mountStatusBadge } from './src/sync.js'
@@ -543,6 +543,7 @@ async function nuevo(){
 // ── ARRANQUE ──────────────────────────────────────────────────────────
 async function arrancar(){
   await requireSession();
+  if (!tienePermiso('pedidos', 'crear')) { location.href = './login_home.html'; return; }
   initSync(supabase); // no await — corre en background
   render();           // muestra UI con listas vacías mientras carga
   await cargarTodo();

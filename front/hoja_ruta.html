@@ -214,10 +214,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { supabase } from './src/supabase.js'
-import { requireSession } from './src/auth.js'
+import { requireSession, tienePermiso } from './src/auth.js'
 import { ars, fechaCorta, mostrarError } from './src/utils.js'
 
 const { usuario } = await requireSession()
+if (!tienePermiso('hoja_ruta')) { location.href = './login_home.html'; throw new Error('sin permiso') }
 const puedeAdminCierre = usuario.rol === 'admin' || usuario.rol === 'deposito'
 
 // ── DATOS ─────────────────────────────────────────────────────────────

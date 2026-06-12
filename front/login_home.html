@@ -302,10 +302,10 @@ async function renderHomeAdmin(){
     (modulo === null || tienePermiso(modulo)) ? html : '';
 
   const opsTiles = [
-    tile(null, `<div class="action-card accent" onclick="location.href='./hoja_ruta.html'">
+    tile('hoja_ruta', `<div class="action-card accent" onclick="location.href='./hoja_ruta.html'">
       <div class="icon">🚚</div><div class="ac-title">Hoja de ruta</div>
       <div class="ac-desc">Reparto del día</div></div>`),
-    tile(null, `<div class="action-card" onclick="location.href='./pedido_preventista.html'">
+    tile('pedidos', `<div class="action-card" onclick="location.href='./pedido_preventista.html'">
       <div class="icon">📋</div><div class="ac-title">Nuevo pedido</div>
       <div class="ac-desc">Cargar pedido a un cliente</div></div>`),
     tile('stock', `<div class="action-card" onclick="location.href='./ingreso_boleta.html'">
@@ -317,7 +317,7 @@ async function renderHomeAdmin(){
     tile('stock', `<div class="action-card" onclick="location.href='./stock.html'">
       <div class="icon">🏪</div><div class="ac-title">Stock</div>
       <div class="ac-desc">Estado del depósito</div></div>`),
-    tile(null, `<div class="action-card" onclick="location.href='./pedidos_dia.html'">
+    tile('pedidos', `<div class="action-card" onclick="location.href='./pedidos_dia.html'">
       <div class="icon">📝</div><div class="ac-title">Pedidos del día</div>
       <div class="ac-desc">Lo cargado hoy</div></div>`),
   ].filter(Boolean).join('');

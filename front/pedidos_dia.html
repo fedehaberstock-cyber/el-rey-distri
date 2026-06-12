@@ -61,7 +61,7 @@
 
 <script type="module">
 import { supabase } from './src/supabase.js'
-import { requireSession } from './src/auth.js'
+import { requireSession, tienePermiso } from './src/auth.js'
 
 const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n)
 const fmtHora = ts => {
@@ -71,6 +71,7 @@ const fmtHora = ts => {
 }
 
 const { usuario } = await requireSession()
+if (!tienePermiso('pedidos')) { location.href = './login_home.html'; throw new Error('sin permiso') }
 const esAdminODep = usuario.rol === 'admin' || usuario.rol === 'deposito'
 const hoyArg = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date())
 
