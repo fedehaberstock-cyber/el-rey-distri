@@ -48,11 +48,16 @@
 
   .bol-cliente{padding:12px 18px;border-bottom:1px solid var(--line-soft)}
   .bol-cliente .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;
-    text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px}
+    text-transform:uppercase;color:var(--ink-soft)}
   .bol-cliente .nm{font-size:15px;font-weight:700}
-  .bol-cliente .dir{font-size:13px;color:var(--ink-soft);margin-top:2px}
-  .bol-cliente .meta{display:flex;gap:16px;margin-top:6px;font-size:13px;color:var(--ink-soft)}
-  .bol-cliente .meta b{color:var(--ink);font-weight:600}
+  .bol-cliente .dir{font-size:13px;color:var(--ink-soft)}
+  .bol-cliente .vend{font-size:13px;color:var(--ink-soft);white-space:nowrap}
+  .bol-cliente .vend b{color:var(--ink);font-weight:600}
+  .bol-cliente .bol-num{font-size:12px;font-weight:600;color:var(--ink-soft);white-space:nowrap}
+  .cli-row1,.cli-row2{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .cli-row2{margin-top:4px}
+  .item-tag{font-size:10px;font-weight:600;background:var(--line-soft);color:var(--ink-soft);
+    padding:1px 6px;border-radius:999px;text-transform:lowercase;letter-spacing:.02em;margin-left:4px}
 
   /* items */
   .bol-items{padding:10px 18px}
@@ -76,11 +81,11 @@
   .tot-row.desc-gen .v{color:var(--amber-tx)}
   .divider-line{height:1px;background:var(--line-soft);margin:6px 0}
 
-  /* saldo anterior — destacado */
+  /* saldo anterior — neutro para B/N */
   .saldo-ant-row{display:flex;justify-content:space-between;align-items:baseline;
-    padding:8px 10px;margin:6px 0;background:var(--red-bg);border-radius:8px;font-size:14px}
-  .saldo-ant-row .k{color:var(--red-tx);font-weight:600}
-  .saldo-ant-row .v{color:var(--red-tx);font-weight:700}
+    padding:6px 0;font-size:14px}
+  .saldo-ant-row .k{color:var(--ink-soft);font-weight:600}
+  .saldo-ant-row .v{font-weight:700}
 
   /* total a cobrar */
   .total-cobrar{display:flex;justify-content:space-between;align-items:baseline;
@@ -130,8 +135,10 @@
     html,body{padding:0;background:#fff;font-size:12px;max-width:100%}
     .boleta-wrap{margin:0;border:none;border-radius:0}
     .bol-empresa{font-size:14px}
-    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .meta,.tot-row,.item-cant{font-size:11px}
-    .bol-cliente .nm,.item-nm,.item-total{font-size:12px}
+    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .vend,.tot-row{font-size:11px}
+    .bol-cliente .nm{font-size:12px}
+    .item-nm,.item-total,.item-cant{font-size:11px}
+    .item-tag{font-size:9px}
     .total-cobrar .v,.total-normal .v{font-size:16px}
     .item-row{padding:4px 0}
     .bol-header{padding:8px 10px}
@@ -232,16 +239,16 @@ function render() {
       <div class="bol-header">
         <div class="bol-empresa">Distribuidora El Rey</div>
         <div class="bol-sub">Alta Gracia, Córdoba</div>
-        <div class="bol-num">Boleta N° ${numCorto} &nbsp;·&nbsp; ${fmtF(boleta.fecha)}</div>
       </div>
 
       <div class="bol-cliente">
-        <div class="lbl">Cliente</div>
-        <div class="nm">${cli.nombre || ''}</div>
-        <div class="dir">${cli.direccion || ''}</div>
-        <div class="meta">
-          <span>📞 <b>${cli.telefono || ''}</b></span>
-          <span>Vendedor: <b>${prev}</b></span>
+        <div class="cli-row1">
+          <div><span class="lbl">CLIENTE:</span> <span class="nm">${cli.nombre || ''}</span></div>
+          <div class="bol-num">Boleta N° ${numCorto} · ${fmtF(boleta.fecha)}</div>
+        </div>
+        <div class="cli-row2">
+          <div class="dir">${cli.direccion || ''}${cli.telefono ? ' · 📞 '+cli.telefono : ''}</div>
+          <div class="vend">Vendedor: <b>${prev}</b></div>
         </div>
       </div>
 
@@ -257,8 +264,7 @@ function render() {
           return `<div class="item-row">
             <div style="min-width:40px;font-weight:600">${it.cantidad}</div>
             <div style="flex:1">
-              <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span style="font-size:11px;color:var(--amber-tx)">(bulto)</span>` : ''}</div>
-              ${d > 0 ? `<div class="item-desc">Desc. ${d}%</div>` : ''}
+              <div class="item-nm">${it.productos?.nombre || '?'}${it.es_bulto ? ` <span class="item-tag">bulto</span>` : ''}${d > 0 ? ` <span class="item-tag">desc ${d}%</span>` : ''}</div>
             </div>
             <div class="item-cant">${ars(Number(it.precio_unit) * (1 - Number(it.descuento||0)/100))}</div>
             <div class="item-total">${ars(calcItem(it))}</div>
@@ -276,7 +282,6 @@ function render() {
           <span class="k">Descuento general ${desc}%</span>
           <span class="v">− ${ars(descMonto)}</span>
         </div>` : ''}
-        <div class="divider-line"></div>
         <div class="tot-row" style="font-weight:700">
           <span class="k" style="color:var(--ink)">Total pedido</span>
           <span class="v">${ars(total)}</span>
@@ -284,7 +289,7 @@ function render() {
 
         ${tieneSaldo ? `
         <div class="saldo-ant-row">
-          <span class="k">⚠ Saldo anterior</span>
+          <span class="k">Saldo anterior</span>
           <span class="v">+ ${ars(saldoAnt)}</span>
         </div>
         <div class="total-cobrar">
@@ -295,17 +300,6 @@ function render() {
           <span class="k">Total</span>
           <span class="v">${ars(total)}</span>
         </div>`}
-      </div>
-
-      <div class="bol-firma">
-        <div class="firma-box">
-          <div class="firma-line"></div>
-          <div class="firma-lbl">Recibí conforme</div>
-        </div>
-        <div class="firma-box">
-          <div class="firma-line"></div>
-          <div class="firma-lbl">Vendedor</div>
-        </div>
       </div>
     </div>
 
