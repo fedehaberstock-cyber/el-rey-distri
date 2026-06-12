@@ -219,7 +219,12 @@ import { ars, fechaCorta, mostrarError } from './src/utils.js'
 
 const { usuario } = await requireSession()
 if (!tienePermiso('hoja_ruta')) { location.href = './login_home.html'; throw new Error('sin permiso') }
-const puedeAdminCierre = usuario.rol === 'admin' || usuario.rol === 'deposito'
+// puedeAdminCierre se calcula tras cargar la hoja:
+//   - cualquiera con permiso hoja_ruta puede cerrar mientras la fecha de la hoja sea hoy o futura
+//   - si la hoja es de un día pasado, solo admin
+let puedeAdminCierre = true
+let _motivoBloqueo = ''
+let hojaFecha = HOY
 
 // ── DATOS ─────────────────────────────────────────────────────────────
 let pedidos  = []  // adaptados del mockup
@@ -297,6 +302,7 @@ async function cargarTodo() {
     if (error) throw error
     if (h.estado === 'cerrada') { alert('Esta hoja ya está cerrada.'); confirmado = true; return }
     hojaId = h.id; qrToken = h.qr_token
+    hojaFecha = h.fecha
     HOY = h.fecha  // mostrar la fecha real de la hoja
   } else {
     const { data: hojas, error: e3 } = await supabase
@@ -332,6 +338,17 @@ async function cargarTodo() {
       cierres[p.id] = { noEntregado:false, motivo:'', usaEf:false, ef:'', usaTr:false, tr:'', usaCc:false, cc:'' }
     }
   })
+
+  // permiso de cierre según fecha de la hoja
+  const hoyArg = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date())
+  const hojaPas = (typeof hojaFecha === 'string' ? hojaFecha : hoyArg).slice(0,10) < hoyArg
+  if (hojaPas) {
+    puedeAdminCierre = usuario.rol === 'admin'
+    _motivoBloqueo = 'Hoja vencida — solo admin'
+  } else {
+    puedeAdminCierre = true
+    _motivoBloqueo = ''
+  }
 }
 
 // ── ESTADO ────────────────────────────────────────────────────────────
@@ -563,7 +580,7 @@ function renderCierre(el) {
   const bar = document.createElement('div')
   bar.className = 'bar'
   bar.innerHTML = `<button class="bar-btn" ${puede && puedeAdminCierre ? '' : 'disabled'} onclick="confirmarCierre()">
-    ${!puedeAdminCierre ? 'Solo admin/depósito puede cerrar' : puede ? 'Confirmar cierre' : 'Faltan ' + (pedidos.length - pedidos.filter(p=>procesado(p.id)).length) + ' pedidos'}
+    ${!puedeAdminCierre ? _motivoBloqueo : puede ? 'Confirmar cierre' : 'Faltan ' + (pedidos.length - pedidos.filter(p=>procesado(p.id)).length) + ' pedidos'}
   </button>`
   el.appendChild(bar)
 }
