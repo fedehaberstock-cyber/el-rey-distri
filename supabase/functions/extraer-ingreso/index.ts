@@ -61,6 +61,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return json({ error: "ANTHROPIC_API_KEY no configurada" }, 500);
+  console.log("[extraer-ingreso] inicio, apiKey len =", apiKey.length);
 
   let body: { imagenes?: string[] };
   try {
@@ -90,18 +91,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         source: { type: "base64", media_type: m[1], data: m[2] },
       });
     } else if (img.startsWith("http")) {
-      // Bajamos la imagen y la pasamos a base64
+      console.log("[extraer-ingreso] bajando img:", img.slice(0, 80));
       let imgResp: Response;
       try {
         imgResp = await fetch(img);
       } catch (e) {
+        console.error("[extraer-ingreso] fetch img error:", e);
         return json({ error: "Error bajando imagen: " + String(e) }, 502);
       }
       if (!imgResp.ok) {
-        return json({ error: `No se pudo bajar la imagen (${imgResp.status})` }, 502);
+        const txt = await imgResp.text();
+        console.error("[extraer-ingreso] img status", imgResp.status, txt.slice(0, 200));
+        return json({ error: `No se pudo bajar la imagen (${imgResp.status}): ${txt.slice(0,120)}` }, 502);
       }
       const ct = imgResp.headers.get("content-type") || "image/jpeg";
       const buf = await imgResp.arrayBuffer();
+      console.log("[extraer-ingreso] img ok, bytes =", buf.byteLength, "ct =", ct);
       const b64 = base64Encode(new Uint8Array(buf));
       content.push({
         type: "image",
@@ -139,8 +144,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (!resp.ok) {
     const txt = await resp.text();
-    return json({ error: `Anthropic ${resp.status}: ${txt}` }, 502);
+    console.error("[extraer-ingreso] Anthropic", resp.status, txt.slice(0, 400));
+    return json({ error: `Anthropic ${resp.status}: ${txt.slice(0, 200)}` }, 502);
   }
+  console.log("[extraer-ingreso] Anthropic ok");
 
   const data = await resp.json();
   const textBlock = data?.content?.find((c: { type: string }) => c.type === "text");
