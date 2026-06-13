@@ -79,6 +79,42 @@
   .empty-items{text-align:center;color:var(--ink-soft);font-size:14px;
     padding:24px 10px;border:1px dashed var(--line);border-radius:12px;margin-bottom:10px}
 
+  /* IA — cargar desde foto */
+  .ia-btn{width:100%;padding:13px;border:1px dashed var(--ai-tx);background:var(--ai-bg);
+    color:var(--ai-tx);border-radius:12px;font-size:15px;font-weight:600;
+    font-family:inherit;cursor:pointer;margin-bottom:10px;display:flex;
+    align-items:center;justify-content:center;gap:8px}
+  .ia-btn:active{filter:brightness(.95)}
+  .ia-btn:disabled{opacity:.6;cursor:wait}
+  .ia-pend-box{background:var(--amber-bg);border:1px solid var(--amber-tx);
+    border-radius:12px;padding:12px;margin-bottom:10px}
+  .ia-pend-title{font-size:13px;font-weight:700;color:var(--amber-tx);margin-bottom:8px}
+  .ia-pend-row{background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:10px;margin-bottom:8px}
+  .ia-pend-row:last-child{margin-bottom:0}
+  .ia-pend-orig{font-size:13px;font-weight:600;color:var(--ink)}
+  .ia-pend-meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .ia-search-wrap{position:relative;margin-top:8px}
+  .ia-search{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;font-family:inherit}
+  .ia-results{margin-top:4px;border:1px solid var(--line);border-radius:8px;
+    max-height:160px;overflow-y:auto;background:#fff}
+  .ia-results .r{padding:8px 10px;font-size:13px;cursor:pointer;
+    border-bottom:1px solid var(--line-soft)}
+  .ia-results .r:last-child{border-bottom:none}
+  .ia-results .r:active{background:var(--line-soft)}
+  .ia-results .r.sel{background:var(--green-bg);color:var(--green-tx);font-weight:600}
+  .ia-pend-edit{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+  .ia-pend-edit input{padding:7px 8px;border:1px solid var(--line);border-radius:7px;
+    font-family:inherit;font-size:13px;width:100%}
+  .ia-pend-edit label{font-size:10px;color:var(--ink-soft);font-weight:600;
+    text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:2px}
+  .ia-pend-btns{display:flex;gap:6px;margin-top:8px}
+  .ia-pend-btns button{flex:1;padding:8px;border-radius:8px;font-size:13px;
+    font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--line);background:#fff}
+  .ia-pend-btns .ok{background:var(--gold);color:#fff;border-color:var(--gold)}
+  .ia-pend-btns .ok:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed;border-color:var(--line)}
+
   /* CARGOS */
   .cargos{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
   .cargo-row{display:flex;align-items:center;gap:12px;padding:11px 14px;
@@ -206,7 +242,19 @@ async function cargarDatos() {
   if (proveedoresList.length) {
     proveedorId = proveedoresList[0].id
     aplicarCargosDefault()
+    await cargarAliases()
   }
+}
+
+async function cargarAliases() {
+  if (!proveedorId) { iaAliases = []; return }
+  const { data, error } = await supabase
+    .from('alias_productos')
+    .select('id, alias_text, producto_id, factor_conversion')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('proveedor_id', proveedorId)
+  if (error) { console.warn('alias load:', error); iaAliases = []; return }
+  iaAliases = data || []
 }
 
 // ── ESTADO ────────────────────────────────────────────────────────────
@@ -225,6 +273,12 @@ let panelOpen = false
 let panelProd = { busq:'', selId:'', bultos:'', uPorBulto:'', costo:'' }
 let confirmado = false
 let resumenDone = {}
+
+// IA / extracción desde foto
+let iaProcesando = false
+let iaPendientes = []  // {texto_original, cantidad, costo_unit, costo_total_linea,
+                       //  selProdId:'', selBusq:'', cantReal:'', costoReal:''}
+let iaAliases = []     // cache de alias_productos del proveedor actual
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 const provActual = () => proveedoresList.find(p => p.id === proveedorId)
@@ -248,9 +302,11 @@ function aplicarCargosDefault() {
   cargos.forEach(c => c.on = def.includes(c.nombre))
 }
 
-function setProveedor(id) {
+async function setProveedor(id) {
   proveedorId = id
   aplicarCargosDefault()
+  iaPendientes = []
+  await cargarAliases()
   render()
 }
 
@@ -297,6 +353,12 @@ function render() {
     <div class="divider"></div>
     <section>
       <div class="lbl">Productos <span class="lbl-sub">(${items.length} ${items.length===1?'ítem':'ítems'}, precios netos)</span></div>
+      <button class="ia-btn" ${iaProcesando?'disabled':''} onclick="document.getElementById('ia-file').click()">
+        ${iaProcesando ? '⏳ Procesando con IA…' : '📷 Cargar desde foto'}
+      </button>
+      <input id="ia-file" type="file" accept="image/*" multiple style="display:none"
+        onchange="window.iaCargarFotos(this.files)">
+      <div id="ia-pend-box"></div>
       <div id="items-box"></div>
       <button class="add-prod" onclick="abrirPanel()">+ Agregar producto</button>
     </section>
@@ -335,6 +397,7 @@ function render() {
     <div id="verify-box"></div>`
 
   renderItems()
+  renderPendientes()
   renderVerify()
   renderBar()
   if (panelOpen) renderPanel()
@@ -603,7 +666,160 @@ function renderDone() {
 async function reset() {
   numBoleta = ''; items = []; totalDeclarado = ''; confirmado = false
   fecha = new Date().toISOString().slice(0,10)
+  iaPendientes = []
   await cargarDatos()
+  render()
+}
+
+// ── IA: cargar desde foto ─────────────────────────────────────────────
+
+async function iaCargarFotos(fileList) {
+  if (!proveedorId) { alert('Elegí primero el proveedor.'); return }
+  const files = Array.from(fileList || [])
+  if (!files.length) return
+  if (files.length > 8) { alert('Máximo 8 fotos por boleta.'); return }
+  document.getElementById('ia-file').value = ''
+
+  iaProcesando = true
+  render()
+  try {
+    // Subir cada archivo a Storage; en paralelo construir base64 de respaldo
+    const imagenes = []
+    for (const f of files) {
+      const ext = (f.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${usuario.empresa_id}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`
+      const up = await supabase.storage.from('ingresos_fotos').upload(path, f, { upsert: false })
+      if (up.error) throw up.error
+      // signed URL para que la Edge Function la baje
+      const { data: signed, error: eS } = await supabase.storage
+        .from('ingresos_fotos').createSignedUrl(path, 600)
+      if (eS) throw eS
+      imagenes.push(signed.signedUrl)
+    }
+
+    // Llamar a la Edge Function
+    const { data, error } = await supabase.functions.invoke('extraer-ingreso', {
+      body: { imagenes }
+    })
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+    const detectados = data?.items || []
+    if (!detectados.length) {
+      alert('La IA no detectó productos en la(s) foto(s). Probá con otra foto o cargá manual.')
+      iaProcesando = false; render(); return
+    }
+
+    // Matchear contra alias y dispatchear
+    const sinMatch = []
+    for (const d of detectados) {
+      const a = iaAliases.find(x => x.alias_text.toLowerCase() === (d.texto_original||'').toLowerCase())
+      if (a) {
+        const p = prod(a.producto_id)
+        if (!p) { sinMatch.push(d); continue }
+        const factor = Number(a.factor_conversion) || 1
+        const costoUnit = d.costo_unit != null
+          ? Number(d.costo_unit) / factor
+          : (d.costo_total_linea && d.cantidad ? (Number(d.costo_total_linea) / Number(d.cantidad)) / factor : 0)
+        const cantInterna = Number(d.cantidad) * factor
+        items.push({
+          prodId: a.producto_id,
+          bultos: p.u_bulto > 1 ? Math.max(1, Math.round(cantInterna / p.u_bulto)) : Math.max(1, Math.round(cantInterna)),
+          uPorBulto: p.u_bulto > 1 ? p.u_bulto : 1,
+          costo: Math.round(costoUnit)
+        })
+      } else {
+        sinMatch.push(d)
+      }
+    }
+    iaPendientes = sinMatch.map(d => ({
+      ...d,
+      selProdId: '',
+      selBusq: '',
+      cantReal: String(d.cantidad ?? ''),
+      costoReal: String(
+        d.costo_unit != null ? d.costo_unit
+        : (d.costo_total_linea && d.cantidad ? Math.round(Number(d.costo_total_linea)/Number(d.cantidad)) : '')
+      ),
+    }))
+  } catch (e) {
+    alert('Error procesando: ' + (e.message || e))
+  } finally {
+    iaProcesando = false
+    render()
+  }
+}
+
+function renderPendientes() {
+  const box = document.getElementById('ia-pend-box')
+  if (!box) return
+  if (!iaPendientes.length) { box.innerHTML = ''; return }
+  box.innerHTML = `<div class="ia-pend-box">
+    <div class="ia-pend-title">📌 ${iaPendientes.length} ítem(s) sin producto asignado</div>
+    ${iaPendientes.map((p,i) => {
+      const q = p.selBusq.trim().toLowerCase()
+      const matches = q.length > 1
+        ? productos.filter(x => x.nombre.toLowerCase().includes(q)).slice(0,5)
+        : []
+      const sel = p.selProdId ? prod(p.selProdId) : null
+      return `<div class="ia-pend-row">
+        <div class="ia-pend-orig">📄 ${p.texto_original}</div>
+        <div class="ia-pend-meta">Cant: ${p.cantidad ?? '?'} · Costo unit: ${p.costo_unit ?? '?'} · Total: ${p.costo_total_linea ?? '?'}</div>
+        <div class="ia-search-wrap">
+          <input class="ia-search" placeholder="Buscar tu producto…" value="${p.selBusq}"
+            oninput="window.iaSetBusq(${i}, this.value)" autocomplete="off">
+          ${matches.length ? `<div class="ia-results">
+            ${matches.map(m => `<div class="r ${p.selProdId===m.id?'sel':''}" onclick="window.iaSelProd(${i}, '${m.id}')">${m.nombre}</div>`).join('')}
+          </div>` : ''}
+        </div>
+        ${sel ? `<div class="ia-pend-meta" style="margin-top:6px">✓ ${sel.nombre}${sel.u_bulto>1?` (${sel.u_bulto} u/bulto)`:''}</div>` : ''}
+        <div class="ia-pend-edit">
+          <div>
+            <label>Cantidad real</label>
+            <input type="number" min="1" value="${p.cantReal}" onchange="window.iaSetCantReal(${i}, this.value)">
+          </div>
+          <div>
+            <label>Costo unit. real</label>
+            <input type="number" min="0" value="${p.costoReal}" onchange="window.iaSetCostoReal(${i}, this.value)">
+          </div>
+        </div>
+        <div class="ia-pend-btns">
+          <button onclick="window.iaDescartar(${i})">Descartar</button>
+          <button class="ok" ${sel ? '' : 'disabled'} onclick="window.iaConfirmar(${i})">Aceptar y recordar</button>
+        </div>
+      </div>`
+    }).join('')}
+  </div>`
+}
+
+async function iaConfirmar(i) {
+  const p = iaPendientes[i]; if (!p || !p.selProdId) return
+  const prodInt = prod(p.selProdId); if (!prodInt) return
+  const cantProv = Number(p.cantidad) || 0
+  const cantReal = Number(p.cantReal) || cantProv
+  const factor = cantProv > 0 ? cantReal / cantProv : 1
+  const costoUnit = Number(p.costoReal) || 0
+
+  // Agregar al items
+  items.push({
+    prodId: p.selProdId,
+    bultos: prodInt.u_bulto > 1 ? Math.max(1, Math.round(cantReal / prodInt.u_bulto)) : Math.max(1, cantReal),
+    uPorBulto: prodInt.u_bulto > 1 ? prodInt.u_bulto : 1,
+    costo: Math.round(costoUnit)
+  })
+
+  // Guardar alias para la próxima vez
+  const { error } = await supabase.from('alias_productos').upsert({
+    empresa_id: usuario.empresa_id,
+    proveedor_id: proveedorId,
+    alias_text: p.texto_original,
+    producto_id: p.selProdId,
+    factor_conversion: factor,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'empresa_id,proveedor_id,alias_text' })
+  if (error) console.warn('alias upsert:', error.message)
+  await cargarAliases()
+
+  iaPendientes.splice(i, 1)
   render()
 }
 
@@ -622,8 +838,20 @@ window.setCargoOn        = (i, v) => { cargos[i].on = v; render() }
 Object.assign(window, {
   render, setProveedor, abrirPanel, cerrarPanel,
   confirmarPanelItem, rerenderPanel, selProd, confirmar, reset, quitar,
-  setBultos, setUporBulto, setCosto, cargos, panelProd
+  setBultos, setUporBulto, setCosto, cargos, panelProd,
+  iaCargarFotos, iaConfirmar,
 })
+
+window.iaSetBusq = (i, v) => { iaPendientes[i].selBusq = v; renderPendientes() }
+window.iaSelProd = (i, id) => {
+  iaPendientes[i].selProdId = id
+  const p = prod(id)
+  if (p && !iaPendientes[i].costoReal && p.costo) iaPendientes[i].costoReal = String(p.costo)
+  renderPendientes()
+}
+window.iaSetCantReal  = (i, v) => { iaPendientes[i].cantReal = v }
+window.iaSetCostoReal = (i, v) => { iaPendientes[i].costoReal = v }
+window.iaDescartar    = (i) => { iaPendientes.splice(i,1); renderPendientes() }
 
 // ── INIT ──────────────────────────────────────────────────────────────
 document.getElementById('root').innerHTML =
