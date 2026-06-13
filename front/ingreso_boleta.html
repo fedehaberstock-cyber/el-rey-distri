@@ -312,7 +312,7 @@ function render() {
             <span class="cargo-nm">${c.nombre}</span>
             <div class="pct-input">
               <input type="number" min="0" step="0.1" value="${c.pct}"
-                oninput="setCargoPct(${i},this.value)"> %
+                onchange="setCargoPct(${i},this.value)"> %
             </div>
             <span class="cargo-monto">${c.on ? ars(subtotalNeto()*c.pct/100) : ''}</span>
           </div>`).join('')}
@@ -365,9 +365,9 @@ function renderItems() {
           <button onclick="setBultos(${i},1)">+</button>
         </div>
         ${esBulto ? `<span class="bulto-mult">bultos × <input type="number" min="1"
-          value="${it.uPorBulto}" oninput="setUporBulto(${i},this.value)"> u/b</span>` : ''}
+          value="${it.uPorBulto}" onchange="setUporBulto(${i},this.value)"> u/b</span>` : ''}
         <div class="mini">$<input type="number" min="0" value="${it.costo}"
-          oninput="setCosto(${i},this.value)"> /u</div>
+          onchange="setCosto(${i},this.value)" onfocus="this.select()"> /u</div>
       </div>
       <div class="item-meta">
         ${esBulto ? `<span class="units">= ${cantTotal(it)} unidades</span>` : `<span class="units">${cantTotal(it)} u</span>`}
