@@ -77,11 +77,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: "Máximo 8 fotos por boleta" }, 400);
   }
 
-  // Armar los content blocks para Anthropic
+  // Armar los content blocks para Anthropic.
+  // Siempre mandamos base64 (más confiable que URL; Anthropic puede no
+  // alcanzar URLs firmadas de Storage).
   const content: Array<Record<string, unknown>> = [];
   for (const img of imagenes) {
     if (img.startsWith("data:")) {
-      // base64 inline: data:image/jpeg;base64,XXXX
       const m = img.match(/^data:(image\/[a-z]+);base64,(.+)$/);
       if (!m) return json({ error: "Imagen base64 mal formada" }, 400);
       content.push({
@@ -89,9 +90,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         source: { type: "base64", media_type: m[1], data: m[2] },
       });
     } else if (img.startsWith("http")) {
+      // Bajamos la imagen y la pasamos a base64
+      let imgResp: Response;
+      try {
+        imgResp = await fetch(img);
+      } catch (e) {
+        return json({ error: "Error bajando imagen: " + String(e) }, 502);
+      }
+      if (!imgResp.ok) {
+        return json({ error: `No se pudo bajar la imagen (${imgResp.status})` }, 502);
+      }
+      const ct = imgResp.headers.get("content-type") || "image/jpeg";
+      const buf = await imgResp.arrayBuffer();
+      const b64 = base64Encode(new Uint8Array(buf));
       content.push({
         type: "image",
-        source: { type: "url", url: img },
+        source: { type: "base64", media_type: ct.split(";")[0], data: b64 },
       });
     } else {
       return json({ error: "Imagen debe ser URL http(s) o data:base64" }, 400);
@@ -145,6 +159,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     usage: data.usage,
   });
 });
+
+function base64Encode(bytes: Uint8Array): string {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
 
 function extraerJSON(txt: string): { items: ItemDetectado[] } {
   // Sacar fences ```json ... ``` si vinieran
