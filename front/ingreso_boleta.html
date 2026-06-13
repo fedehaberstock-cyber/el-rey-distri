@@ -828,16 +828,20 @@ async function iaConfirmar(i) {
     costo: Math.round(costoUnit)
   })
 
-  // Guardar alias para la próxima vez
+  // Guardar alias para la próxima vez (siempre en minúsculas)
+  const aliasNorm = (p.texto_original || '').toLowerCase().trim()
   const { error } = await supabase.from('alias_productos').upsert({
     empresa_id: usuario.empresa_id,
     proveedor_id: proveedorId,
-    alias_text: p.texto_original,
+    alias_text: aliasNorm,
     producto_id: p.selProdId,
     factor_conversion: factor,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'empresa_id,proveedor_id,alias_text' })
-  if (error) console.warn('alias upsert:', error.message)
+  if (error) {
+    console.warn('alias upsert:', error.message)
+    alert('No se pudo guardar el alias para futuras boletas: ' + error.message)
+  }
   await cargarAliases()
 
   iaPendientes.splice(i, 1)
