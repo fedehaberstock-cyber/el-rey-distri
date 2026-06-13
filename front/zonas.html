@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Zonas</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:100px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .add-btn{background:none;border:none;color:var(--gold);font-size:28px;
+    line-height:1;cursor:pointer;padding:0}
+
+  .hint{padding:10px 18px;font-size:13px;color:var(--ink-soft)}
+  .list{padding:0 18px}
+  .zona-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+  .zona-orden{width:32px;height:32px;border-radius:8px;background:var(--gold-lt);
+    color:var(--gold-dk);font-weight:700;font-size:14px;display:flex;
+    align-items:center;justify-content:center;flex-shrink:0}
+  .zona-info{flex:1;min-width:0}
+  .zona-info .nm{font-size:15px;font-weight:600}
+  .zona-info .sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .ord-btns{display:flex;flex-direction:column;gap:4px}
+  .ord-btns button{width:30px;height:24px;border:1px solid var(--line);
+    border-radius:6px;background:var(--card);font-size:13px;color:var(--ink-soft);
+    cursor:pointer;font-family:inherit;padding:0}
+  .ord-btns button:disabled{opacity:.3;cursor:not-allowed}
+  .ord-btns button:active:not(:disabled){background:var(--line-soft)}
+  .edit-btn{background:none;border:none;color:var(--gold);font-size:18px;
+    cursor:pointer;padding:4px 6px;font-family:inherit}
+  .inactive{opacity:.5}
+
+  .empty{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+
+  /* PANEL */
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:24px 20px 32px;width:100%;max-height:90vh;overflow-y:auto}
+  .panel .handle{width:36px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 18px}
+  .panel h3{font-size:18px;font-weight:700;margin-bottom:18px}
+  .fl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .fl:first-of-type{margin-top:0}
+  .field{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .panel-btns{display:flex;gap:10px;margin-top:20px}
+  .bar-btn{flex:2;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .cancel{flex:1;padding:15px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:15px;font-weight:600;cursor:pointer;
+    color:var(--ink);font-family:inherit}
+  .del-btn{width:100%;padding:13px;border:1px solid var(--red-tx);border-radius:12px;
+    background:var(--red-bg);color:var(--red-tx);font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:10px}
+  .err-msg{color:var(--red-tx);font-size:13px;margin-top:8px}
+
+  @media(prefers-reduced-motion:no-preference){
+    .zona-card,.panel{animation:fd .15s ease}
+    @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js';
+import { requireSession, tienePermiso } from './src/auth.js';
+
+const { usuario } = await requireSession();
+if (!tienePermiso('zonas', 'editar') && !tienePermiso('clientes', 'editar')) {
+  location.href = './login_home.html';
+}
+
+let zonas = [];      // {id, nombre, orden, activa}
+let panelId = null;  // null=cerrado, 'nuevo' o uuid
+let form = { nombre: '', activa: true };
+let errMsg = '';
+let saving = false;
+
+async function cargar() {
+  const { data, error } = await supabase
+    .from('zonas')
+    .select('id, nombre, orden, activa')
+    .eq('empresa_id', usuario.empresa_id)
+    .order('orden', { ascending: true });
+  if (error) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Error: ${error.message}</div>`; return;
+  }
+  zonas = data || [];
+  render();
+}
+
+function render() {
+  const el = document.getElementById('root');
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Zonas de reparto</small></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+        <button class="add-btn" onclick="window._nuevo()" title="Nueva zona">＋</button>
+      </div>
+    </div>
+    <div class="hint">El orden de la lista define la secuencia de reparto en la hoja de ruta.</div>
+    <div id="zona-list" class="list"></div>`;
+  renderList();
+  if (panelId !== null) renderPanel(el);
+}
+
+function renderList() {
+  const cont = document.getElementById('zona-list');
+  if (!cont) return;
+  if (!zonas.length) {
+    cont.innerHTML = `<div class="empty">Sin zonas todavía.<br>Tocá + para crear la primera.</div>`;
+    return;
+  }
+  cont.innerHTML = zonas.map((z, i) => `
+    <div class="zona-card ${z.activa ? '' : 'inactive'}">
+      <div class="zona-orden">${i + 1}</div>
+      <div class="zona-info">
+        <div class="nm">${z.nombre}</div>
+        <div class="sub">Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
+      </div>
+      <div class="ord-btns">
+        <button onclick="window._mover('${z.id}', -1)" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button>
+        <button onclick="window._mover('${z.id}',  1)" ${i === zonas.length - 1 ? 'disabled' : ''} title="Bajar">▼</button>
+      </div>
+      <button class="edit-btn" onclick="window._editar('${z.id}')" title="Editar">✏</button>
+    </div>`).join('');
+}
+
+function renderPanel(el) {
+  const esNuevo = panelId === 'nuevo';
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) window._cerrar(); };
+  ov.innerHTML = `
+    <div class="panel">
+      <div class="handle"></div>
+      <h3>${esNuevo ? 'Nueva zona' : 'Editar zona'}</h3>
+
+      <label class="fl">Nombre</label>
+      <input class="field" type="text" value="${form.nombre}"
+        placeholder="Ej: Centro" oninput="window._setForm('nombre', this.value)">
+
+      ${!esNuevo ? `
+        <label class="fl">Estado</label>
+        <select class="field" onchange="window._setForm('activa', this.value === 'true')">
+          <option value="true"  ${form.activa ? 'selected' : ''}>Activa</option>
+          <option value="false" ${!form.activa ? 'selected' : ''}>Inactiva</option>
+        </select>` : ''}
+
+      ${errMsg ? `<div class="err-msg">${errMsg}</div>` : ''}
+
+      <div class="panel-btns">
+        <button class="cancel" onclick="window._cerrar()">Cancelar</button>
+        <button class="bar-btn" onclick="window._guardar()" ${saving ? 'disabled' : ''}>
+          ${saving ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+    </div>`;
+  el.appendChild(ov);
+}
+
+async function guardar() {
+  if (!form.nombre.trim()) { errMsg = 'El nombre es obligatorio.'; render(); return; }
+  saving = true; errMsg = ''; render();
+
+  let error;
+  if (panelId === 'nuevo') {
+    const maxOrden = zonas.reduce((m, z) => Math.max(m, z.orden), 0);
+    ({ error } = await supabase.from('zonas').insert({
+      empresa_id: usuario.empresa_id,
+      nombre: form.nombre.trim(),
+      orden: maxOrden + 1,
+      activa: true,
+    }));
+  } else {
+    ({ error } = await supabase.from('zonas')
+      .update({ nombre: form.nombre.trim(), activa: form.activa })
+      .eq('id', panelId));
+  }
+  saving = false;
+  if (error) { errMsg = error.message; render(); return; }
+  panelId = null;
+  await cargar();
+}
+
+async function mover(id, delta) {
+  const i = zonas.findIndex(z => z.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= zonas.length) return;
+  const a = zonas[i], b = zonas[j];
+  // intercambio simple
+  const [orden_a, orden_b] = [a.orden, b.orden];
+  // optimista
+  zonas[i] = { ...a, orden: orden_b };
+  zonas[j] = { ...b, orden: orden_a };
+  zonas.sort((x, y) => x.orden - y.orden);
+  renderList();
+  const r1 = await supabase.from('zonas').update({ orden: orden_b }).eq('id', a.id);
+  const r2 = await supabase.from('zonas').update({ orden: orden_a }).eq('id', b.id);
+  if (r1.error || r2.error) { alert('Error al reordenar'); await cargar(); }
+}
+
+window._nuevo  = () => { form = { nombre: '', activa: true }; errMsg = ''; panelId = 'nuevo'; render(); };
+window._editar = id => {
+  const z = zonas.find(x => x.id === id); if (!z) return;
+  form = { nombre: z.nombre, activa: z.activa }; errMsg = ''; panelId = id; render();
+};
+window._cerrar  = () => { panelId = null; render(); };
+window._setForm = (k, v) => { form[k] = v; };
+window._guardar = () => guardar();
+window._mover   = (id, d) => mover(id, d);
+
+await cargar();
+</script>
+</body>
+</html>

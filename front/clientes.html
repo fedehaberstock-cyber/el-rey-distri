@@ -152,7 +152,9 @@ let movsCache = {};      // cliId -> [{id, tipo, monto, descripcion, fecha, form
 let boletasCache = {};   // cliId -> [{id, fecha, total, estado}]
 let cargando = false;
 
-let nuevoForm = {nombre:'', dir:'', tel:''};
+let nuevoForm = {nombre:'', dir:'', tel:'', zona_id:'', posicion_zona:''};
+let zonasList = [];
+let editandoZona = false; // panel editar zona/posición de un cliente
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 // adapter al formato del mockup: pago se muestra como negativo
@@ -182,23 +184,28 @@ function descripcionMov(m){
 async function cargarClientes(){
   cargando = true;
   // dos queries — más simple que un join con vista
-  const [{ data: cli, error: e1 }, { data: sal, error: e2 }] = await Promise.all([
+  const [{ data: cli, error: e1 }, { data: sal, error: e2 }, { data: zon, error: e3 }] = await Promise.all([
     supabase.from('clientes')
       .select('id, nombre, direccion, telefono, zona_id, posicion_zona, activo')
       .eq('activo', true)
       .order('nombre'),
-    supabase.from('saldo_actual').select('cliente_id, saldo')
+    supabase.from('saldo_actual').select('cliente_id, saldo'),
+    supabase.from('zonas').select('id, nombre, orden, activa').order('orden'),
   ]);
   cargando = false;
   if (e1) { mostrarError('Error cargando clientes: ' + e1.message); return; }
   if (e2) { mostrarError('Error cargando saldos: ' + e2.message); return; }
+  if (e3) { mostrarError('Error cargando zonas: ' + e3.message); return; }
 
+  zonasList = zon || [];
   const saldoMap = Object.fromEntries((sal || []).map(s => [s.cliente_id, Number(s.saldo) || 0]));
   clientes = (cli || []).map(c => ({
     id: c.id,
     nombre: c.nombre,
     direccion: c.direccion || '',
     telefono: c.telefono || '',
+    zona_id: c.zona_id || null,
+    posicion_zona: c.posicion_zona ?? 999,
     saldo: saldoMap[c.id] || 0,
   }));
 }
@@ -236,6 +243,7 @@ function render(){
   else if(vista==='detalle') renderDetalle();
   else if(vista==='nuevo')   renderNuevo();
   if(cobroOpen) renderCobro();
+  if(editandoZona) renderEditarZona();
 }
 
 // ── LISTA ─────────────────────────────────────────────────────────────
@@ -339,6 +347,10 @@ function renderDetalle(){
     <div class="meta">
       ${c.telefono ? `<div class="meta-row">&#128222; <b>${c.telefono}</b></div>` : ''}
       ${c.direccion ? `<div class="meta-row">&#128205; <span>${c.direccion}</span></div>` : ''}
+      <div class="meta-row" style="justify-content:space-between">
+        <span>🗺️ ${zonasList.find(z=>z.id===c.zona_id)?.nombre || 'Sin zona'}${c.posicion_zona < 999 ? ` · pos ${c.posicion_zona}` : ''}</span>
+        <button onclick="window.abrirEditarZona()" style="background:none;border:none;color:var(--gold);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✏ Editar</button>
+      </div>
     </div>
     <div class="sec-lbl">Boletas</div>
     <div class="movs">
@@ -429,6 +441,43 @@ function renderCobro(){
 
 function abrirCobro(tipo='pago'){ editandoMovId=null; cobroOpen=true; cobroTipo=tipo; cobroMonto=''; cobroMotivo=''; cobroFormaPago='efectivo'; render(); }
 function cerrarCobro(){ cobroOpen=false; editandoMovId=null; render(); }
+
+function renderEditarZona(){
+  const c = clientes.find(x=>x.id===cliSelId); if(!c) return;
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="cobro-panel">
+      <h3>Zona y posición</h3>
+      <p>${c.nombre}</p>
+      <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Zona</label>
+      <select id="ez-zona" class="field" style="margin-bottom:12px">
+        <option value="">— Sin zona —</option>
+        ${zonasList.filter(z=>z.activa || z.id===c.zona_id).map(z =>
+          `<option value="${z.id}" ${c.zona_id===z.id?'selected':''}>${z.nombre}</option>`).join('')}
+      </select>
+      <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Posición</label>
+      <input id="ez-pos" class="field" type="number" min="0" value="${c.posicion_zona ?? 999}" style="margin-bottom:14px">
+      <div class="cobro-btns">
+        <button class="cancel" onclick="window.cerrarEditarZona()">Cancelar</button>
+        <button class="bar-btn" onclick="window.guardarZonaCliente()">Guardar</button>
+      </div>
+    </div>`;
+  document.getElementById('root').appendChild(ov);
+}
+window.abrirEditarZona = () => { editandoZona = true; render(); };
+window.cerrarEditarZona = () => { editandoZona = false; render(); };
+window.guardarZonaCliente = async () => {
+  const zid = document.getElementById('ez-zona')?.value || null;
+  const pos = parseInt(document.getElementById('ez-pos')?.value);
+  const { error } = await supabase.from('clientes')
+    .update({ zona_id: zid, posicion_zona: Number.isFinite(pos) ? pos : 999 })
+    .eq('id', cliSelId);
+  if (error) { alert('Error: ' + error.message); return; }
+  editandoZona = false;
+  await cargarClientes();
+  render();
+};
 
 window.editarMov = (movId) => {
   const cli = clientes.find(x=>x.id===cliSelId);
@@ -527,6 +576,15 @@ function renderNuevo(){
     <label class="fl">Teléfono</label>
     <input class="field" id="ft" type="tel" placeholder="Ej: 351-555-0100"
       value="${nuevoForm.tel}" oninput="window.setNuevoCampo('tel', this.value)">
+    <label class="fl">Zona</label>
+    <select class="field" id="fz" onchange="window.setNuevoCampo('zona_id', this.value)">
+      <option value="">— Sin zona —</option>
+      ${zonasList.filter(z => z.activa).map(z =>
+        `<option value="${z.id}" ${nuevoForm.zona_id===z.id?'selected':''}>${z.nombre}</option>`).join('')}
+    </select>
+    <label class="fl">Posición en la zona</label>
+    <input class="field" id="fp" type="number" min="0" placeholder="Ej: 5"
+      value="${nuevoForm.posicion_zona}" oninput="window.setNuevoCampo('posicion_zona', this.value)">
     <div id="nuevo-err" style="color:var(--red-tx);font-size:13px;margin-top:14px;display:none"></div>`;
   el.appendChild(body);
 
@@ -553,13 +611,14 @@ async function guardarCliente(){
   const { data: usr } = await supabase.from('usuarios')
     .select('empresa_id').eq('auth_id', user.id).single();
 
+  const posParse = parseInt(document.getElementById('fp')?.value);
   const { data, error } = await supabase.from('clientes').insert({
     empresa_id: usr.empresa_id,
     nombre: nom,
     direccion: document.getElementById('fd')?.value.trim() || null,
     telefono: document.getElementById('ft')?.value.trim() || null,
-    zona_id: null,           // pendiente: selector de zona cuando exista zonas.html
-    posicion_zona: 999,      // sin posición asignada hasta armar la ruta
+    zona_id: document.getElementById('fz')?.value || null,
+    posicion_zona: Number.isFinite(posParse) ? posParse : 999,
     activo: true,
   }).select('id').single();
 
@@ -569,7 +628,7 @@ async function guardarCliente(){
     return;
   }
 
-  nuevoForm = {nombre:'', dir:'', tel:''};
+  nuevoForm = {nombre:'', dir:'', tel:'', zona_id:'', posicion_zona:''};
   await cargarClientes();
   irDetalle(data.id);
 }
