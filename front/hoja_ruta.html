@@ -313,7 +313,7 @@ async function cargarTodo() {
   const pedidoIds = rows.map(r => r.pedido_id)
   const { data: boletas, error: e2 } = await supabase
     .from('boletas')
-    .select('pedido_id, total, saldo_anterior, total_a_cobrar')
+    .select('id, pedido_id, total, saldo_anterior, total_a_cobrar')
     .in('pedido_id', pedidoIds)
   if (e2) throw e2
   const mapBol = new Map((boletas||[]).map(b => [b.pedido_id, b]))
@@ -330,6 +330,7 @@ async function cargarTodo() {
       dir:         r.direccion || '',
       tel:         r.telefono  || '',
       prev:        r.preventista_nombre || '',
+      boletaId:    b.id || null,
       totalPedido: Number(b.total)          || 0,
       saldoAnt:    Number(b.saldo_anterior) || 0,
       tacobrar:    Number(b.total_a_cobrar) || 0,
@@ -536,7 +537,10 @@ function renderCierre(el) {
           ${p.saldoAnt > 0 ? `<span class="monto-tag saldo">+ Saldo ${ars(p.saldoAnt)}</span>` : ''}
           <span class="monto-tag cobrar">= Cobrar ${ars(tac)}</span>
         </div>
-        <span class="estado-chip ${chipCl}">${chipTxt}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px">
+          <span class="estado-chip ${chipCl}">${chipTxt}</span>
+          ${p.boletaId ? `<button class="hdr-btn" onclick="editarBoleta('${p.boletaId}')" style="font-size:12px;padding:5px 10px">✏ Editar boleta</button>` : ''}
+        </div>
       </div>
       <div class="cierre-body">
         <div class="op-grid">
@@ -718,6 +722,7 @@ function renderDone(el) {
 // ── HELPERS GLOBALES ──────────────────────────────────────────────────
 function setTab(t) { tab = t; render() }
 function imprimirHoja() { window.print() }
+function editarBoleta(id) { window.open('./editar_boleta.html?id=' + id, '_blank') }
 
 function abrirModalBoletas() {
   if (!pedidos.length) { alert('No hay pedidos en la hoja.'); return }
@@ -785,7 +790,7 @@ function confirmarImprBoletas() {
 Object.assign(window, {
   render, setTab, imprimirHoja, confirmarCierre,
   toggleNoEnt, activarEf, activarTr, toggleCc, actualizarResumen,
-  abrirModalBoletas, cerrarModalBoletas, confirmarImprBoletas
+  abrirModalBoletas, cerrarModalBoletas, confirmarImprBoletas, editarBoleta
 })
 
 // ── INIT ──────────────────────────────────────────────────────────────
