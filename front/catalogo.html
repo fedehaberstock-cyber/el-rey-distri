@@ -62,6 +62,8 @@
     border:2px dashed var(--line);background:var(--card);overflow:hidden;cursor:pointer;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
   .foto-wrap.tiene-foto{border-style:solid;border-color:var(--line)}
+  .foto-wrap.drop-over{border-color:var(--gold);background:var(--gold-lt,#F5E9D0);
+    transform:scale(1.01)}
   .foto-wrap img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
   .foto-wrap .overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);
     display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
@@ -511,8 +513,11 @@ function renderPanel(el){
       <h3>${p.nombre}</h3>
 
       <label class="fl">Foto del producto</label>
-      <div class="foto-wrap ${panelFotoTemp?'tiene-foto':''}"
-        onclick="document.getElementById('file-foto').click()">
+      <div class="foto-wrap ${panelFotoTemp?'tiene-foto':''}" id="foto-drop"
+        onclick="document.getElementById('file-foto').click()"
+        ondragover="event.preventDefault();this.classList.add('drop-over')"
+        ondragleave="this.classList.remove('drop-over')"
+        ondrop="window.onFotoDrop(event)">
         ${panelFotoTemp
           ? `<img src="${panelFotoTemp}" alt="${p.nombre}">
              <div class="overlay"><span>Cambiar foto</span></div>`
@@ -523,7 +528,7 @@ function renderPanel(el){
                  <path d="M21 15l-5-5L5 21"/>
                </svg>
                <span>Subir foto</span>
-               <small>JPG, PNG · máx 5MB</small>
+               <small>Tocá, arrastrá o pegá (Ctrl+V)</small>
              </div>`}
       </div>
       ${panelFotoTemp?`
@@ -570,24 +575,83 @@ async function guardarProd(id){
 // ── SUBIDA DE FOTO ─────────────────────────────────────────────────────
 window.onFotoChange = onFotoChange
 window.onLogoChange = (e) => onLogoChange(e)
-async function onFotoChange(e){
-  const file=e.target.files[0]; if(!file) return;
-  e.target.value='';
-  const id=panelProd; if(!id) return;
-  // mostrar preview inmediato mientras sube
-  const reader=new FileReader();
-  reader.onload=ev=>{ panelFotoTemp=ev.target.result; rerenderPanel(); };
-  reader.readAsDataURL(file);
+window.onFotoDrop = onFotoDrop
 
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${id}/${Date.now()}.${ext}`;
+async function subirBlob(blob){
+  const id = panelProd; if(!id) return
+  // Preview inmediato
+  const reader = new FileReader()
+  reader.onload = ev => { panelFotoTemp = ev.target.result; rerenderPanel() }
+  reader.readAsDataURL(blob)
+
+  const tipo = blob.type || 'image/jpeg'
+  const ext = tipo.split('/')[1]?.split('+')[0] || 'jpg'
+  const path = `${id}/${Date.now()}.${ext}`
   const { error } = await supabase.storage.from('productos')
-    .upload(path, file, { upsert: true, contentType: file.type });
-  if (error) { alert('Error al subir: '+error.message); return; }
-  const { data:{ publicUrl } } = supabase.storage.from('productos').getPublicUrl(path);
-  panelFotoTemp = publicUrl;
-  rerenderPanel();
+    .upload(path, blob, { upsert: true, contentType: tipo })
+  if (error) { alert('Error al subir: '+error.message); return }
+  const { data:{ publicUrl } } = supabase.storage.from('productos').getPublicUrl(path)
+  panelFotoTemp = publicUrl
+  rerenderPanel()
 }
+
+async function onFotoChange(e){
+  const file = e.target.files[0]; if(!file) return
+  e.target.value = ''
+  await subirBlob(file)
+}
+
+async function onFotoDrop(e){
+  e.preventDefault()
+  document.getElementById('foto-drop')?.classList.remove('drop-over')
+  // 1) Archivo del SO o blob de la página
+  const file = e.dataTransfer?.files?.[0]
+  if (file) { await subirBlob(file); return }
+  // 2) URL arrastrada (ej. desde una pestaña con la imagen)
+  const url = e.dataTransfer?.getData('text/uri-list')
+           || e.dataTransfer?.getData('text/plain')
+  if (url && /^https?:\/\//.test(url)) {
+    try {
+      const r = await fetch(url, { mode: 'cors' })
+      if (!r.ok) throw new Error('HTTP ' + r.status)
+      const blob = await r.blob()
+      if (!blob.type.startsWith('image/')) throw new Error('No es imagen')
+      await subirBlob(blob); return
+    } catch (err) {
+      alert('No se pudo bajar la imagen del sitio (CORS bloqueado).\n\n'
+          + 'Solución: en el navegador hacé click derecho sobre la imagen '
+          + '→ "Copiar imagen" → volvé acá y pegá con Ctrl+V.')
+      return
+    }
+  }
+  alert('No reconozco lo que arrastraste. Probá con un archivo del PC o Ctrl+V de una imagen copiada.')
+}
+
+async function onFotoPaste(e){
+  if (!panelProd) return
+  const items = e.clipboardData?.items || []
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      const blob = it.getAsFile()
+      if (blob) { e.preventDefault(); await subirBlob(blob); return }
+    }
+  }
+  // Si no hay imagen, probar texto-URL
+  const txt = e.clipboardData?.getData('text/plain') || ''
+  if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(txt.trim())) {
+    e.preventDefault()
+    try {
+      const r = await fetch(txt.trim(), { mode: 'cors' })
+      if (!r.ok) throw new Error('HTTP ' + r.status)
+      const blob = await r.blob()
+      if (!blob.type.startsWith('image/')) throw new Error('No es imagen')
+      await subirBlob(blob)
+    } catch {
+      alert('No se pudo descargar esa URL (CORS). Copiá la imagen en sí, no el link.')
+    }
+  }
+}
+window.addEventListener('paste', onFotoPaste)
 
 function onLogoChange(e){
   const file=e.target.files[0]; if(!file) return;
