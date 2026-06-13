@@ -2,6 +2,10 @@
 # ⚠️  Nunca commitear passwords en plano
 supabase/migrations/20260611_04_seed_admin_inicial.sql
 
+# ── Supabase CLI (estado local, no debe versionarse) ──────────────────────
+supabase/.temp/
+supabase/.branches/
+
 # ── Editor / OS ───────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
