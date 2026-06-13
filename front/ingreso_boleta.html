@@ -769,10 +769,6 @@ function renderPendientes() {
   box.innerHTML = `<div class="ia-pend-box">
     <div class="ia-pend-title">📌 ${iaPendientes.length} ítem(s) sin producto asignado</div>
     ${iaPendientes.map((p,i) => {
-      const q = p.selBusq.trim().toLowerCase()
-      const matches = q.length > 1
-        ? productos.filter(x => x.nombre.toLowerCase().includes(q)).slice(0,5)
-        : []
       const sel = p.selProdId ? prod(p.selProdId) : null
       return `<div class="ia-pend-row">
         <div class="ia-pend-orig">📄 ${p.texto_original}</div>
@@ -780,9 +776,7 @@ function renderPendientes() {
         <div class="ia-search-wrap">
           <input class="ia-search" placeholder="Buscar tu producto…" value="${p.selBusq}"
             oninput="window.iaSetBusq(${i}, this.value)" autocomplete="off">
-          ${matches.length ? `<div class="ia-results">
-            ${matches.map(m => `<div class="r ${p.selProdId===m.id?'sel':''}" onclick="window.iaSelProd(${i}, '${m.id}')">${m.nombre}</div>`).join('')}
-          </div>` : ''}
+          <div id="ia-results-${i}" class="ia-results-container"></div>
         </div>
         ${sel ? `<div class="ia-pend-meta" style="margin-top:6px">✓ ${sel.nombre}${sel.u_bulto>1?` (${sel.u_bulto} u/bulto)`:''}</div>` : ''}
         <div class="ia-pend-edit">
@@ -802,6 +796,20 @@ function renderPendientes() {
       </div>`
     }).join('')}
   </div>`
+  iaPendientes.forEach((_, i) => renderIaResults(i))
+}
+
+function renderIaResults(i) {
+  const cont = document.getElementById(`ia-results-${i}`)
+  if (!cont) return
+  const p = iaPendientes[i]; if (!p) return
+  const q = p.selBusq.trim().toLowerCase()
+  const matches = q.length > 1
+    ? productos.filter(x => x.nombre.toLowerCase().includes(q)).slice(0,5)
+    : []
+  cont.innerHTML = matches.length ? `<div class="ia-results">
+    ${matches.map(m => `<div class="r ${p.selProdId===m.id?'sel':''}" onclick="window.iaSelProd(${i}, '${m.id}')">${m.nombre}</div>`).join('')}
+  </div>` : ''
 }
 
 async function iaConfirmar(i) {
@@ -855,7 +863,7 @@ Object.assign(window, {
   iaCargarFotos, iaConfirmar,
 })
 
-window.iaSetBusq = (i, v) => { iaPendientes[i].selBusq = v; renderPendientes() }
+window.iaSetBusq = (i, v) => { iaPendientes[i].selBusq = v; renderIaResults(i) }
 window.iaSelProd = (i, id) => {
   iaPendientes[i].selProdId = id
   const p = prod(id)
