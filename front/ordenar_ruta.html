@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Ordenar ruta</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:520px;margin:0 auto;padding-bottom:100px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;
+    cursor:pointer;font-family:inherit}
+
+  section{padding:14px 18px}
+  .lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px}
+  .field{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);appearance:none}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+
+  .list{padding:0 18px}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+  .row.dragging{opacity:.5;border-style:dashed}
+  .row.over{border-color:var(--gold);background:var(--gold-lt)}
+  .pos{width:34px;height:34px;border-radius:10px;background:var(--gold-lt);
+    color:var(--gold-dk);font-weight:700;font-size:15px;display:flex;
+    align-items:center;justify-content:center;flex-shrink:0}
+  .info{flex:1;min-width:0}
+  .nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub{font-size:12px;color:var(--ink-soft);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .handle{font-size:18px;color:var(--ink-soft);cursor:grab;padding:0 6px;user-select:none;touch-action:none}
+  .handle:active{cursor:grabbing}
+  .ord-btns{display:flex;flex-direction:column;gap:3px}
+  .ord-btns button{width:30px;height:22px;border:1px solid var(--line);
+    border-radius:6px;background:var(--card);font-size:12px;color:var(--ink-soft);
+    cursor:pointer;font-family:inherit;padding:0}
+  .ord-btns button:disabled{opacity:.3;cursor:not-allowed}
+  .ord-btns button:active:not(:disabled){background:var(--line-soft)}
+
+  .sec-title{padding:18px 18px 6px;font-size:12px;font-weight:700;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);
+    display:flex;align-items:center;gap:8px;cursor:pointer}
+  .sec-title .count{background:var(--line-soft);color:var(--ink-soft);
+    padding:2px 8px;border-radius:999px;font-size:11px}
+  .sec-title .caret{margin-left:auto;color:var(--ink-soft);font-size:14px}
+
+  .unassigned-row{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+  .unassigned-row select{flex:0 0 130px;padding:7px 8px;font-size:13px;
+    border:1px solid var(--line);border-radius:8px;font-family:inherit;background:var(--card)}
+
+  .empty{text-align:center;padding:24px 18px;color:var(--ink-soft);font-size:14px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar-btn{width:100%;padding:14px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .bar-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+
+  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;z-index:50;animation:fdup .2s ease}
+  @keyframes fdup{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js';
+import { requireSession, tienePermiso } from './src/auth.js';
+
+const { usuario } = await requireSession();
+if (!tienePermiso('zonas', 'editar') && !tienePermiso('clientes', 'editar')) {
+  location.href = './login_home.html';
+}
+
+let zonas = [];          // {id, nombre, orden, activa}
+let clientes = [];       // {id, nombre, direccion, zona_id, posicion_zona}
+let zonaSel = '';        // id de zona seleccionada
+let lista = [];          // clientes de la zona sel, ordenados
+let dirty = false;       // hay cambios sin guardar
+let mostrarSinAsignar = true;
+let guardando = false;
+
+async function cargar() {
+  const [{ data: zon, error: e1 }, { data: cli, error: e2 }] = await Promise.all([
+    supabase.from('zonas').select('id, nombre, orden, activa')
+      .eq('empresa_id', usuario.empresa_id).order('orden'),
+    supabase.from('clientes').select('id, nombre, direccion, zona_id, posicion_zona')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ]);
+  if (e1) return mostrarErr(e1.message);
+  if (e2) return mostrarErr(e2.message);
+  zonas = (zon || []).filter(z => z.activa);
+  clientes = cli || [];
+  if (!zonaSel && zonas.length) zonaSel = zonas[0].id;
+  rebuildLista();
+  render();
+}
+
+function rebuildLista() {
+  lista = clientes
+    .filter(c => c.zona_id === zonaSel)
+    .sort((a, b) => (a.posicion_zona ?? 999) - (b.posicion_zona ?? 999));
+}
+
+function mostrarErr(msg) {
+  document.getElementById('root').innerHTML = `<div class="err-box">Error: ${msg}</div>`;
+}
+
+function render() {
+  const el = document.getElementById('root');
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Ordenar ruta</small></div>
+      </div>
+      <button class="back" onclick="window._volver()">‹ Volver</button>
+    </div>
+    <section>
+      <div class="lbl">Zona</div>
+      <select class="field" onchange="window._setZona(this.value)">
+        ${zonas.length
+          ? zonas.map(z => `<option value="${z.id}" ${z.id===zonaSel?'selected':''}>${z.nombre}</option>`).join('')
+          : `<option value="">— Sin zonas creadas —</option>`}
+      </select>
+    </section>
+    <div id="zona-list"></div>
+    <div id="sin-asignar"></div>
+    <div class="bar">
+      <button id="save-btn" class="bar-btn" ${dirty && !guardando ? '' : 'disabled'} onclick="window._guardar()">
+        ${guardando ? 'Guardando…' : dirty ? '💾 Guardar orden' : 'Sin cambios para guardar'}
+      </button>
+    </div>`;
+  renderZonaList();
+  renderSinAsignar();
+}
+
+function renderZonaList() {
+  const cont = document.getElementById('zona-list');
+  if (!cont) return;
+  if (!zonas.length) {
+    cont.innerHTML = `<div class="empty">Primero creá una zona en <a href="./zonas.html" style="color:var(--gold);font-weight:600">Zonas</a>.</div>`;
+    return;
+  }
+  if (!lista.length) {
+    cont.innerHTML = `<div class="empty">Esta zona no tiene clientes asignados.<br>Asignalos abajo en "Sin asignar".</div>`;
+    return;
+  }
+  cont.innerHTML = `<div class="list" id="orden-list">
+    ${lista.map((c, i) => `
+      <div class="row" draggable="true" data-i="${i}">
+        <span class="handle" title="Arrastrar">⋮⋮</span>
+        <div class="pos">${i + 1}</div>
+        <div class="info">
+          <div class="nm">${c.nombre}</div>
+          <div class="sub">${c.direccion || '—'}</div>
+        </div>
+        <div class="ord-btns">
+          <button onclick="window._mover(${i}, -1)" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button onclick="window._mover(${i},  1)" ${i === lista.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
+  enableDragDrop();
+}
+
+function renderSinAsignar() {
+  const cont = document.getElementById('sin-asignar');
+  if (!cont) return;
+  const sin = clientes.filter(c => !c.zona_id);
+  cont.innerHTML = `
+    <div class="sec-title" onclick="window._toggleSin()">
+      <span>Sin asignar</span><span class="count">${sin.length}</span>
+      <span class="caret">${mostrarSinAsignar ? '▾' : '▸'}</span>
+    </div>
+    ${mostrarSinAsignar ? `
+      <div class="list">
+        ${sin.length ? sin.map(c => `
+          <div class="unassigned-row">
+            <div class="info">
+              <div class="nm">${c.nombre}</div>
+              <div class="sub">${c.direccion || '—'}</div>
+            </div>
+            <select onchange="window._asignarZona('${c.id}', this.value)">
+              <option value="">— Sin zona —</option>
+              ${zonas.map(z => `<option value="${z.id}">${z.nombre}</option>`).join('')}
+            </select>
+          </div>`).join('')
+        : `<div class="empty">Todos los clientes tienen zona asignada.</div>`}
+      </div>` : ''}`;
+}
+
+function enableDragDrop() {
+  const cont = document.getElementById('orden-list');
+  if (!cont) return;
+  let dragIdx = null;
+  cont.querySelectorAll('.row').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      dragIdx = parseInt(row.dataset.i);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      cont.querySelectorAll('.row').forEach(r => r.classList.remove('over'));
+      dragIdx = null;
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      row.classList.add('over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      const target = parseInt(row.dataset.i);
+      if (dragIdx == null || dragIdx === target) return;
+      const [movido] = lista.splice(dragIdx, 1);
+      lista.splice(target, 0, movido);
+      dirty = true;
+      render();
+    });
+  });
+}
+
+window._setZona = (id) => {
+  if (dirty && !confirm('Hay cambios sin guardar. ¿Cambiar de zona y descartarlos?')) return;
+  zonaSel = id; dirty = false; rebuildLista(); render();
+};
+window._mover = (i, d) => {
+  const j = i + d;
+  if (j < 0 || j >= lista.length) return;
+  [lista[i], lista[j]] = [lista[j], lista[i]];
+  dirty = true;
+  render();
+};
+window._toggleSin = () => { mostrarSinAsignar = !mostrarSinAsignar; renderSinAsignar(); };
+window._asignarZona = async (cliId, zid) => {
+  if (!zid) return;
+  // dejarlo al final de esa zona
+  const max = clientes.filter(c => c.zona_id === zid).reduce((m, c) => Math.max(m, c.posicion_zona ?? 0), 0);
+  const { error } = await supabase.from('clientes')
+    .update({ zona_id: zid, posicion_zona: max + 1 }).eq('id', cliId);
+  if (error) { alert('Error: ' + error.message); return; }
+  // refrescar local
+  const cli = clientes.find(c => c.id === cliId);
+  if (cli) { cli.zona_id = zid; cli.posicion_zona = max + 1; }
+  if (zid === zonaSel) rebuildLista();
+  render();
+  toast('Cliente asignado a la zona');
+};
+window._guardar = async () => {
+  if (!lista.length) return;
+  guardando = true; render();
+  // bulk: una por una (no hay update bulk con WHERE distinto). Pocas filas → OK.
+  const updates = lista.map((c, i) =>
+    supabase.from('clientes').update({ posicion_zona: i + 1 }).eq('id', c.id));
+  const results = await Promise.all(updates);
+  const err = results.find(r => r.error);
+  guardando = false;
+  if (err) { alert('Error al guardar: ' + err.error.message); render(); return; }
+  // actualizar local
+  lista.forEach((c, i) => {
+    const real = clientes.find(x => x.id === c.id);
+    if (real) real.posicion_zona = i + 1;
+    c.posicion_zona = i + 1;
+  });
+  dirty = false; render();
+  toast('Orden guardado ✓');
+};
+window._volver = () => {
+  if (dirty && !confirm('Hay cambios sin guardar. ¿Salir igual?')) return;
+  history.back();
+};
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+await cargar();
+</script>
+</body>
+</html>
