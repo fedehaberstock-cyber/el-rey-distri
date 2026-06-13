@@ -261,6 +261,25 @@ window._abrirPanel = (id) => { panelProd = id; panelFotoTemp = productos.find(p=
 window._cerrarPanel = () => { panelProd = null; render(); };
 window._quitarFoto = () => { panelFotoTemp = null; rerenderPanel(); };
 window._guardarProd = (id) => guardarProd(id);
+window._guardarYSiguiente = async (id) => {
+  await guardarProdSinCerrar(id);
+  const next = siguienteSinFoto(id);
+  if (next) { window._abrirPanel(next); }
+  else { alert('🎉 No quedan más productos sin foto.'); window._cerrarPanel(); }
+};
+window._saltarSiguiente = (id) => {
+  const next = siguienteSinFoto(id);
+  if (next) { panelFotoTemp = null; window._abrirPanel(next); }
+  else { alert('🎉 No quedan más productos sin foto.'); window._cerrarPanel(); }
+};
+function siguienteSinFoto(currentId) {
+  const sinFoto = productos.filter(p => !p.foto);
+  const idx = sinFoto.findIndex(p => p.id === currentId);
+  // Si el actual ya tiene foto (recién la cargamos), tomar el primero de la lista.
+  // Si está en la lista (no se guardó aún), tomar el siguiente.
+  if (idx < 0) return sinFoto[0]?.id || null;
+  return sinFoto[idx + 1]?.id || null;
+}
 window._setPrecio = (id, v) => { const p = getProd(id); if(p) p.precio = +v; };
 window._setCatProd = (id, v) => { const p = getProd(id); if(p) p.cat = v; };
 window.generarCatalogo = generarCatalogo;
@@ -546,10 +565,32 @@ function renderPanel(el){
         ${categorias.map(c=>`<option ${c===p.cat?'selected':''}>${c}</option>`).join('')}
       </select>
 
+      ${(() => {
+        const sinFoto = productos.filter(x => !x.foto)
+        const idx = sinFoto.findIndex(x => x.id === p.id)
+        const totalSinFoto = sinFoto.length
+        const posicion = idx >= 0 ? idx + 1 : null
+        return posicion ? `<div style="text-align:center;font-size:12px;color:var(--ink-soft);
+          margin-top:10px;padding:8px;background:var(--line-soft);border-radius:8px">
+          📷 ${posicion} de ${totalSinFoto} sin foto</div>` : ''
+      })()}
+
       <div class="panel-btns">
         <button class="cancel" onclick="window._cerrarPanel()">Cancelar</button>
         <button class="bar-btn" onclick="window._guardarProd('${p.id}')">Guardar</button>
       </div>
+      <button onclick="window._guardarYSiguiente('${p.id}')"
+        style="width:100%;margin-top:8px;padding:12px;border:1px solid var(--gold);
+          border-radius:12px;background:var(--gold-lt);color:var(--gold-dk);
+          font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+        💾 Guardar y siguiente sin foto →
+      </button>
+      <button onclick="window._saltarSiguiente('${p.id}')"
+        style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);
+          border-radius:12px;background:#fff;color:var(--ink-soft);
+          font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+        Saltar sin guardar →
+      </button>
     </div>`;
 
   el.appendChild(ov);
@@ -564,12 +605,16 @@ function rerenderPanel(){
 function getProd(id){ return productos.find(p=>p.id===id); }
 
 async function guardarProd(id){
+  await guardarProdSinCerrar(id);
+  panelProd=null; panelFotoTemp=null; render();
+}
+
+async function guardarProdSinCerrar(id){
   const p=getProd(id);
   if(panelFotoTemp!==undefined) p.foto=panelFotoTemp;
   await supabase.from('productos')
     .update({ precio: p.precio, categoria: p.cat, foto_url: panelFotoTemp || null })
     .eq('id', id);
-  panelProd=null; panelFotoTemp=null; render();
 }
 
 // ── SUBIDA DE FOTO ─────────────────────────────────────────────────────
