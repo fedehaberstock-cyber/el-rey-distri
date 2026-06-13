@@ -64,6 +64,7 @@
   .foto-wrap.tiene-foto{border-style:solid;border-color:var(--line)}
   .foto-wrap.drop-over{border-color:var(--gold);background:var(--gold-lt,#F5E9D0);
     transform:scale(1.01)}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .foto-wrap img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
   .foto-wrap .overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);
     display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
@@ -549,7 +550,19 @@ function renderPanel(el){
                <span>Subir foto</span>
                <small>Tocá, arrastrá o pegá (Ctrl+V)</small>
              </div>`}
+        ${procesandoFoto ? `<div style="position:absolute;inset:0;background:rgba(255,255,255,.92);
+          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5">
+          <div style="width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--gold);
+            border-radius:50%;animation:spin 1s linear infinite"></div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink)">🪄 Procesando imagen…</div>
+          <div style="font-size:11px;color:var(--ink-soft)">Quitando fondo y centrando</div>
+        </div>` : ''}
       </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer;user-select:none">
+        <input type="checkbox" ${autoProcesar?'checked':''} onchange="window._toggleAutoProc()"
+          style="width:18px;height:18px;accent-color:var(--gold)">
+        🪄 Auto: quitar fondo + centrar al cargar
+      </label>
       ${panelFotoTemp?`
         <div class="foto-actions">
           <button class="foto-btn" onclick="window._quitarFoto()">🗑 Quitar</button>
@@ -621,9 +634,85 @@ async function guardarProdSinCerrar(id){
 window.onFotoChange = onFotoChange
 window.onLogoChange = (e) => onLogoChange(e)
 window.onFotoDrop = onFotoDrop
+window._toggleAutoProc = () => {
+  autoProcesar = !autoProcesar
+  localStorage.setItem('elrey.autoProcesar', autoProcesar ? '1' : '0')
+  rerenderPanel()
+}
+
+let autoProcesar = localStorage.getItem('elrey.autoProcesar') !== '0'
+let procesandoFoto = false
+let imglyLib = null
+
+async function cargarImgly(){
+  if (imglyLib) return imglyLib
+  imglyLib = await import('https://esm.sh/@imgly/background-removal@1.6.0')
+  return imglyLib
+}
+
+async function procesarImagen(blob){
+  const lib = await cargarImgly()
+  // 1) Quitar fondo
+  const sinFondo = await lib.removeBackground(blob, {
+    output: { format: 'image/png', quality: 1 }
+  })
+  // 2) Cargar en canvas para detectar bbox del producto
+  const img = await new Promise((res, rej) => {
+    const im = new Image()
+    im.onload = () => res(im)
+    im.onerror = rej
+    im.src = URL.createObjectURL(sinFondo)
+  })
+  const c1 = document.createElement('canvas')
+  c1.width = img.naturalWidth; c1.height = img.naturalHeight
+  const x1 = c1.getContext('2d')
+  x1.drawImage(img, 0, 0)
+  const data = x1.getImageData(0, 0, c1.width, c1.height).data
+  let minX = c1.width, minY = c1.height, maxX = 0, maxY = 0
+  for (let y = 0; y < c1.height; y++) {
+    for (let x = 0; x < c1.width; x++) {
+      if (data[(y * c1.width + x) * 4 + 3] > 10) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x
+        if (y < minY) minY = y; if (y > maxY) maxY = y
+      }
+    }
+  }
+  if (maxX <= minX || maxY <= minY) {
+    // No se detectó nada — devolver la imagen sin fondo tal cual
+    return sinFondo
+  }
+  const w = maxX - minX + 1
+  const h = maxY - minY + 1
+  // 3) Canvas final cuadrado 600x600 con fondo blanco y producto centrado + 5% padding
+  const SIZE = 600
+  const PAD = 0.05
+  const final = document.createElement('canvas')
+  final.width = SIZE; final.height = SIZE
+  const fctx = final.getContext('2d')
+  fctx.fillStyle = '#FFFFFF'
+  fctx.fillRect(0, 0, SIZE, SIZE)
+  const escala = (SIZE * (1 - PAD * 2)) / Math.max(w, h)
+  const nuevoW = w * escala, nuevoH = h * escala
+  const dx = (SIZE - nuevoW) / 2, dy = (SIZE - nuevoH) / 2
+  fctx.drawImage(img, minX, minY, w, h, dx, dy, nuevoW, nuevoH)
+  return new Promise(res => final.toBlob(res, 'image/jpeg', 0.9))
+}
 
 async function subirBlob(blob){
   const id = panelProd; if(!id) return
+
+  if (autoProcesar) {
+    procesandoFoto = true; rerenderPanel()
+    try {
+      blob = await procesarImagen(blob)
+    } catch (e) {
+      console.warn('Procesado falló, usando original:', e)
+      alert('Procesamiento automático falló (¿primera vez? el modelo pesa ~30MB).\nSe subirá la imagen tal cual.')
+    } finally {
+      procesandoFoto = false
+    }
+  }
+
   // Preview inmediato
   const reader = new FileReader()
   reader.onload = ev => { panelFotoTemp = ev.target.result; rerenderPanel() }
