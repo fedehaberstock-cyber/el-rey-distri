@@ -701,7 +701,20 @@ async function iaCargarFotos(fileList) {
     const { data, error } = await supabase.functions.invoke('extraer-ingreso', {
       body: { imagenes }
     })
-    if (error) throw error
+    if (error) {
+      // Cuando la función devuelve no-2xx, supabase-js mete el body en error.context
+      let detalle = error.message || 'Error desconocido'
+      try {
+        const ctx = error.context
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.json()
+          if (body?.error) detalle = body.error
+        } else if (ctx && typeof ctx.text === 'function') {
+          detalle = await ctx.text()
+        }
+      } catch {}
+      throw new Error(detalle)
+    }
     if (data?.error) throw new Error(data.error)
     const detectados = data?.items || []
     if (!detectados.length) {
