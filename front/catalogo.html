@@ -554,14 +554,14 @@ function renderPanel(el){
           display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5">
           <div style="width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--gold);
             border-radius:50%;animation:spin 1s linear infinite"></div>
-          <div style="font-size:13px;font-weight:600;color:var(--ink)">🪄 Procesando imagen…</div>
-          <div style="font-size:11px;color:var(--ink-soft)">Quitando fondo y centrando</div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink)">✂️ Procesando imagen…</div>
+          <div style="font-size:11px;color:var(--ink-soft)">Recortando y centrando</div>
         </div>` : ''}
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer;user-select:none">
         <input type="checkbox" ${autoProcesar?'checked':''} onchange="window._toggleAutoProc()"
           style="width:18px;height:18px;accent-color:var(--gold)">
-        🪄 Auto: quitar fondo + centrar al cargar
+        ✂️ Auto: recortar márgenes y centrar 600×600
       </label>
       ${panelFotoTemp?`
         <div class="foto-actions">
@@ -651,54 +651,67 @@ async function cargarImgly(){
 }
 
 async function procesarImagen(blob){
-  const lib = await cargarImgly()
-  // 1) Quitar fondo
-  const sinFondo = await lib.removeBackground(blob, {
-    output: { format: 'image/png', quality: 1 }
-  })
+  // Estrategia: para imágenes de catálogo que ya vienen con fondo blanco/claro
+  // (lo típico de Google Imágenes y fabricantes), solo recortamos los márgenes
+  // blancos y centramos en un canvas 600x600. Sin IA, instantáneo.
 
-  // 2) Cargar la imagen
+  // 1) Cargar la imagen
   const img = await new Promise((res, rej) => {
     const im = new Image()
     im.onload = () => res(im)
     im.onerror = rej
-    im.src = URL.createObjectURL(sinFondo)
+    im.src = URL.createObjectURL(blob)
   })
   if (img.decode) { try { await img.decode() } catch {} }
 
-  // 3) Dibujar y aplicar umbral al alpha:
-  //    el modelo a veces devuelve alpha suave (matte) en todo el producto,
-  //    lo que al componer sobre blanco genera el "efecto fantasma".
-  //    Forzamos alpha binario: >100 → 255 (opaco); ≤100 → 0 (transparente).
+  // 2) Dibujar tal cual y detectar el bbox de pixeles "no-fondo".
+  //    Considera fondo a cualquier pixel cuya distancia al color del borde
+  //    (esquina superior izquierda) sea pequeña, o que sea transparente.
   const c1 = document.createElement('canvas')
-  c1.width = img.naturalWidth; c1.height = img.naturalHeight
+  c1.width = img.naturalWidth
+  c1.height = img.naturalHeight
   const x1 = c1.getContext('2d')
   x1.drawImage(img, 0, 0)
   const imgData = x1.getImageData(0, 0, c1.width, c1.height)
   const data = imgData.data
+
+  // Color de fondo estimado: promedio de las 4 esquinas
+  const samples = [
+    0,
+    (c1.width - 1) * 4,
+    (c1.height - 1) * c1.width * 4,
+    (c1.height - 1) * c1.width * 4 + (c1.width - 1) * 4,
+  ]
+  let rBg = 0, gBg = 0, bBg = 0
+  for (const s of samples) { rBg += data[s]; gBg += data[s+1]; bBg += data[s+2] }
+  rBg = rBg / samples.length; gBg = gBg / samples.length; bBg = bBg / samples.length
+
+  // Tolerancia: 35 puntos de diferencia por canal cuenta como "fondo"
+  const TOL = 35
   let minX = c1.width, minY = c1.height, maxX = 0, maxY = 0
   for (let y = 0; y < c1.height; y++) {
     for (let x = 0; x < c1.width; x++) {
       const i = (y * c1.width + x) * 4
       const a = data[i + 3]
-      if (a > 100) {
-        data[i + 3] = 255
+      if (a < 30) continue  // transparente = fondo
+      const dr = Math.abs(data[i]     - rBg)
+      const dg = Math.abs(data[i + 1] - gBg)
+      const db = Math.abs(data[i + 2] - bBg)
+      if (dr > TOL || dg > TOL || db > TOL) {
         if (x < minX) minX = x; if (x > maxX) maxX = x
         if (y < minY) minY = y; if (y > maxY) maxY = y
-      } else {
-        data[i + 3] = 0
       }
     }
   }
-  x1.putImageData(imgData, 0, 0)
 
+  // Si no detectamos nada útil, usar el alto/ancho completo
   if (maxX <= minX || maxY <= minY) {
-    return sinFondo  // fallback: nada detectado
+    minX = 0; minY = 0; maxX = c1.width - 1; maxY = c1.height - 1
   }
   const w = maxX - minX + 1
   const h = maxY - minY + 1
 
-  // 4) Canvas final 600x600 blanco con producto centrado y 5% padding
+  // 3) Canvas final 600x600 blanco con producto centrado y 5% padding
   const SIZE = 600
   const PAD = 0.05
   const final = document.createElement('canvas')
