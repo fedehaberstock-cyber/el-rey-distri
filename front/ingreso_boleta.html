@@ -432,8 +432,8 @@ function renderPanel() {
   // Mostrar todos los productos; filtrar por búsqueda
   const q = panelProd.busq.trim().toLowerCase()
   const lista = q
-    ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 8)
-    : productos.filter(p => p.proveedor_id === proveedorId).slice(0, 20)
+    ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 20)
+    : productos.slice(0, 30)
   const pSel = panelProd.selId ? prod(panelProd.selId) : null
   const esBulto = pSel && pSel.u_bulto > 1
 
