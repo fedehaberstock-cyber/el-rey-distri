@@ -134,6 +134,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 4000,
+        temperature: 0,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content }],
       }),

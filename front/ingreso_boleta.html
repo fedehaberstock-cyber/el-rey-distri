@@ -323,6 +323,17 @@ async function cargarDatos() {
   }
 }
 
+// Normalización del alias_text para que pequeñas variaciones del OCR/IA
+// no rompan el match (mayúsculas, acentos, espacios múltiples, puntuación).
+function normAlias(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')  // saca acentos
+    .replace(/[.,;:()\[\]{}'"`´]/g, ' ')               // puntuación → espacio
+    .replace(/\s+/g, ' ')                              // espacios múltiples
+    .trim()
+}
+
 async function cargarAliases() {
   if (!proveedorId) { iaAliases = []; return }
   const { data, error } = await supabase
@@ -974,10 +985,12 @@ async function iaCargarFotos(fileList) {
       iaProcesando = false; render(); return
     }
 
-    // Matchear contra alias y dispatchear
+    // Matchear contra alias y dispatchear (normalización fuerte para tolerar
+    // diferencias menores de mayúsculas, acentos, espacios, puntuación)
     const sinMatch = []
     for (const d of detectados) {
-      const a = iaAliases.find(x => x.alias_text.toLowerCase() === (d.texto_original||'').toLowerCase())
+      const target = normAlias(d.texto_original || '')
+      const a = iaAliases.find(x => normAlias(x.alias_text) === target)
       if (a) {
         const p = prod(a.producto_id)
         if (!p) { sinMatch.push(d); continue }
@@ -1080,8 +1093,8 @@ async function iaConfirmar(i) {
     costo: Math.round(costoUnit)
   })
 
-  // Guardar alias para la próxima vez (siempre en minúsculas)
-  const aliasNorm = (p.texto_original || '').toLowerCase().trim()
+  // Guardar alias para la próxima vez (normalizado fuerte)
+  const aliasNorm = normAlias(p.texto_original || '')
   const { error } = await supabase.from('alias_productos').upsert({
     empresa_id: usuario.empresa_id,
     proveedor_id: proveedorId,
