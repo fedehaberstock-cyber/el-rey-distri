@@ -115,6 +115,63 @@
   .ia-pend-btns .ok{background:var(--gold);color:#fff;border-color:var(--gold)}
   .ia-pend-btns .ok:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed;border-color:var(--line)}
 
+  /* REVISIÓN DE PRECIOS */
+  .rev-overlay{position:fixed;inset:0;background:var(--paper);z-index:60;overflow-y:auto;
+    max-width:480px;margin:0 auto;padding-bottom:120px}
+  .rev-hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:5}
+  .rev-hdr h2{font-size:17px;font-weight:700}
+  .rev-hdr button{background:none;border:none;font-size:22px;color:var(--ink-soft);cursor:pointer;font-family:inherit}
+  .rev-sec-title{padding:14px 18px 6px;font-size:13px;font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+  .rev-sec-title.rojo{color:var(--red-tx)}
+  .rev-sec-title.amarillo{color:var(--amber-tx)}
+  .rev-sec-title.sug{color:var(--ink-soft)}
+  .rev-list{padding:0 18px}
+  .rev-row{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px;margin-bottom:10px}
+  .rev-row.rojo{border-color:var(--red-tx);background:#FFF6F4}
+  .rev-row.amarillo{border-color:var(--amber-tx);background:#FFFBF1}
+  .rev-row .nm{font-size:14px;font-weight:700;margin-bottom:2px}
+  .rev-row .cat{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+  .rev-row .costos{display:flex;gap:14px;margin-top:8px;font-size:13px}
+  .rev-row .costos .lbl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;
+    letter-spacing:.05em;display:block;margin-bottom:1px}
+  .rev-row .costos .val{font-weight:700}
+  .rev-row .costos .delta{font-size:11px;font-weight:600}
+  .rev-row .costos .delta.up{color:var(--red-tx)}
+  .rev-row .costos .delta.down{color:var(--green-tx)}
+  .rev-precio-box{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;
+    align-items:end}
+  .rev-precio-box label{font-size:10px;color:var(--ink-soft);text-transform:uppercase;
+    letter-spacing:.05em;display:block;margin-bottom:3px}
+  .rev-precio-box .actual{font-size:14px;font-weight:600;padding:9px 11px;
+    border:1px dashed var(--line);border-radius:9px;background:var(--line-soft)}
+  .rev-precio-box input{width:100%;padding:9px 11px;border:1px solid var(--line);
+    border-radius:9px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink)}
+  .rev-precio-box input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .rev-margenes{display:flex;justify-content:space-between;margin-top:8px;font-size:12px}
+  .rev-margenes .lbl{color:var(--ink-soft)}
+  .rev-margenes .val{font-weight:700}
+  .rev-margenes .val.rojo{color:var(--red-tx)}
+  .rev-margenes .val.amarillo{color:var(--amber-tx)}
+  .rev-margenes .val.ok{color:var(--green-tx)}
+  .rev-sug-btn{margin-top:8px;display:flex;gap:6px}
+  .rev-sug-btn button{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;
+    background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .rev-sug-btn .aplicar{background:var(--gold-lt);border-color:var(--gold);color:var(--gold-dk)}
+  .rev-bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    padding:12px 18px 18px;border-top:1px solid var(--line);background:var(--paper);z-index:8}
+  .rev-bar-row{display:flex;gap:10px}
+  .rev-bar-row button{flex:1;padding:13px;border-radius:13px;font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .rev-bar-row .confirm{background:var(--gold);color:#fff;border-color:var(--gold)}
+  .rev-bar-row .confirm:disabled{background:var(--line);color:var(--ink-soft);border-color:var(--line);cursor:not-allowed}
+  .rev-aplicar-todos{width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:inherit;border:1px solid var(--gold);color:var(--gold-dk);
+    background:var(--gold-lt);margin-bottom:10px}
+
   /* CARGOS */
   .cargos{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
   .cargo-row{display:flex;align-items:center;gap:12px;padding:11px 14px;
@@ -223,22 +280,42 @@ if (usuario.rol === 'preventista') {
 
 // ── DATOS ─────────────────────────────────────────────────────────────
 let proveedoresList = []  // [{id, nombre, cargos_default:[]}]
-let productos = []        // [{id, nombre, u_bulto, costo, proveedor_id}]
+let productos = []        // [{id, nombre, u_bulto, costo, precio, categoria, markup_objetivo_pct, proveedor_id}]
+let markupCategorias = {} // { 'Tinturas': 27.5, ... }
+let markupDefault = 33
+let markupMinimo = 20
 
 async function cargarDatos() {
-  const [{ data: provs, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
+  const [
+    { data: provs, error: e1 },
+    { data: prods, error: e2 },
+    { data: cats, error: e3 },
+    { data: emp,  error: e4 },
+  ] = await Promise.all([
     supabase.from('proveedores').select('id, nombre, cargos_default')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
-    supabase.from('productos').select('id, nombre, u_bulto, costo, proveedor_id')
-      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre')
+    supabase.from('productos').select('id, nombre, u_bulto, costo, precio, categoria, markup_objetivo_pct, proveedor_id')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('categorias_markup').select('categoria, markup_pct')
+      .eq('empresa_id', usuario.empresa_id),
+    supabase.from('empresas').select('markup_default_pct, markup_minimo_pct')
+      .eq('id', usuario.empresa_id).single(),
   ])
-  if (e1) throw e1; if (e2) throw e2
+  if (e1) throw e1; if (e2) throw e2; if (e3) throw e3; if (e4) throw e4
   proveedoresList = (provs || []).map(p => ({
     ...p, cargos_default: Array.isArray(p.cargos_default) ? p.cargos_default : []
   }))
   productos = (prods || []).map(p => ({
-    ...p, u_bulto: p.u_bulto || 1, costo: Number(p.costo) || 0
+    ...p,
+    u_bulto: p.u_bulto || 1,
+    costo: Number(p.costo) || 0,
+    precio: Number(p.precio) || 0,
+    markup_objetivo_pct: p.markup_objetivo_pct != null ? Number(p.markup_objetivo_pct) : null,
   }))
+  markupCategorias = {}
+  for (const c of (cats || [])) markupCategorias[c.categoria] = Number(c.markup_pct)
+  markupDefault = Number(emp?.markup_default_pct) || 33
+  markupMinimo  = Number(emp?.markup_minimo_pct)  || 20
   if (proveedoresList.length) {
     proveedorId = proveedoresList[0].id
     aplicarCargosDefault()
@@ -279,6 +356,12 @@ let iaProcesando = false
 let iaPendientes = []  // {texto_original, cantidad, costo_unit, costo_total_linea,
                        //  selProdId:'', selBusq:'', cantReal:'', costoReal:''}
 let iaAliases = []     // cache de alias_productos del proveedor actual
+
+// Revisión de precios (paso previo al confirmar final)
+let revisionAbierta = false
+let revisionItems = []  // [{prodId, nombre, categoria, costoViejo, costoNuevo,
+                        //   precioActual, precioSugerido, markupUsado,
+                        //   precioNuevo, margenActual, margenNuevo, nivel}]
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 const provActual = () => proveedoresList.find(p => p.id === proveedorId)
@@ -401,6 +484,7 @@ function render() {
   renderVerify()
   renderBar()
   if (panelOpen) renderPanel()
+  if (revisionAbierta) renderRevision()
 }
 
 function renderItems() {
@@ -577,8 +661,159 @@ function setUporBulto(i, v) { const n = parseInt(v); items[i].uPorBulto = (!n||n
 function setCosto(i, v) { const n = parseFloat(v); items[i].costo = (!n||n<0) ? 0 : n; render() }
 function quitar(i) { items.splice(i, 1); render() }
 
+// ── MARKUP / SUGERENCIA DE PRECIOS ────────────────────────────────────
+function markupPara(producto) {
+  if (producto.markup_objetivo_pct != null) return Number(producto.markup_objetivo_pct)
+  if (producto.categoria && markupCategorias[producto.categoria] != null)
+    return Number(markupCategorias[producto.categoria])
+  return markupDefault
+}
+
+function redondearPrecio50_90(p) {
+  if (p == null || p <= 0) return 0
+  const base = Math.ceil(p)
+  const ult2 = base % 100
+  const cien = base - ult2
+  if (ult2 === 0)      return base
+  if (ult2 <= 50)      return cien + 50
+  if (ult2 <= 90)      return cien + 90
+  return cien + 100
+}
+
+function calcMargen(precio, costo) {
+  if (!costo || costo <= 0) return 0
+  return (precio - costo) / costo * 100
+}
+
+function construirRevisionPrecios() {
+  const mult = multiplicador()
+  const out = []
+  for (const it of items) {
+    const p = prod(it.prodId); if (!p) continue
+    const costoNuevo = Math.round(it.costo * mult)
+    if (costoNuevo === Math.round(Number(p.costo))) continue  // sin cambio
+    const markup = markupPara(p)
+    const precioCrudo = costoNuevo * (1 + markup / 100)
+    const precioSugerido = redondearPrecio50_90(precioCrudo)
+    const margenActual = calcMargen(p.precio, costoNuevo)
+    const margenSugerido = calcMargen(precioSugerido, costoNuevo)
+    let nivel = 'sug'
+    if (margenActual < markupMinimo) nivel = 'rojo'
+    else if (margenActual < 25)      nivel = 'amarillo'
+    out.push({
+      prodId: it.prodId,
+      nombre: p.nombre,
+      categoria: p.categoria || '—',
+      costoViejo: Number(p.costo) || 0,
+      costoNuevo,
+      precioActual: Number(p.precio) || 0,
+      precioSugerido,
+      precioNuevo: String(p.precio || ''),   // input editable; arranca en el actual
+      markupUsado: markup,
+      margenActual,
+      margenSugerido,
+      nivel,
+    })
+  }
+  // Ordenar: rojos primero, amarillos, sugerencias
+  out.sort((a, b) => {
+    const ord = { rojo: 0, amarillo: 1, sug: 2 }
+    return (ord[a.nivel] - ord[b.nivel])
+  })
+  return out
+}
+
+function renderRevision() {
+  document.getElementById('rev-ov')?.remove()
+  const ov = document.createElement('div')
+  ov.id = 'rev-ov'
+  ov.className = 'rev-overlay'
+  const rojos     = revisionItems.filter(r => r.nivel === 'rojo')
+  const amarillos = revisionItems.filter(r => r.nivel === 'amarillo')
+  const sugs      = revisionItems.filter(r => r.nivel === 'sug')
+  const bloqueado = rojos.some(r => {
+    const n = parseFloat(r.precioNuevo) || 0
+    return n <= 0 || calcMargen(n, r.costoNuevo) < markupMinimo
+  })
+  const sec = (titulo, cl, lista) => !lista.length ? '' : `
+    <div class="rev-sec-title ${cl}">${titulo} <span class="count" style="background:var(--line-soft);color:var(--ink-soft);padding:2px 8px;border-radius:999px;font-size:11px">${lista.length}</span></div>
+    <div class="rev-list">${lista.map(r => renderRevRow(r, revisionItems.indexOf(r))).join('')}</div>`
+  ov.innerHTML = `
+    <div class="rev-hdr">
+      <h2>Revisión de precios</h2>
+      <button onclick="window.cerrarRevision()" title="Volver">×</button>
+    </div>
+    ${sugs.length ? `<div style="padding:0 18px;margin-top:10px"><button class="rev-aplicar-todos" onclick="window.aplicarTodasSugerencias()">Aplicar todas las sugerencias (${sugs.length})</button></div>` : ''}
+    ${sec('🔴 Bloqueados — margen menor a ' + markupMinimo + '%', 'rojo', rojos)}
+    ${sec('🟡 Atención — margen 20-25%', 'amarillo', amarillos)}
+    ${sec('🟢 Sugerencias', 'sug', sugs)}
+    <div class="rev-bar">
+      <div class="rev-bar-row">
+        <button onclick="window.cerrarRevision()">Volver al ingreso</button>
+        <button class="confirm" ${bloqueado ? 'disabled' : ''} onclick="window.confirmarRevision()">
+          ${bloqueado ? 'Corregí precios bloqueados' : 'Confirmar y guardar'}
+        </button>
+      </div>
+    </div>`
+  document.body.appendChild(ov)
+}
+
+function renderRevRow(r, i) {
+  const delta = r.costoNuevo - r.costoViejo
+  const deltaPct = r.costoViejo > 0 ? (delta / r.costoViejo * 100) : 0
+  const margenNuevo = calcMargen(parseFloat(r.precioNuevo) || 0, r.costoNuevo)
+  const claseM = margenNuevo < markupMinimo ? 'rojo' : margenNuevo < 25 ? 'amarillo' : 'ok'
+  return `<div class="rev-row ${r.nivel}">
+    <div class="nm">${r.nombre}</div>
+    <div class="cat">${r.categoria}</div>
+    <div class="costos">
+      <div>
+        <span class="lbl">Costo</span>
+        <span class="val">$${r.costoViejo.toLocaleString('es-AR')} → $${r.costoNuevo.toLocaleString('es-AR')}</span>
+        <span class="delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%</span>
+      </div>
+    </div>
+    <div class="rev-precio-box">
+      <div>
+        <label>Precio actual</label>
+        <div class="actual">$${r.precioActual.toLocaleString('es-AR')}</div>
+      </div>
+      <div>
+        <label>Precio nuevo</label>
+        <input type="number" min="0" value="${r.precioNuevo}"
+          onchange="window.setPrecioRev(${i}, this.value)" onfocus="this.select()">
+      </div>
+    </div>
+    <div class="rev-margenes">
+      <span><span class="lbl">Margen actual: </span><span class="val ${calcMargen(r.precioActual,r.costoNuevo) < markupMinimo ? 'rojo' : 'ok'}">${calcMargen(r.precioActual, r.costoNuevo).toFixed(1)}%</span></span>
+      <span><span class="lbl">Margen nuevo: </span><span class="val ${claseM}">${margenNuevo.toFixed(1)}%</span></span>
+    </div>
+    <div class="rev-sug-btn">
+      <button onclick="window.usarSugerencia(${i})" class="aplicar">
+        Sugerido: $${r.precioSugerido.toLocaleString('es-AR')} (${r.margenSugerido.toFixed(1)}%)
+      </button>
+    </div>
+  </div>`
+}
+
 // ── CONFIRMAR → SUPABASE ──────────────────────────────────────────────
 async function confirmar() {
+  if (!items.length) return
+  // Paso 1: si hay productos con cambio de costo, abrir revisión de precios
+  if (!revisionAbierta) {
+    const rev = construirRevisionPrecios()
+    if (rev.length) {
+      revisionItems = rev
+      revisionAbierta = true
+      render()
+      return
+    }
+  }
+  // Si no hay cambios o ya pasamos la revisión, confirmar directo
+  await confirmarFinal()
+}
+
+async function confirmarFinal() {
   const btn = document.getElementById('bar-fixed')?.querySelector('button')
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…' }
 
@@ -622,6 +857,21 @@ async function confirmar() {
     // 3. Confirmar (actualiza costos + genera mov_stock)
     const { error: e3 } = await supabase.rpc('confirmar_ingreso', { p_ingreso_id: ingreso.id })
     if (e3) throw e3
+
+    // 4. Aplicar los precios nuevos aceptados en la revisión.
+    //    (Se hace después del RPC: el RPC pisa productos.costo con el costo final;
+    //    el precio lo manejamos solo nosotros.)
+    if (revisionItems.length) {
+      const updates = revisionItems
+        .filter(r => {
+          const nuevo = Math.round(parseFloat(r.precioNuevo) || 0)
+          return nuevo > 0 && nuevo !== Math.round(r.precioActual)
+        })
+        .map(r => supabase.from('productos')
+          .update({ precio: Math.round(parseFloat(r.precioNuevo) || 0) })
+          .eq('id', r.prodId))
+      if (updates.length) await Promise.all(updates)
+    }
 
     resumenDone = {
       provNombre: provActual()?.nombre || '',
@@ -667,6 +917,8 @@ async function reset() {
   numBoleta = ''; items = []; totalDeclarado = ''; confirmado = false
   fecha = new Date().toISOString().slice(0,10)
   iaPendientes = []
+  revisionAbierta = false
+  revisionItems = []
   await cargarDatos()
   render()
 }
@@ -877,6 +1129,32 @@ window.iaSelProd = (i, id) => {
 window.iaSetCantReal  = (i, v) => { iaPendientes[i].cantReal = v }
 window.iaSetCostoReal = (i, v) => { iaPendientes[i].costoReal = v }
 window.iaDescartar    = (i) => { iaPendientes.splice(i,1); renderPendientes() }
+
+// Revisión de precios
+window.setPrecioRev = (i, v) => {
+  revisionItems[i].precioNuevo = v
+  renderRevision()
+}
+window.usarSugerencia = (i) => {
+  revisionItems[i].precioNuevo = String(revisionItems[i].precioSugerido)
+  renderRevision()
+}
+window.aplicarTodasSugerencias = () => {
+  for (const r of revisionItems) {
+    if (r.nivel === 'sug') r.precioNuevo = String(r.precioSugerido)
+  }
+  renderRevision()
+}
+window.cerrarRevision = () => {
+  revisionAbierta = false
+  revisionItems = []
+  document.getElementById('rev-ov')?.remove()
+  render()
+}
+window.confirmarRevision = async () => {
+  document.getElementById('rev-ov')?.remove()
+  await confirmarFinal()
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────
 document.getElementById('root').innerHTML =
