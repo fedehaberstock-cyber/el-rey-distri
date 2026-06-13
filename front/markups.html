@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Markups</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:520px;margin:0 auto;padding-bottom:30px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:57px;z-index:19}
+  .tab{flex:1;padding:11px 6px;text-align:center;font-size:13px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  section{padding:14px 18px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px}
+  .field{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink)}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:13px 14px;margin-bottom:10px}
+  .card .nm{font-size:14px;font-weight:700}
+  .card .meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .row-h{display:flex;align-items:center;gap:10px}
+  .row-h .info{flex:1;min-width:0}
+  .row-h .mk{width:90px}
+  .row-h .mk input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+    text-align:right;font-family:inherit;font-size:14px;font-weight:600;background:var(--card)}
+  .row-h .mk .pct{font-size:12px;color:var(--ink-soft);text-align:right;margin-top:2px}
+  .btn-gold{background:var(--gold);color:#fff;border:none;padding:11px 14px;border-radius:10px;
+    font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
+  .btn-gold:active{background:var(--gold-dk)}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:7px 11px;
+    border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-del{background:var(--red-bg);color:var(--red-tx);border:1px solid var(--red-tx);
+    padding:7px 11px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  .row-actions{display:flex;gap:6px;margin-top:8px;justify-content:flex-end}
+
+  .add-cat{display:flex;gap:8px;align-items:end;margin-bottom:14px}
+  .add-cat select{flex:2}
+  .add-cat input{flex:1}
+  .add-cat button{height:42px}
+
+  .search-input{width:100%;padding:11px 13px 11px 38px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-size:14px;font-family:inherit;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:11px center;margin-bottom:10px}
+  .search-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .help{font-size:12px;color:var(--ink-soft);padding:0 0 10px;line-height:1.5}
+  .help b{color:var(--ink);font-weight:600}
+
+  .empty{text-align:center;padding:30px 18px;color:var(--ink-soft);font-size:14px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;z-index:50;animation:fdup .2s ease}
+  @keyframes fdup{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+  .badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:10px;
+    font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-left:6px;vertical-align:middle}
+  .badge.override{background:var(--gold-lt);color:var(--gold-dk)}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('catalogo', 'editar')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+let tab = 'global'    // 'global' | 'categorias' | 'productos'
+let markupDefault = 33
+let markupMinimo  = 20
+let categoriasDb  = []  // [{categoria, markup_pct}] de la tabla
+let productos     = []  // [{id, nombre, categoria, costo, precio, markup_objetivo_pct}]
+let busqueda      = ''
+let nuevaCat      = { categoria: '', markup_pct: '' }
+
+async function cargar() {
+  const [{ data: emp, error: e1 }, { data: cats, error: e2 }, { data: prods, error: e3 }] = await Promise.all([
+    supabase.from('empresas').select('markup_default_pct, markup_minimo_pct')
+      .eq('id', usuario.empresa_id).single(),
+    supabase.from('categorias_markup').select('categoria, markup_pct')
+      .eq('empresa_id', usuario.empresa_id).order('categoria'),
+    supabase.from('productos').select('id, nombre, categoria, costo, precio, markup_objetivo_pct')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ])
+  if (e1) return err(e1)
+  if (e2) return err(e2)
+  if (e3) return err(e3)
+  markupDefault = Number(emp.markup_default_pct) || 33
+  markupMinimo  = Number(emp.markup_minimo_pct)  || 20
+  categoriasDb  = (cats || []).map(c => ({ categoria: c.categoria, markup_pct: Number(c.markup_pct) }))
+  productos     = (prods || []).map(p => ({
+    id: p.id, nombre: p.nombre, categoria: p.categoria || '',
+    costo: Number(p.costo) || 0, precio: Number(p.precio) || 0,
+    markup_objetivo_pct: p.markup_objetivo_pct != null ? Number(p.markup_objetivo_pct) : null,
+  }))
+  render()
+}
+
+function err(e) {
+  document.getElementById('root').innerHTML = `<div class="err-box">Error: ${e.message}</div>`
+}
+
+function render() {
+  const el = document.getElementById('root')
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Markups y precios</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    <div class="tabs">
+      <div class="tab ${tab==='global'    ?'active':''}" onclick="window._tab('global')">Global</div>
+      <div class="tab ${tab==='categorias'?'active':''}" onclick="window._tab('categorias')">Categorías</div>
+      <div class="tab ${tab==='productos' ?'active':''}" onclick="window._tab('productos')">Productos</div>
+    </div>
+    <div id="tab-body"></div>`
+  renderBody()
+}
+
+function renderBody() {
+  const el = document.getElementById('tab-body'); if (!el) return
+  if (tab === 'global')     el.innerHTML = htmlGlobal()
+  else if (tab === 'categorias') el.innerHTML = htmlCategorias()
+  else                        renderProductos(el)
+}
+
+function htmlGlobal() {
+  return `<section>
+    <div class="help">
+      <b>Markup default</b>: % de margen sugerido cuando un producto no tiene su propio markup
+      ni la categoría lo define. Es el último fallback.<br>
+      <b>Margen mínimo</b>: si tras un ingreso un producto quedaría con margen menor, el sistema
+      <b>bloquea</b> el confirmar hasta que ajustes el precio.
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="lbl">Markup default global (%)</div>
+      <input class="field" type="number" min="0" step="0.1" id="g-def" value="${markupDefault}">
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="lbl">Margen mínimo de bloqueo (%)</div>
+      <input class="field" type="number" min="0" step="0.1" id="g-min" value="${markupMinimo}">
+    </div>
+    <button class="btn-gold" onclick="window._guardarGlobal()">Guardar defaults</button>
+  </section>`
+}
+
+function htmlCategorias() {
+  // Lista de categorías existentes en productos (para el selector "agregar")
+  const todasCats = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort()
+  const yaConMarkup = new Set(categoriasDb.map(c => c.categoria))
+  const sinMarkup = todasCats.filter(c => !yaConMarkup.has(c))
+  return `<section>
+    <div class="help">
+      El markup de la categoría se aplica a todos los productos que pertenecen a ella
+      <b>excepto</b> los que tienen su propio override en la pestaña Productos.
+    </div>
+    ${sinMarkup.length ? `<div class="add-cat">
+      <div>
+        <div class="lbl">Categoría</div>
+        <select class="field" id="add-cat-sel">
+          ${sinMarkup.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div class="lbl">Markup %</div>
+        <input class="field" id="add-cat-pct" type="number" min="0" step="0.1" placeholder="35">
+      </div>
+      <button class="btn-gold" onclick="window._agregarCat()">+</button>
+    </div>` : ''}
+    ${categoriasDb.length ? categoriasDb.map(c => {
+      const n = productos.filter(p => p.categoria === c.categoria).length
+      return `<div class="card">
+        <div class="row-h">
+          <div class="info">
+            <div class="nm">${c.categoria}</div>
+            <div class="meta">${n} producto${n===1?'':'s'}</div>
+          </div>
+          <div class="mk">
+            <input type="number" min="0" step="0.1" value="${c.markup_pct}"
+              onchange="window._setCatPct('${escapeAttr(c.categoria)}', this.value)">
+            <div class="pct">% markup</div>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="btn-del" onclick="window._delCat('${escapeAttr(c.categoria)}')">Quitar</button>
+        </div>
+      </div>`
+    }).join('') : `<div class="empty">Sin markups categóricos cargados.</div>`}
+  </section>`
+}
+
+function renderProductos(cont) {
+  cont.innerHTML = `<section>
+    <input class="search-input" placeholder="Buscar producto…" value="${busqueda}"
+      oninput="window._setBusqProd(this.value)" autocomplete="off">
+    <div class="help">
+      Para fijar un markup propio del producto (override) cargá el valor y guardá.
+      Para volver al markup de la categoría/default, tocá <b>Quitar override</b>.
+    </div>
+    <div id="prod-list"></div>
+  </section>`
+  renderProdList()
+}
+
+function renderProdList() {
+  const cont = document.getElementById('prod-list'); if (!cont) return
+  const q = busqueda.trim().toLowerCase()
+  const lista = q
+    ? productos.filter(p =>
+        p.nombre.toLowerCase().includes(q) ||
+        (p.categoria || '').toLowerCase().includes(q)
+      ).slice(0, 60)
+    : productos.filter(p => p.markup_objetivo_pct != null).slice(0, 60)
+
+  if (!lista.length) {
+    cont.innerHTML = q
+      ? `<div class="empty">Sin resultados para "${busqueda}".</div>`
+      : `<div class="empty">No hay productos con override.<br>Buscá por nombre arriba.</div>`
+    return
+  }
+  cont.innerHTML = lista.map(p => {
+    const tieneOverride = p.markup_objetivo_pct != null
+    const cat = categoriasDb.find(c => c.categoria === p.categoria)
+    const efectivo = tieneOverride ? p.markup_objetivo_pct : (cat?.markup_pct ?? markupDefault)
+    const fuente = tieneOverride ? 'producto' : (cat ? 'categoría' : 'default')
+    const margenReal = p.costo > 0 ? ((p.precio - p.costo) / p.costo * 100) : 0
+    return `<div class="card">
+      <div class="row-h">
+        <div class="info">
+          <div class="nm">${p.nombre}${tieneOverride ? '<span class="badge override">override</span>' : ''}</div>
+          <div class="meta">${p.categoria || '—'} · Costo $${p.costo.toLocaleString('es-AR')} · Precio $${p.precio.toLocaleString('es-AR')} · margen real ${margenReal.toFixed(1)}%</div>
+        </div>
+        <div class="mk">
+          <input type="number" min="0" step="0.1" value="${tieneOverride ? p.markup_objetivo_pct : ''}"
+            placeholder="${(cat?.markup_pct ?? markupDefault).toFixed(1)}"
+            onchange="window._setProdMk('${p.id}', this.value)">
+          <div class="pct">% objetivo${tieneOverride ? '' : ` (${fuente})`}</div>
+        </div>
+      </div>
+      ${tieneOverride ? `<div class="row-actions">
+        <button class="btn-ghost" onclick="window._quitarOverride('${p.id}')">Quitar override</button>
+      </div>` : ''}
+    </div>`
+  }).join('')
+}
+
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'") }
+
+function toast(msg) {
+  const t = document.createElement('div')
+  t.className = 'toast'; t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 1600)
+}
+
+// ── HANDLERS ──────────────────────────────────────────────────────────
+window._tab = (t) => { tab = t; renderBody() }
+window._setBusqProd = (v) => { busqueda = v; renderProdList() }
+
+window._guardarGlobal = async () => {
+  const def = parseFloat(document.getElementById('g-def')?.value)
+  const min = parseFloat(document.getElementById('g-min')?.value)
+  if (!isFinite(def) || def < 0) { alert('Markup default inválido'); return }
+  if (!isFinite(min) || min < 0) { alert('Margen mínimo inválido'); return }
+  const { error } = await supabase.from('empresas')
+    .update({ markup_default_pct: def, markup_minimo_pct: min })
+    .eq('id', usuario.empresa_id)
+  if (error) { alert('Error: ' + error.message); return }
+  markupDefault = def; markupMinimo = min
+  toast('Defaults guardados ✓')
+}
+
+window._agregarCat = async () => {
+  const cat = document.getElementById('add-cat-sel')?.value
+  const pct = parseFloat(document.getElementById('add-cat-pct')?.value)
+  if (!cat) { alert('Elegí una categoría'); return }
+  if (!isFinite(pct) || pct < 0) { alert('Markup inválido'); return }
+  const { error } = await supabase.from('categorias_markup').insert({
+    empresa_id: usuario.empresa_id,
+    categoria: cat,
+    markup_pct: pct,
+  })
+  if (error) { alert('Error: ' + error.message); return }
+  await cargar()
+  toast('Categoría agregada ✓')
+}
+
+window._setCatPct = async (cat, v) => {
+  const pct = parseFloat(v)
+  if (!isFinite(pct) || pct < 0) { alert('Markup inválido'); return }
+  const { error } = await supabase.from('categorias_markup')
+    .update({ markup_pct: pct, updated_at: new Date().toISOString() })
+    .eq('empresa_id', usuario.empresa_id).eq('categoria', cat)
+  if (error) { alert('Error: ' + error.message); return }
+  const c = categoriasDb.find(x => x.categoria === cat)
+  if (c) c.markup_pct = pct
+  toast('Markup actualizado ✓')
+}
+
+window._delCat = async (cat) => {
+  if (!confirm(`Quitar markup de "${cat}"? Los productos sin override pasarán al default global.`)) return
+  const { error } = await supabase.from('categorias_markup')
+    .delete().eq('empresa_id', usuario.empresa_id).eq('categoria', cat)
+  if (error) { alert('Error: ' + error.message); return }
+  categoriasDb = categoriasDb.filter(c => c.categoria !== cat)
+  renderBody()
+  toast('Markup categórico quitado ✓')
+}
+
+window._setProdMk = async (id, v) => {
+  const pct = parseFloat(v)
+  if (v === '' || v == null) { return window._quitarOverride(id) }
+  if (!isFinite(pct) || pct < 0) { alert('Markup inválido'); return }
+  const { error } = await supabase.from('productos')
+    .update({ markup_objetivo_pct: pct }).eq('id', id)
+  if (error) { alert('Error: ' + error.message); return }
+  const p = productos.find(x => x.id === id)
+  if (p) p.markup_objetivo_pct = pct
+  renderProdList()
+  toast('Override guardado ✓')
+}
+
+window._quitarOverride = async (id) => {
+  const { error } = await supabase.from('productos')
+    .update({ markup_objetivo_pct: null }).eq('id', id)
+  if (error) { alert('Error: ' + error.message); return }
+  const p = productos.find(x => x.id === id)
+  if (p) p.markup_objetivo_pct = null
+  renderProdList()
+  toast('Override quitado ✓')
+}
+
+await cargar()
+</script>
+</body>
+</html>
