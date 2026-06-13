@@ -242,41 +242,57 @@ function render() {
       <div class="tot-card"><div class="num red">${criticos}</div><div class="lbl">Críticos</div></div>
       <div class="tot-card"><div class="num amber">${advertencias}</div><div class="lbl">En atención</div></div>
     </div>
-    <div class="list">
-      ${!filtrados.length
-        ? `<div class="empty">Sin deudores en esta categoría.</div>`
-        : filtrados.map(c => {
-            const maxSaldo = datos[0].saldo || 1;
-            const pct = Math.round(c.saldo / maxSaldo * 100);
-            const up = ultimoPago(c.id);
-            return `<div class="cli-card ${c.nivel === 'critico' || c.nivel === 'advertencia' ? c.nivel : ''}"
-              onclick="window._abrirDetalle('${c.id}')">
-              <div class="top">
-                <span class="nm">${c.nombre}</span>
-                <span class="saldo-num ${c.nivel === 'leve' ? 'leve' : c.nivel}">${ars(c.saldo)}</span>
-              </div>
-              <div class="meta"><span class="meta-tag">${c.direccion || ''}</span></div>
-              <div class="progress-wrap">
-                <div class="progress-lbl">
-                  <span>Participación en deuda total</span><span>${pct}%</span>
-                </div>
-                <div class="progress-track">
-                  <div class="progress-fill" style="width:${pct}%;background:${
-                    c.nivel === 'critico' ? 'var(--red-tx)' : c.nivel === 'advertencia' ? 'var(--amber-tx)' : 'var(--ink-soft)'}">
-                  </div>
-                </div>
-              </div>
-              <div>
-                <span class="dias-badge ${c.nivel === 'critico' ? 'critico' : c.nivel === 'advertencia' ? 'advertencia' : 'ok'}">
-                  ${c.dias} días sin pago
-                </span>
-              </div>
-              ${up ? `<div class="ultimo-pago">Último pago: ${fmtF(up)}</div>` : ''}
-            </div>`;
-          }).join('')}
-    </div>`;
+    <div id="deud-list" class="list"></div>`;
 
+  renderDeudList();
   if (detalle) renderDetalle();
+}
+
+function renderDeudList() {
+  const cont = document.getElementById('deud-list');
+  if (!cont) return;
+  const datos = clientes.map(c => {
+    const saldo = saldoDe(c.id);
+    const dias  = diasSinPago(c.id);
+    const nivel = nivelDeuda(saldo, dias);
+    return { ...c, saldo, dias, nivel };
+  }).filter(c => c.saldo > 0).sort((a, b) => b.saldo - a.saldo);
+  const filtrados = datos.filter(c => {
+    if (filtro !== 'todos' && c.nivel !== filtro) return false;
+    if (busqueda.trim() && !c.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
+    return true;
+  });
+  cont.innerHTML = !filtrados.length
+    ? `<div class="empty">Sin deudores en esta categoría.</div>`
+    : filtrados.map(c => {
+        const maxSaldo = datos[0].saldo || 1;
+        const pct = Math.round(c.saldo / maxSaldo * 100);
+        const up = ultimoPago(c.id);
+        return `<div class="cli-card ${c.nivel === 'critico' || c.nivel === 'advertencia' ? c.nivel : ''}"
+          onclick="window._abrirDetalle('${c.id}')">
+          <div class="top">
+            <span class="nm">${c.nombre}</span>
+            <span class="saldo-num ${c.nivel === 'leve' ? 'leve' : c.nivel}">${ars(c.saldo)}</span>
+          </div>
+          <div class="meta"><span class="meta-tag">${c.direccion || ''}</span></div>
+          <div class="progress-wrap">
+            <div class="progress-lbl">
+              <span>Participación en deuda total</span><span>${pct}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:${pct}%;background:${
+                c.nivel === 'critico' ? 'var(--red-tx)' : c.nivel === 'advertencia' ? 'var(--amber-tx)' : 'var(--ink-soft)'}">
+              </div>
+            </div>
+          </div>
+          <div>
+            <span class="dias-badge ${c.nivel === 'critico' ? 'critico' : c.nivel === 'advertencia' ? 'advertencia' : 'ok'}">
+              ${c.dias} días sin pago
+            </span>
+          </div>
+          ${up ? `<div class="ultimo-pago">Último pago: ${fmtF(up)}</div>` : ''}
+        </div>`;
+      }).join('');
 }
 
 // ── DETALLE ────────────────────────────────────────────────────────────────
@@ -345,7 +361,7 @@ function rerenderDetalle() {
 }
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
-window._setBusqueda   = v => { busqueda = v; render(); };
+window._setBusqueda   = v => { busqueda = v; renderDeudList(); };
 window._setFiltro     = v => { filtro = v; render(); };
 window._abrirDetalle  = id => { detalle = id; vistaDetalle = 'movs'; cobroMonto = ''; render(); };
 window._cerrarDetalle = () => { detalle = null; render(); };

@@ -481,9 +481,7 @@ function renderPanel() {
         : `<label class="fl">Producto</label>
            <input class="field" id="pbusq" placeholder="Buscar producto…"
              value="${pInput.busq}" oninput="window._setPBusq(this.value)" autocomplete="off">
-           ${busqMatch.length ? `<div class="prod-results">
-             ${busqMatch.map(p => `<div class="pr-row" onclick="window._selProd('${p.id}')">${p.nombre}</div>`).join('')}
-           </div>` : ''}`}
+           <div id="pbusq-results"></div>`}
       <label class="fl">${esIngreso ? 'Cantidad a ingresar' : 'Cantidad (negativo para restar)'}</label>
       <input class="field" id="pcant" type="number"
         placeholder="${esIngreso ? 'Ej: 12' : 'Ej: 5 ó -3'}"
@@ -497,10 +495,22 @@ function renderPanel() {
       </div>
     </div>`;
   document.getElementById('root').appendChild(ov);
+  renderPbusqResults();
   setTimeout(() => {
     const f = document.getElementById('pbusq') || document.getElementById('pcant');
     if (f) f.focus();
   }, 50);
+}
+
+function renderPbusqResults() {
+  const cont = document.getElementById('pbusq-results');
+  if (!cont) return;
+  const matches = pInput.busq.trim().length > 1
+    ? productos.filter(p => p.nombre.toLowerCase().includes(pInput.busq.toLowerCase())).slice(0, 5)
+    : [];
+  cont.innerHTML = matches.length
+    ? `<div class="prod-results">${matches.map(p => `<div class="pr-row" onclick="window._selProd('${p.id}')">${p.nombre}</div>`).join('')}</div>`
+    : '';
 }
 
 function renderPanelEditar() {
@@ -733,7 +743,7 @@ window._abrirPanel        = (tipo, id) => {
 window._cerrarPanel       = () => { panelOpen = null; edit = null; render(); };
 window._confirmarPanel    = () => confirmarPanel();
 window._selProd           = id => { pInput.prodId = id; pInput.busq = ''; window._rerenderPanel(); };
-window._setPBusq          = v  => { pInput.busq = v; window._rerenderPanel(); };
+window._setPBusq          = v  => { pInput.busq = v; renderPbusqResults(); };
 window._rerenderPanel     = () => {
   document.querySelector('.overlay')?.remove();
   renderPanel();

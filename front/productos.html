@@ -135,7 +135,7 @@ function nuevoForm(){
 // expongo handlers
 Object.assign(window, {
   irLista, irNuevo, irEditar, guardar, toggleActivo,
-  setBusqueda: v => { busqueda = v; render(); },
+  setBusqueda: v => { busqueda = v; renderListaBody(); },
   setForm: (k, v) => { form[k] = v; },
   toggleSwitch: () => { form.activo = !form.activo; render(); },
 });
@@ -175,11 +175,6 @@ function render(){
 
 // ── LISTA ─────────────────────────────────────────────────────────────
 function renderLista(){
-  const q = busqueda.trim().toLowerCase();
-  const lista = productos.filter(p =>
-    !q || p.nombre.toLowerCase().includes(q) || (p.categoria || '').toLowerCase().includes(q)
-  );
-
   const el = document.getElementById('root');
   const hdr = document.createElement('div');
   hdr.innerHTML = `
@@ -194,39 +189,48 @@ function renderLista(){
     <div class="search-wrap">
       <input class="search-input" placeholder="Buscar producto o categoría…" value="${busqueda}"
         oninput="window.setBusqueda(this.value)" autocomplete="off">
-    </div>`;
+    </div>
+    <div id="pr-list-body" class="pr-list"></div>`;
   el.appendChild(hdr);
+  renderListaBody();
+}
 
-  const body = document.createElement('div');
-  body.className = 'pr-list';
-
+function renderListaBody(){
+  const body = document.getElementById('pr-list-body');
+  if (!body) return;
+  const q = busqueda.trim().toLowerCase();
+  const lista = productos.filter(p =>
+    !q || p.nombre.toLowerCase().includes(q) || (p.categoria || '').toLowerCase().includes(q)
+  );
+  body.innerHTML = '';
   if (cargando) {
     body.innerHTML = `<div class="empty">Cargando…</div>`;
-  } else if (!lista.length) {
+    return;
+  }
+  if (!lista.length) {
     body.innerHTML = busqueda
       ? `<div class="empty">Sin resultados para "${busqueda}"</div>`
       : `<div class="empty">No hay productos todavía.<br>Tocá + para crear el primero.</div>`;
-  } else {
-    lista.forEach(p => {
-      const stockClass = p.stock < 0 ? 'stock-neg' : p.stock <= 5 ? 'stock-bajo' : 'stock-ok';
-      const stockTxt = p.stock < 0 ? `${p.stock}` : `${p.stock} un.`;
-      const prov = proveedores.find(x => x.id === p.proveedor_id);
-      const row = document.createElement('div');
-      row.className = 'pr-row' + (p.activo ? '' : ' inactivo');
-      row.innerHTML = `
-        <div class="info">
-          <div class="nm">${p.nombre}</div>
-          <div class="meta">${[p.categoria, prov?.nombre].filter(Boolean).join(' · ') || '—'}</div>
-        </div>
-        <div class="pr-right">
-          <div class="pr-price">${ars(p.precio)}</div>
-          <span class="chip ${stockClass}">${stockTxt}</span>
-        </div>`;
-      row.onclick = () => irEditar(p.id);
-      body.appendChild(row);
-    });
+    return;
   }
-  el.appendChild(body);
+  lista.forEach(p => {
+    const stockClass = p.stock < 0 ? 'stock-neg' : p.stock <= 5 ? 'stock-bajo' : 'stock-ok';
+    const stockTxt = p.stock < 0 ? `${p.stock}` : `${p.stock} un.`;
+    const prov = proveedores.find(x => x.id === p.proveedor_id);
+    const row = document.createElement('div');
+    row.className = 'pr-row' + (p.activo ? '' : ' inactivo');
+    row.innerHTML = `
+      <div class="info">
+        <div class="nm">${p.nombre}</div>
+        <div class="meta">${[p.categoria, prov?.nombre].filter(Boolean).join(' · ') || '—'}</div>
+      </div>
+      <div class="pr-right">
+        <div class="pr-price">${ars(p.precio)}</div>
+        <span class="chip ${stockClass}">${stockTxt}</span>
+      </div>`;
+    row.onclick = () => irEditar(p.id);
+    body.appendChild(row);
+  });
 }
 
 // ── FORM (nuevo/editar) ───────────────────────────────────────────────

@@ -443,14 +443,7 @@ function renderPanel() {
       <label class="fl">Producto</label>
       <input class="field" placeholder="Buscar..." value="${panelProd.busq}"
         oninput="setPanelBusq(this.value)" autocomplete="off">
-      <div class="results">
-        ${lista.length ? lista.map(p => `
-          <div class="r ${panelProd.selId===p.id?'sel':''}" onclick="selProd('${p.id}')">
-            <span>${p.nombre}</span>
-            ${p.u_bulto>1 ? `<span class="ub">${p.u_bulto} u/bulto</span>` : ''}
-          </div>`).join('')
-        : `<div class="r" style="color:var(--ink-soft)">Sin resultados</div>`}
-      </div>
+      <div id="panel-results" class="results"></div>
       ${pSel ? `<div class="sel-prod-info">
         ${esBulto ? `Bulto estándar: <b>${pSel.u_bulto} unidades</b>` : `Se vende por unidad`}
       </div>` : ''}
@@ -476,6 +469,22 @@ function renderPanel() {
       </div>
     </div>`
   document.getElementById('root').appendChild(ov)
+  renderPanelResults()
+}
+
+function renderPanelResults() {
+  const cont = document.getElementById('panel-results')
+  if (!cont) return
+  const q = panelProd.busq.trim().toLowerCase()
+  const lista = q
+    ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 20)
+    : productos.slice(0, 30)
+  cont.innerHTML = lista.length ? lista.map(p => `
+    <div class="r ${panelProd.selId===p.id?'sel':''}" onclick="selProd('${p.id}')">
+      <span>${p.nombre}</span>
+      ${p.u_bulto>1 ? `<span class="ub">${p.u_bulto} u/bulto</span>` : ''}
+    </div>`).join('')
+  : `<div class="r" style="color:var(--ink-soft)">Sin resultados</div>`
 }
 
 function rerenderPanel() {
@@ -603,7 +612,7 @@ async function reset() {
 window.setNumBoleta      = v => { numBoleta = v }
 window.setFecha          = v => { fecha = v }
 window.setTotalDeclarado = v => { totalDeclarado = v; renderVerify() }
-window.setPanelBusq      = v => { panelProd.busq = v; rerenderPanel() }
+window.setPanelBusq      = v => { panelProd.busq = v; renderPanelResults() }
 window.setPanelBultos    = v => { panelProd.bultos = v }
 window.setPanelCosto     = v => { panelProd.costo = v }
 window.setPanelUb        = v => { panelProd.uPorBulto = v }

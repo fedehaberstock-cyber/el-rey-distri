@@ -194,7 +194,7 @@ async function cargarTodo(){
   if (!navigator.onLine) {
     return cargarDesdeLocal();
   }
-  const [cliResp, salResp, prodResp] = await Promise.all([
+  const [cliResp, salResp, prodResp, stkResp] = await Promise.all([
     supabase.from('clientes')
       .select('id, nombre')
       .eq('activo', true)
@@ -204,6 +204,7 @@ async function cargarTodo(){
       .select('id, nombre, precio, u_bulto, desc_bulto')
       .eq('activo', true)
       .order('nombre'),
+    supabase.from('stock_actual').select('producto_id, stock'),
   ]);
   // si la red falló en el intento, caer a local silenciosamente
   if (cliResp.error || salResp.error || prodResp.error) {
@@ -212,12 +213,14 @@ async function cargarTodo(){
   }
 
   const saldoMap = Object.fromEntries((salResp.data || []).map(s => [s.cliente_id, Number(s.saldo) || 0]));
+  const stockMap = Object.fromEntries((stkResp.data || []).map(s => [s.producto_id, Number(s.stock) || 0]));
   clientes  = (cliResp.data || []).map(c => ({ ...c, saldo: saldoMap[c.id] || 0 }));
   productos = (prodResp.data || []).map(p => ({
     ...p,
     precio: Number(p.precio) || 0,
     u_bulto: p.u_bulto || 1,
     desc_bulto: Number(p.desc_bulto) || 0,
+    stock: stockMap[p.id] ?? null,
   }));
 }
 
@@ -240,7 +243,18 @@ async function cargarDesdeLocal(){
   }
 }
 
+function cantEnOrden(id){
+  return orden.filter(o => o.productoId === id).reduce((s,o) => s + o.cant, 0);
+}
+function disponible(id){
+  const p = prod(id); if (!p || p.stock == null) return Infinity;
+  return p.stock - cantEnOrden(id);
+}
+
 function addUnidad(id){
+  const p = prod(id);
+  if (p && p.stock != null && p.stock <= 0) { alert('Sin stock disponible.'); return; }
+  if (disponible(id) < 1) { alert(`Stock insuficiente. Disponible: ${p.stock} u.`); return; }
   const ex = orden.find(o=>o.productoId===id && !o.esBulto);
   if(ex){ ex.cant++; }
   else { orden.push({productoId:id, cant:1, disc:0, esBulto:false, uPorBulto:1}); }
@@ -249,6 +263,8 @@ function addUnidad(id){
 
 function addBulto(id){
   const p = prod(id);
+  if (p.stock != null && p.stock <= 0) { alert('Sin stock disponible.'); return; }
+  if (disponible(id) < p.u_bulto) { alert(`Stock insuficiente para un bulto (${p.u_bulto}u). Disponible: ${p.stock - cantEnOrden(id)} u.`); return; }
   const ex = orden.find(o=>o.productoId===id && o.esBulto);
   if(ex){ ex.cant += p.u_bulto; }
   else {
@@ -273,13 +289,31 @@ function focoBuscador(){
 function setCant(i,d){
   const it = orden[i];
   const step = it.esBulto ? it.uPorBulto : 1;
-  it.cant = Math.max(it.esBulto ? it.uPorBulto : 1, it.cant + d*step);
+  const minimo = it.esBulto ? it.uPorBulto : 1;
+  let nuevo = Math.max(minimo, it.cant + d*step);
+  const p = prod(it.productoId);
+  if (p && p.stock != null && d > 0) {
+    const otros = orden.filter((o,j) => j!==i && o.productoId===it.productoId).reduce((s,o)=>s+o.cant, 0);
+    const max = p.stock - otros;
+    if (nuevo > max) { alert(`Stock insuficiente. Disponible: ${Math.max(0,max)} u.`); return; }
+  }
+  it.cant = nuevo;
   render();
 }
 function setCantDirecto(i, v){
   const it = orden[i];
   const n = Math.max(1, parseInt(v) || 1);
-  it.cant = it.esBulto ? n * it.uPorBulto : n;
+  let nuevo = it.esBulto ? n * it.uPorBulto : n;
+  const p = prod(it.productoId);
+  if (p && p.stock != null) {
+    const otros = orden.filter((o,j) => j!==i && o.productoId===it.productoId).reduce((s,o)=>s+o.cant, 0);
+    const max = p.stock - otros;
+    if (nuevo > max) {
+      alert(`Stock insuficiente. Disponible: ${Math.max(0,max)} u.`);
+      nuevo = Math.max(it.esBulto ? it.uPorBulto : 1, max);
+    }
+  }
+  it.cant = nuevo;
   render();
 }
 function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); renderBar(); }
@@ -443,17 +477,22 @@ function renderResults(){
 
   box.innerHTML = `<div class="results">${m.map(p=>{
     const tieneBulto = p.u_bulto > 1;
-    return `<div class="row">
-      <div class="row-main" onclick="window.addUnidad('${p.id}')">
+    const sinStock = p.stock != null && p.stock <= 0;
+    const stockTxt = p.stock != null
+      ? `<span style="font-size:11px;font-weight:600;color:${sinStock?'var(--red-tx)':p.stock<=5?'var(--bulto-tx)':'var(--green-tx)'}">Stock ${p.stock}</span>`
+      : '';
+    return `<div class="row" ${sinStock?'style="opacity:.55"':''}>
+      <div class="row-main" ${sinStock?'':`onclick="window.addUnidad('${p.id}')"`}>
         <span class="nm">${p.nombre}${tieneBulto ? ` <span style="font-size:12px;color:var(--ink-soft);font-weight:500">· bulto ${p.u_bulto}u</span>` : ''}</span>
-        <span class="pr">${ars(p.precio)}</span>
+        <span class="pr">${ars(p.precio)} ${stockTxt}</span>
       </div>
-      ${tieneBulto ? `
+      ${tieneBulto && !sinStock ? `
         <button onclick="event.stopPropagation();window.addBulto('${p.id}')"
           style="display:block;width:100%;padding:8px;background:var(--gold-lt);border:none;border-top:1px solid var(--line-soft);
             font-size:12px;font-weight:600;color:var(--gold-dk);cursor:pointer;font-family:inherit">
           📦 Agregar como bulto (${p.u_bulto}u · −${p.desc_bulto}%)
         </button>` : ''}
+      ${sinStock ? `<div style="padding:6px 10px;font-size:11px;color:var(--red-tx);font-weight:600;text-align:center;background:var(--red-bg)">Sin stock</div>` : ''}
     </div>`;
   }).join('')}</div>`;
 }

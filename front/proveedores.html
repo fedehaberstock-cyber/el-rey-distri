@@ -124,11 +124,6 @@ async function cargar() {
 // ── RENDER ─────────────────────────────────────────────────────────────────
 function render() {
   const el = document.getElementById('root');
-  const q  = busqueda.trim().toLowerCase();
-  const lista = proveedores.filter(p =>
-    !q || p.nombre.toLowerCase().includes(q)
-  );
-
   el.innerHTML = `
     <div class="hdr">
       <div class="brand"><span class="crown">&#9818;</span>
@@ -144,20 +139,26 @@ function render() {
       <input class="search-input" placeholder="Buscar proveedor…" value="${busqueda}"
         oninput="window._setBusq(this.value)" autocomplete="off">
     </div>
-    <div class="list">
-      ${lista.length ? lista.map(p => `
-        <div class="prov-card ${p.activo ? '' : 'inactive'}" onclick="window._editar('${p.id}')">
-          <div class="prov-icon">🏭</div>
-          <div class="prov-info">
-            <div class="nm">${p.nombre}</div>
-            <div class="sub">Reorden: ${p.dias_reorden ?? '—'} días · Objetivo: ${p.dias_objetivo} días${p.activo ? '' : ' · Inactivo'}</div>
-          </div>
-          <div class="prov-arr">›</div>
-        </div>`).join('')
-      : `<div class="empty">${q ? 'Sin resultados.' : 'Sin proveedores todavía.'}</div>`}
-    </div>`;
-
+    <div id="prov-list" class="list"></div>`;
+  renderProvList();
   if (panelId !== null) renderPanel(el);
+}
+
+function renderProvList() {
+  const cont = document.getElementById('prov-list');
+  if (!cont) return;
+  const q  = busqueda.trim().toLowerCase();
+  const lista = proveedores.filter(p => !q || p.nombre.toLowerCase().includes(q));
+  cont.innerHTML = lista.length ? lista.map(p => `
+    <div class="prov-card ${p.activo ? '' : 'inactive'}" onclick="window._editar('${p.id}')">
+      <div class="prov-icon">🏭</div>
+      <div class="prov-info">
+        <div class="nm">${p.nombre}</div>
+        <div class="sub">Reorden: ${p.dias_reorden ?? '—'} días · Objetivo: ${p.dias_objetivo} días${p.activo ? '' : ' · Inactivo'}</div>
+      </div>
+      <div class="prov-arr">›</div>
+    </div>`).join('')
+  : `<div class="empty">${q ? 'Sin resultados.' : 'Sin proveedores todavía.'}</div>`;
 }
 
 function renderPanel(el) {
@@ -245,7 +246,7 @@ async function desactivar() {
 }
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
-window._setBusq  = v  => { busqueda = v; render(); };
+window._setBusq  = v  => { busqueda = v; renderProvList(); };
 window._nuevo    = () => {
   form = { nombre: '', dias_objetivo: 30, dias_reorden: '', activo: true };
   errMsg = ''; panelId = 'nuevo'; render();

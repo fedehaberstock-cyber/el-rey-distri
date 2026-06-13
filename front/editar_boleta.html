@@ -95,6 +95,8 @@ let pedido = null
 let clientes = []
 let productos = []
 let items = []   // { producto_id, nombre, cantidad, precio_unit, descuento, es_bulto, u_por_bulto }
+let cantOriginal = {} // producto_id → cantidad original al cargar (ya descontada del stock)
+let stockMap = {}     // producto_id → stock_actual
 let clienteId = ''
 let descuento = 0
 let fechaReparto = ''
@@ -103,7 +105,7 @@ let pickerOpen = false
 let pickerSearch = ''
 
 async function cargar() {
-  const [bResp, cResp, pResp] = await Promise.all([
+  const [bResp, cResp, pResp, sResp] = await Promise.all([
     supabase.from('boletas').select(`
       id, total, saldo_anterior,
       pedidos (
@@ -114,15 +116,18 @@ async function cargar() {
     `).eq('id', boletaId).single(),
     supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('productos').select('id, nombre, precio, u_bulto, desc_bulto').eq('activo', true).order('nombre'),
+    supabase.from('stock_actual').select('producto_id, stock'),
   ])
   if (bResp.error) throw bResp.error
   if (cResp.error) throw cResp.error
   if (pResp.error) throw pResp.error
+  if (sResp.error) throw sResp.error
 
   boleta = bResp.data
   pedido = boleta.pedidos
   clientes = cResp.data || []
   productos = pResp.data || []
+  stockMap = Object.fromEntries((sResp.data || []).map(s => [s.producto_id, Number(s.stock) || 0]))
 
   clienteId = pedido.cliente_id
   descuento = Number(pedido.descuento || 0)
@@ -136,6 +141,20 @@ async function cargar() {
     es_bulto: !!it.es_bulto,
     u_por_bulto: it.u_por_bulto || 1,
   }))
+  cantOriginal = {}
+  items.forEach(it => { cantOriginal[it.producto_id] = (cantOriginal[it.producto_id]||0) + it.cantidad })
+}
+
+// Stock disponible para un producto al editar:
+// = stock_actual + lo que ya estaba en esta boleta (porque ya fue descontado)
+//   − lo que actualmente hay en items (todas las líneas del mismo producto)
+function maxCantParaItem(idx){
+  const it = items[idx]
+  const stock = stockMap[it.producto_id]
+  if (stock == null) return Infinity
+  const orig = cantOriginal[it.producto_id] || 0
+  const enItems = items.reduce((s,o,j) => j===idx ? s : (o.producto_id===it.producto_id ? s + o.cantidad : s), 0)
+  return stock + orig - enItems
 }
 
 function totalCalc() {
@@ -223,51 +242,73 @@ function renderPicker() {
     ov.className = 'picker-overlay'
     document.body.appendChild(ov)
   }
+  if (!ov.dataset.built) {
+    ov.innerHTML = `
+      <div class="picker-box">
+        <div class="picker-search">
+          <input class="field" placeholder="Buscar producto…" value="${pickerSearch}"
+            oninput="window._pickSearch(this.value)" autofocus>
+        </div>
+        <div id="picker-list" class="picker-list"></div>
+        <div style="padding:10px;border-top:1px solid var(--line);text-align:right">
+          <button onclick="window._closePicker()"
+            style="padding:8px 16px;border:1px solid var(--line);border-radius:8px;
+              background:var(--card);font-weight:600;cursor:pointer;font-family:inherit">Cerrar</button>
+        </div>
+      </div>`
+    ov.dataset.built = '1'
+  }
+  renderPickerList()
+}
+
+function renderPickerList() {
+  const list = document.getElementById('picker-list')
+  if (!list) return
   const term = pickerSearch.toLowerCase().trim()
   const matches = productos.filter(p => !term || p.nombre.toLowerCase().includes(term)).slice(0, 50)
-  ov.innerHTML = `
-    <div class="picker-box">
-      <div class="picker-search">
-        <input class="field" placeholder="Buscar producto…" value="${pickerSearch}"
-          oninput="window._pickSearch(this.value)" autofocus>
-      </div>
-      <div class="picker-list">
-        ${matches.map(p => `
-          <div class="picker-item" onclick="window._pickAdd('${p.id}', false)">
-            <div><div style="font-weight:600;font-size:14px">${p.nombre}</div>
-              <div style="font-size:11px;color:var(--ink-soft)">${ars(p.precio)}</div></div>
-            ${p.u_bulto > 1 ? `
-              <button onclick="event.stopPropagation();window._pickAdd('${p.id}', true)"
-                style="padding:5px 10px;border:1px solid var(--gold);border-radius:8px;
-                  background:var(--gold-lt);color:var(--gold-dk);font-size:12px;font-weight:600;
-                  cursor:pointer;font-family:inherit">+ Bulto</button>` : ''}
-          </div>
-        `).join('')}
-      </div>
-      <div style="padding:10px;border-top:1px solid var(--line);text-align:right">
-        <button onclick="window._closePicker()"
-          style="padding:8px 16px;border:1px solid var(--line);border-radius:8px;
-            background:var(--card);font-weight:600;cursor:pointer;font-family:inherit">Cerrar</button>
-      </div>
-    </div>`
+  list.innerHTML = matches.map(p => `
+    <div class="picker-item" onclick="window._pickAdd('${p.id}', false)">
+      <div><div style="font-weight:600;font-size:14px">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--ink-soft)">${ars(p.precio)}</div></div>
+      ${p.u_bulto > 1 ? `
+        <button onclick="event.stopPropagation();window._pickAdd('${p.id}', true)"
+          style="padding:5px 10px;border:1px solid var(--gold);border-radius:8px;
+            background:var(--gold-lt);color:var(--gold-dk);font-size:12px;font-weight:600;
+            cursor:pointer;font-family:inherit">+ Bulto</button>` : ''}
+    </div>
+  `).join('')
 }
 
 window._setCli = v => { clienteId = v }
 window._setFR  = v => { fechaReparto = v }
 window._setDG  = v => { descuento = Math.min(100, Math.max(0, +v||0)); render() }
-window._setC   = (i,v) => { items[i].cantidad = Math.max(1, +v||1); render() }
+window._setC   = (i,v) => {
+  let n = Math.max(1, +v||1)
+  const max = maxCantParaItem(i)
+  if (n > max) { alert(`Stock insuficiente. Máximo: ${Math.max(1,max)} u.`); n = Math.max(1, max) }
+  items[i].cantidad = n; render()
+}
 window._setP   = (i,v) => { items[i].precio_unit = Math.max(0, +v||0); render() }
 window._setD   = (i,v) => { items[i].descuento = Math.min(100, Math.max(0, +v||0)); render() }
 window._rm     = i => { items.splice(i,1); render() }
 window._openPicker = () => { pickerOpen = true; pickerSearch = ''; render() }
 window._closePicker = () => { pickerOpen = false; document.getElementById('picker-ov')?.remove() }
-window._pickSearch = v => { pickerSearch = v; renderPicker() }
+window._pickSearch = v => { pickerSearch = v; renderPickerList() }
 window._pickAdd = (id, esBulto) => {
   const p = productos.find(x => x.id === id)
   if (!p) return
+  const stock = stockMap[p.id]
+  const orig = cantOriginal[p.id] || 0
+  const enItems = items.filter(o => o.producto_id === p.id).reduce((s,o)=>s+o.cantidad, 0)
+  const disponible = stock != null ? stock + orig - enItems : Infinity
+  const cantAAgregar = esBulto ? (p.u_bulto || 1) : 1
+  if (disponible < cantAAgregar) {
+    alert(`Stock insuficiente. Disponible: ${Math.max(0,disponible)} u.`)
+    return
+  }
   const precio = esBulto && p.desc_bulto ? p.precio * (1 - p.desc_bulto/100) : p.precio
   items.push({
-    producto_id: p.id, nombre: p.nombre, cantidad: 1,
+    producto_id: p.id, nombre: p.nombre, cantidad: cantAAgregar,
     precio_unit: precio, descuento: 0,
     es_bulto: esBulto, u_por_bulto: esBulto ? (p.u_bulto || 1) : 1,
   })
