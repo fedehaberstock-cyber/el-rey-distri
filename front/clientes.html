@@ -134,7 +134,53 @@ import { ars as arsFmt, fechaCorta, mostrarError } from './src/utils.js'
 
 // expongo handlers a onclick inline
 Object.assign(window, {
-  irLista, irDetalle, irNuevo, abrirCobro, cerrarCobro, confirmarCobro, guardarCliente
+  irLista, irDetalle, irNuevo, abrirCobro, cerrarCobro, confirmarCobro, guardarCliente,
+  eliminarCliente: async () => {
+    const c = clientes.find(x => x.id === cliSelId);
+    if (!c) return;
+    // primer confirm con resumen
+    const { count: pedCount } = await supabase
+      .from('pedidos').select('id', { count: 'exact', head: true }).eq('cliente_id', c.id);
+    const { count: movCount } = await supabase
+      .from('mov_cuenta').select('id', { count: 'exact', head: true }).eq('cliente_id', c.id);
+    const msg = `Eliminar a "${c.nombre}"?\n\n` +
+      `Se borrarán también:\n• ${pedCount || 0} pedidos (con boletas y items)\n• ${movCount || 0} movimientos de cuenta\n\n` +
+      `Esta acción es IRREVERSIBLE.`;
+    if (!confirm(msg)) return;
+    // confirmación con nombre
+    const tipeado = prompt(`Escribí el nombre exacto para confirmar:\n"${c.nombre}"`);
+    if (tipeado !== c.nombre) {
+      if (tipeado !== null) alert('El nombre no coincide. Cancelado.');
+      return;
+    }
+    try {
+      // ids de pedidos del cliente
+      const { data: peds, error: ePeds } = await supabase
+        .from('pedidos').select('id').eq('cliente_id', c.id);
+      if (ePeds) throw ePeds;
+      const pedIds = (peds || []).map(p => p.id);
+      // boletas
+      if (pedIds.length) {
+        const { error } = await supabase.from('boletas').delete().in('pedido_id', pedIds);
+        if (error) throw error;
+      }
+      // mov_cuenta
+      { const { error } = await supabase.from('mov_cuenta').delete().eq('cliente_id', c.id);
+        if (error) throw error; }
+      // pedidos (pedido_items cae por CASCADE)
+      { const { error } = await supabase.from('pedidos').delete().eq('cliente_id', c.id);
+        if (error) throw error; }
+      // cliente (visitas_clientes cae por CASCADE)
+      { const { error } = await supabase.from('clientes').delete().eq('id', c.id);
+        if (error) throw error; }
+      alert('✓ Cliente eliminado');
+      clientes = clientes.filter(x => x.id !== c.id);
+      cliSelId = null;
+      irLista();
+    } catch (e) {
+      alert('Error al eliminar: ' + (e.message || e));
+    }
+  },
 });
 
 // ── ESTADO ────────────────────────────────────────────────────────────
@@ -330,7 +376,10 @@ function renderDetalle(){
         </svg>
       </button>
       <span class="hdr-title">${c.nombre}</span>
-      <div class="hdr-right"></div>
+      <div class="hdr-right">
+        ${esAdminUsr() ? `<button onclick="window.eliminarCliente()" title="Eliminar cliente"
+          style="background:none;border:none;color:var(--red-tx,#A8392B);font-size:20px;cursor:pointer;padding:4px 8px;font-family:inherit">🗑</button>` : ''}
+      </div>
     </div>`;
   el.appendChild(hdr);
 
