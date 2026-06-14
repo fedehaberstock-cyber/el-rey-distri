@@ -98,16 +98,18 @@ if (!tienePermiso('zonas', 'editar') && !tienePermiso('clientes', 'editar')) {
   location.href = './login_home.html';
 }
 
-let zonas = [];      // {id, nombre, orden, activa}
+const DIAS = ['—','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+let zonas = [];      // {id, nombre, orden, activa, dia_semana}
 let panelId = null;  // null=cerrado, 'nuevo' o uuid
-let form = { nombre: '', activa: true };
+let form = { nombre: '', activa: true, dia_semana: null };
 let errMsg = '';
 let saving = false;
 
 async function cargar() {
   const { data, error } = await supabase
     .from('zonas')
-    .select('id, nombre, orden, activa')
+    .select('id, nombre, orden, activa, dia_semana')
     .eq('empresa_id', usuario.empresa_id)
     .order('orden', { ascending: true });
   if (error) {
@@ -151,7 +153,7 @@ function renderList() {
       <div class="zona-orden">${i + 1}</div>
       <div class="zona-info">
         <div class="nm">${z.nombre}</div>
-        <div class="sub">Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
+        <div class="sub">${z.dia_semana ? '📅 ' + DIAS[z.dia_semana] + ' · ' : ''}Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
       </div>
       <div class="ord-btns">
         <button onclick="window._mover('${z.id}', -1)" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button>
@@ -174,6 +176,12 @@ function renderPanel(el) {
       <label class="fl">Nombre</label>
       <input class="field" type="text" value="${form.nombre}"
         placeholder="Ej: Centro" oninput="window._setForm('nombre', this.value)">
+
+      <label class="fl">Día de visita</label>
+      <select class="field" onchange="window._setForm('dia_semana', this.value ? +this.value : null)">
+        <option value="" ${!form.dia_semana ? 'selected' : ''}>— sin asignar —</option>
+        ${[1,2,3,4,5,6,7].map(d => `<option value="${d}" ${form.dia_semana===d?'selected':''}>${DIAS[d]}</option>`).join('')}
+      </select>
 
       ${!esNuevo ? `
         <label class="fl">Estado</label>
@@ -206,10 +214,11 @@ async function guardar() {
       nombre: form.nombre.trim(),
       orden: maxOrden + 1,
       activa: true,
+      dia_semana: form.dia_semana,
     }));
   } else {
     ({ error } = await supabase.from('zonas')
-      .update({ nombre: form.nombre.trim(), activa: form.activa })
+      .update({ nombre: form.nombre.trim(), activa: form.activa, dia_semana: form.dia_semana })
       .eq('id', panelId));
   }
   saving = false;
@@ -235,10 +244,10 @@ async function mover(id, delta) {
   if (r1.error || r2.error) { alert('Error al reordenar'); await cargar(); }
 }
 
-window._nuevo  = () => { form = { nombre: '', activa: true }; errMsg = ''; panelId = 'nuevo'; render(); };
+window._nuevo  = () => { form = { nombre: '', activa: true, dia_semana: null }; errMsg = ''; panelId = 'nuevo'; render(); };
 window._editar = id => {
   const z = zonas.find(x => x.id === id); if (!z) return;
-  form = { nombre: z.nombre, activa: z.activa }; errMsg = ''; panelId = id; render();
+  form = { nombre: z.nombre, activa: z.activa, dia_semana: z.dia_semana }; errMsg = ''; panelId = id; render();
 };
 window._cerrar  = () => { panelId = null; render(); };
 window._setForm = (k, v) => { form[k] = v; };

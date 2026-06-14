@@ -119,6 +119,29 @@
   .ghost{width:100%;padding:15px;border:1px solid var(--line);border-radius:14px;
     background:var(--card);font-size:16px;font-weight:600;color:var(--ink);cursor:pointer}
 
+  /* LISTA DEL DÍA */
+  .hoy-box{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;margin-bottom:12px}
+  .hoy-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .hoy-hdr .ti{font-size:13px;font-weight:700;color:var(--gold-dk);
+    letter-spacing:.05em;text-transform:uppercase}
+  .hoy-hdr .ct{font-size:12px;color:var(--ink-soft)}
+  .hoy-row{display:flex;align-items:center;gap:8px;padding:8px 0;
+    border-top:1px solid var(--line-soft)}
+  .hoy-row:first-of-type{border-top:none}
+  .hoy-row.done{opacity:.55}
+  .hoy-row .nm{flex:1;font-size:14px;font-weight:600}
+  .hoy-row .meta{font-size:11px;color:var(--ink-soft);margin-top:2px;font-weight:500}
+  .hoy-row .meta.deb{color:var(--red-tx)}
+  .hoy-row .b-ped,.hoy-row .b-sin{border:none;padding:8px 10px;border-radius:8px;
+    font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .hoy-row .b-ped{background:var(--gold);color:#fff}
+  .hoy-row .b-sin{background:var(--card);border:1px solid var(--line);color:var(--ink-soft)}
+  .hoy-row .b-ped:active{background:var(--gold-dk)}
+  .hoy-row .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px}
+  .hoy-row .badge.ped{background:var(--green-bg);color:var(--green-tx)}
+  .hoy-row .badge.sin{background:var(--line-soft);color:var(--ink-soft)}
+
   @media(prefers-reduced-motion:no-preference){
     .item,.results{animation:fade .18s ease}
     @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -140,8 +163,19 @@ import { initSync, pushOp, mountStatusBadge } from './src/sync.js'
 const ROLES = { admin:'admin', preventista:'preventista', deposito:'depósito' };
 
 // Datos desde Supabase
-let clientes = [];   // {id, nombre, saldo}  saldo>0 = debe, saldo<0 = a favor
+let clientes = [];   // {id, nombre, saldo, zona_id}  saldo>0 = debe, saldo<0 = a favor
 let productos = []; // {id, nombre, precio, u_bulto, desc_bulto}
+let zonas = [];     // {id, nombre, dia_semana}
+let visitasHoy = {};// { cliente_id: 'pedido' | 'sin_pedido' }
+const DIAS_NOMBRE = ['—','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+function _dowCordoba(){
+  // 1=Lunes ... 7=Domingo en zona Córdoba
+  const wd = new Intl.DateTimeFormat('en-US',{timeZone:'America/Argentina/Cordoba',weekday:'short'}).format(new Date());
+  return ({Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:7})[wd] || 1;
+}
+function _hoyArg(){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date());
+}
 
 // orden: { productoId, cant, disc, esBulto, uPorBulto }
 let clienteId = '';
@@ -182,6 +216,23 @@ Object.assign(window, {
   },
   setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
   setFechaReparto: v => { fechaReparto = v; },
+  registrarSinPedidoFor: async (cid) => {
+    if (!cid) return;
+    const motivo = prompt('Motivo (opcional): ej. no tenía, ya compró, ausente, debe saldo');
+    if (motivo === null) return;
+    try {
+      const usr = getUsuario && getUsuario();
+      const { error } = await supabase.from('visitas_clientes').insert({
+        empresa_id: usr?.empresa_id, usuario_id: usr?.id,
+        cliente_id: cid,
+        resultado: 'sin_pedido',
+        motivo: (motivo || '').trim() || null,
+      });
+      if (error) { alert('Error: ' + error.message); return; }
+      visitasHoy[cid] = 'sin_pedido';
+      render();
+    } catch(e) { alert('Error: ' + e.message); }
+  },
   registrarSinPedido: async () => {
     if (!clienteId) return;
     const motivo = prompt('Motivo (opcional): ej. no tenía, ya compró, ausente, debe saldo');
@@ -214,9 +265,11 @@ async function cargarTodo(){
   if (!navigator.onLine) {
     return cargarDesdeLocal();
   }
-  const [cliResp, salResp, prodResp, stkResp] = await Promise.all([
+  const usr = getUsuario && getUsuario();
+  const hoy = _hoyArg();
+  const [cliResp, salResp, prodResp, stkResp, zonResp, visResp] = await Promise.all([
     supabase.from('clientes')
-      .select('id, nombre')
+      .select('id, nombre, zona_id')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
@@ -225,6 +278,12 @@ async function cargarTodo(){
       .eq('activo', true)
       .order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
+    supabase.from('zonas').select('id, nombre, dia_semana').eq('activa', true),
+    usr?.id
+      ? supabase.from('visitas_clientes')
+          .select('cliente_id, resultado')
+          .eq('usuario_id', usr.id).eq('fecha', hoy)
+      : Promise.resolve({ data: [] }),
   ]);
   // si la red falló en el intento, caer a local silenciosamente
   if (cliResp.error || salResp.error || prodResp.error) {
@@ -242,6 +301,12 @@ async function cargarTodo(){
     desc_bulto: Number(p.desc_bulto) || 0,
     stock: stockMap[p.id] ?? null,
   }));
+  zonas = (zonResp?.data || []);
+  visitasHoy = {};
+  for (const v of (visResp?.data || [])) {
+    // 'pedido' gana sobre 'sin_pedido' si hay ambos
+    if (visitasHoy[v.cliente_id] !== 'pedido') visitasHoy[v.cliente_id] = v.resultado;
+  }
 }
 
 async function cargarDesdeLocal(){
@@ -433,6 +498,7 @@ function render(){
           ⊘ Registrar visita sin pedido
         </button>
       ` : `
+        ${renderListaDelDia()}
         <input class="field" placeholder="Buscar cliente por nombre…" value="${busquedaCli}"
           oninput="window.setBusquedaCli(this.value)" autocomplete="off">
         <div id="res-cli"></div>
@@ -471,6 +537,38 @@ function render(){
 
   const badgeEl = document.getElementById('sync-badge-ped');
   if (badgeEl) mountStatusBadge(badgeEl);
+}
+
+function renderListaDelDia(){
+  const dow = _dowCordoba();
+  const zonasHoy = zonas.filter(z => z.dia_semana === dow);
+  if (!zonasHoy.length) return '';
+  const ids = new Set(zonasHoy.map(z => z.id));
+  const lista = clientes.filter(c => ids.has(c.zona_id));
+  if (!lista.length) return '';
+  const pend = lista.filter(c => !visitasHoy[c.id]).length;
+  const totalHechos = lista.length - pend;
+  return `
+    <div class="hoy-box">
+      <div class="hoy-hdr">
+        <div class="ti">📍 Hoy · ${DIAS_NOMBRE[dow]}</div>
+        <div class="ct">${totalHechos}/${lista.length} visitados</div>
+      </div>
+      ${lista.map(c => {
+        const v = visitasHoy[c.id];
+        const debe = c.saldo > 0;
+        return `<div class="hoy-row ${v?'done':''}">
+          <div style="flex:1;min-width:0">
+            <div class="nm">${c.nombre}</div>
+            ${debe ? `<div class="meta deb">Debe ${ars(c.saldo)}</div>` : ''}
+          </div>
+          ${v === 'pedido' ? '<span class="badge ped">✓ Pedido</span>'
+            : v === 'sin_pedido' ? '<span class="badge sin">⊘ Sin pedido</span>'
+            : `<button class="b-sin" onclick="window.registrarSinPedidoFor('${c.id}')">⊘</button>
+               <button class="b-ped" onclick="window.setCliente('${c.id}')">Pedido →</button>`}
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function renderCliResults(){
