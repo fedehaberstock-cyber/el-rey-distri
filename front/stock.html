@@ -75,6 +75,10 @@
   .stock-badge.zero{background:var(--red-bg);  color:var(--red-tx)}
   .stock-badge.bajo{background:var(--amber-bg);color:var(--amber-tx)}
   .stock-badge.ok  {background:transparent;    color:var(--ink);border:1px solid var(--line)}
+  .margin-tag{font-size:12px;font-weight:700;padding:1px 7px;border-radius:6px;white-space:nowrap}
+  .margin-tag.red{background:var(--red-bg);color:var(--red-tx)}
+  .margin-tag.amber{background:var(--amber-bg);color:var(--amber-tx)}
+  .margin-tag.ok{background:var(--green-bg);color:var(--green-tx)}
   .prod-card .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px}
   .meta-tag{font-size:12px;color:var(--ink-soft);font-weight:500}
   .meta-tag b{color:var(--ink);font-weight:600}
@@ -189,8 +193,21 @@ if (!tienePermiso('stock') && !tienePermiso('reportes_stock')) { location.href =
 
 const puedeAjustar = tienePermiso('stock', 'editar');
 
+// Tabs visibles — "Capital" (info financiera) solo para quien administra stock
+const TABS = [['stock','Stock'],['sin_ingreso','Sin ingreso'],['precio','Precios'],['resumen','Resumen']];
+if (puedeAjustar) TABS.push(['capital','Capital']);
+
 // ── HELPERS ────────────────────────────────────────────────────────────────
 const ars     = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+// formato compacto para cifras grandes (hero de Capital): $52,1M / $12k
+const arsC    = n => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return '$' + (n/1e6).toFixed(1).replace('.',',') + 'M';
+  if (a >= 1e4) return '$' + Math.round(n/1e3) + 'k';
+  return ars(n);
+};
+const margenPct  = p => p.precio > 0 ? (p.precio - p.costo) / p.precio * 100 : 0;
+const claseMargen = m => m < 20 ? 'red' : m < 25 ? 'amber' : 'ok';
 const HOY     = new Date();
 const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 9999;
 const claseStock  = n => n < 0 ? 'neg' : n === 0 ? 'zero' : n <= 5 ? 'bajo' : 'ok';
@@ -219,6 +236,7 @@ async function cargarTodo() {
     { data: stocks },
     { data: ingresoItems },
     { data: provs },
+    { data: velocidades },
   ] = await Promise.all([
     supabase.from('productos')
       .select('id, nombre, categoria, costo, precio, updated_at, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
@@ -226,8 +244,12 @@ async function cargarTodo() {
     supabase.from('stock_actual').select('producto_id, stock'),
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
     supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('velocidad_venta').select('producto_id, unidades_por_dia'),
   ]);
   proveedores = provs || [];
+
+  const velMap = {};
+  for (const v of (velocidades || [])) velMap[v.producto_id] = Number(v.unidades_por_dia) || 0;
 
   if (errP) {
     document.getElementById('root').innerHTML =
@@ -256,6 +278,7 @@ async function cargarTodo() {
     u_bulto: p.u_bulto || 1,
     desc_bulto: p.desc_bulto || 0,
     stock: stockMap[p.id] ?? 0,
+    velocidad: velMap[p.id] || 0,
     ultimo_ingreso: ingresoMap[p.id] || null,
     ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
   }));
@@ -326,14 +349,15 @@ function render() {
         onclick="location.href='./login_home.html'">Inicio ›</button>
     </div>
     <div class="main-tabs">
-      ${[['stock','Stock'],['sin_ingreso','Sin ingreso'],['precio','Precios'],['resumen','Resumen']].map(([id,lbl]) =>
+      ${TABS.map(([id,lbl]) =>
         `<div class="main-tab ${tab===id?'active':''}" onclick="window._setTab('${id}')">${lbl}</div>`
       ).join('')}
     </div>`;
 
-  if (tab === 'stock')           renderTabStock(el);
+  if (tab === 'stock')            renderTabStock(el);
   else if (tab === 'sin_ingreso') renderTabSinIngreso(el);
   else if (tab === 'precio')      renderTabPrecio(el);
+  else if (tab === 'capital')     renderTabCapital(el);
   else                            renderTabResumen(el);
 
   if (panelOpen) renderPanel();
@@ -391,6 +415,8 @@ function renderStockList() {
         <span class="meta-tag">${p.prov}</span>
         <span class="meta-tag">·</span>
         <span class="meta-tag">Costo <b>${ars(p.costo)}</b></span>
+        ${puedeAjustar ? `<span class="meta-tag">·</span>
+        <span class="margin-tag ${claseMargen(margenPct(p))}">${margenPct(p).toFixed(0)}% mg</span>` : ''}
       </div>
       ${alertaI ? `<div class="alert-row ${diI>60?'critical':'warn'}">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
@@ -427,6 +453,7 @@ function renderDetalle() {
         <div class="row">Categoría: <b>${p.cat}</b></div>
         <div class="row">Proveedor: <b>${p.prov}</b></div>
         <div class="row">Costo: <b>${ars(p.costo)}</b> · Precio: <b>${ars(p.precio)}</b></div>
+        ${puedeAjustar ? `<div class="row">Margen: <b style="color:${margenPct(p)<20?'var(--red-tx)':margenPct(p)<25?'var(--amber-tx)':'var(--green-tx)'}">${margenPct(p).toFixed(0)}%</b> · Valor en stock: <b>${ars(p.stock*p.costo)}</b></div>` : ''}
         <div class="row">Último ingreso: <b>${fmtFecha(p.ultimo_ingreso)}</b></div>
       </div>
       <div class="sec-lbl">Movimientos recientes</div>
@@ -626,6 +653,104 @@ function renderTabPrecio(el) {
       }).join('')}
     </div>`;
   window._gruposCache = gs;
+}
+
+// ── TAB CAPITAL (solo admin) ───────────────────────────────────────────────
+function renderTabCapital(el) {
+  if (!puedeAjustar) { renderTabResumen(el); return; }
+
+  const conStock  = productos.filter(p => p.stock > 0);
+  const valCosto  = conStock.reduce((s,p) => s + p.stock*p.costo, 0);
+  const valPrecio = conStock.reduce((s,p) => s + p.stock*p.precio, 0);
+  const ganancia  = valPrecio - valCosto;
+  const margenGlobal = valPrecio > 0 ? ganancia/valPrecio*100 : 0;
+
+  // Rentabilidad
+  const perdida    = productos.filter(p => p.precio > 0 && p.precio <= p.costo);
+  const bajoMargen = productos.filter(p => p.precio > 0 && margenPct(p) > 0 && margenPct(p) < 20)
+                              .sort((a,b) => margenPct(a) - margenPct(b));
+
+  // ABC — productos ordenados por capital inmovilizado
+  const ranked = [...conStock].sort((a,b) => b.stock*b.costo - a.stock*a.costo);
+  let acum = 0, nA = 0;
+  for (const p of ranked) { acum += p.stock*p.costo; nA++; if (acum >= valCosto*0.8) break; }
+  const maxCap = ranked[0] ? ranked[0].stock*ranked[0].costo : 1;
+
+  // Capital por categoría
+  const catMap = {};
+  for (const p of conStock) catMap[p.cat] = (catMap[p.cat]||0) + p.stock*p.costo;
+  const cats = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
+  const maxCat = cats[0] ? cats[0][1] : 1;
+
+  // Capital inactivo (rotación) — depende de ventas registradas
+  const hayVentas  = productos.some(p => p.velocidad > 0);
+  const inactivo   = conStock.filter(p => (p.velocidad||0) === 0)
+                             .sort((a,b) => b.stock*b.costo - a.stock*a.costo);
+  const capInactivo = inactivo.reduce((s,p) => s + p.stock*p.costo, 0);
+
+  el.innerHTML += `
+    <div class="summary">
+      <div class="sum-card"><div class="num">${arsC(valCosto)}</div><div class="lbl">Capital a costo</div></div>
+      <div class="sum-card"><div class="num">${arsC(valPrecio)}</div><div class="lbl">Venta potencial</div></div>
+      <div class="sum-card"><div class="num" style="color:var(--green-tx)">${arsC(ganancia)}</div><div class="lbl">Ganancia potencial</div></div>
+      <div class="sum-card"><div class="num">${margenGlobal.toFixed(0)}%</div><div class="lbl">Margen global</div></div>
+    </div>
+
+    <div class="section-lbl">Rentabilidad</div>
+    <div class="summary" style="padding-top:0">
+      <div class="sum-card"><div class="num ${perdida.length?'red':''}">${perdida.length}</div><div class="lbl">A pérdida (precio ≤ costo)</div></div>
+      <div class="sum-card"><div class="num ${bajoMargen.length?'amber':''}">${bajoMargen.length}</div><div class="lbl">Margen bajo (&lt; 20%)</div></div>
+    </div>
+    ${bajoMargen.length ? `<div class="list" style="padding-top:8px">
+      ${bajoMargen.slice(0,8).map(p => `<div class="rank-item">
+        <div class="top"><span class="nm">${p.nombre}</span>
+          <span class="margin-tag ${claseMargen(margenPct(p))}">${margenPct(p).toFixed(0)}%</span></div>
+        <div style="margin-top:5px;font-size:12px;color:var(--ink-soft)">${p.prov} · costo ${ars(p.costo)} · precio ${ars(p.precio)}</div>
+      </div>`).join('')}
+    </div>` : ''}
+
+    <div class="section-lbl">Concentración de capital (ABC)</div>
+    <div style="padding:0 18px 8px;font-size:13px;color:var(--ink-soft)">
+      <b style="color:var(--ink)">${nA} productos</b> (${Math.round(nA/(ranked.length||1)*100)}% del surtido) concentran el <b style="color:var(--ink)">80%</b> del capital.
+    </div>
+    <div class="list" style="padding-top:0">
+      ${ranked.slice(0,10).map(p => {
+        const v = p.stock*p.costo;
+        return `<div class="rank-item">
+          <div class="top"><span class="nm">${p.nombre}</span><span class="val">${ars(v)}</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxCap*100)}%"></div></div>
+          <div style="margin-top:5px;font-size:12px;color:var(--ink-soft)">${p.stock} u · ${p.cat} · ${(v/valCosto*100).toFixed(1)}% del capital</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="section-lbl">Capital por categoría</div>
+    <div class="list" style="padding-top:0">
+      ${cats.map(([c,v]) => `<div class="rank-item">
+        <div class="top"><span class="nm">${c}</span><span class="val">${ars(v)} · ${(v/valCosto*100).toFixed(0)}%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxCat*100)}%"></div></div>
+      </div>`).join('')}
+    </div>
+
+    <div class="section-lbl">Capital inactivo (sin rotación)</div>
+    ${hayVentas ? `
+      <div style="padding:0 18px 8px;font-size:13px;color:var(--ink-soft)">
+        <b style="color:var(--red-tx)">${ars(capInactivo)}</b> parados en ${inactivo.length} producto${inactivo.length===1?'':'s'} con stock que no registran venta (últimas 4 sem).
+      </div>
+      <div class="list" style="padding-top:0;padding-bottom:30px">
+        ${inactivo.slice(0,10).map(p => {
+          const v = p.stock*p.costo;
+          return `<div class="rank-item">
+            <div class="top"><span class="nm">${p.nombre}</span><span class="val" style="color:var(--red-tx)">${ars(v)}</span></div>
+            <div style="margin-top:5px;font-size:12px;color:var(--ink-soft)">${p.stock} u sin mover · ${p.cat} · ${p.prov}</div>
+          </div>`;
+        }).join('')}
+      </div>`
+    : `<div style="padding:4px 18px 40px;font-size:13px;color:var(--ink-soft);line-height:1.6">
+        Se activa cuando haya ventas registradas. Va a mostrar la plata parada en
+        productos con stock que no rotan — lo primero a ofertar o liquidar.
+      </div>`}
+  `;
 }
 
 // ── TAB RESUMEN ────────────────────────────────────────────────────────────
