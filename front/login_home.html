@@ -312,12 +312,9 @@ async function renderHomeAdmin(){
     tile('pedidos', `<div class="action-card" onclick="location.href='./pedido_preventista.html'">
       <div class="icon">📋</div><div class="ac-title">Nuevo pedido</div>
       <div class="ac-desc">Cargar pedido a un cliente</div></div>`),
-    tile('stock', `<div class="action-card" onclick="location.href='./ingreso_boleta.html'">
-      <div class="icon">📦</div><div class="ac-title">Ingresos</div>
-      <div class="ac-desc">Cargar boleta de proveedor</div></div>`),
-    tile('catalogo', `<div class="action-card" onclick="location.href='./compras.html'">
-      <div class="icon">🛒</div><div class="ac-title">Compras${window._compraBadge ? ` <span style="background:var(--red-tx);color:#fff;padding:1px 7px;border-radius:999px;font-size:11px;margin-left:4px">${window._compraBadge}</span>` : ''}</div>
-      <div class="ac-desc">Sugerencia por proveedor</div></div>`),
+    (tienePermiso('catalogo') && window._compraBadge) ? `<div class="action-card amber" onclick="location.href='./compras.html'">
+      <div class="icon">🛒</div><div class="ac-title">Compras <span style="background:var(--red-tx);color:#fff;padding:1px 7px;border-radius:999px;font-size:11px;margin-left:4px">${window._compraBadge}</span></div>
+      <div class="ac-desc">Productos para reponer</div></div>` : '',
     tile('clientes', `<div class="action-card" onclick="location.href='./clientes.html'">
       <div class="icon">👥</div><div class="ac-title">Clientes</div>
       <div class="ac-desc">Ver y gestionar clientes</div></div>`),
@@ -354,18 +351,9 @@ async function renderHomeAdmin(){
     tile('zonas', `<div class="action-card" onclick="location.href='./zonas.html'">
       <div class="icon">🗺️</div><div class="ac-title">Zonas</div>
       <div class="ac-desc">Orden de reparto</div></div>`),
-    tile('catalogo', `<div class="action-card" onclick="location.href='./catalogo.html'">
-      <div class="icon">🗂️</div><div class="ac-title">Productos</div>
-      <div class="ac-desc">Catálogo completo</div></div>`),
-    tile('catalogo', `<div class="action-card" onclick="location.href='./markups.html'">
-      <div class="icon">📊</div><div class="ac-title">Markups</div>
-      <div class="ac-desc">Margen objetivo por producto</div></div>`),
-    tile('catalogo', `<div class="action-card" onclick="location.href='./ajustar_precios.html'">
-      <div class="icon">📈</div><div class="ac-title">Ajuste de precios</div>
-      <div class="ac-desc">Masivo por inflación</div></div>`),
-    tile('catalogo', `<div class="action-card" onclick="location.href='./subcategorias.html'">
-      <div class="icon">🏷️</div><div class="ac-title">Subcategorías</div>
-      <div class="ac-desc">Agrupar por laboratorio/marca</div></div>`),
+    tile('catalogo', `<div class="action-card" onclick="location.href='./catalogo_hub.html'">
+      <div class="icon">🗂️</div><div class="ac-title">Catálogo y precios</div>
+      <div class="ac-desc">Productos, markups, ajustes</div></div>`),
     tile('usuarios_permisos', `<div class="action-card" onclick="location.href='./permisos.html'">
       <div class="icon">🔐</div><div class="ac-title">Permisos</div>
       <div class="ac-desc">Accesos del equipo</div></div>`),
@@ -379,17 +367,13 @@ async function renderHomeAdmin(){
 }
 
 // ── HOME PREVENTISTA ───────────────────────────────────────────────────
-function renderHomePreventista(){
+async function renderHomePreventista(){
   const box = document.getElementById('home-content');
   const u = usuarioActual;
-  box.innerHTML = `
-    <div class="sec-title">Mis ventas de hoy</div>
-    <div class="quick-stats">
-      <div class="qs"><div class="num gold">$138k</div><div class="lbl">Vendido</div></div>
-      <div class="qs"><div class="num">4</div><div class="lbl">Pedidos</div></div>
-      <div class="qs"><div class="num">$34k</div><div class="lbl">Ticket prom.</div></div>
-    </div>
+  const arsP = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+  const horaArg = f => new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Cordoba',hour:'2-digit',minute:'2-digit'}).format(new Date(f));
 
+  const acciones = `
     <div class="sec-title">Acciones</div>
     <div class="grid">
       <div class="action-card accent" onclick="location.href='./pedido_preventista.html'">
@@ -407,23 +391,58 @@ function renderHomePreventista(){
         <div class="ac-title">Mis pedidos del día</div>
         <div class="ac-desc">Lo que cargué hoy</div>
       </div>
-    </div>
+      <div class="action-card" onclick="location.href='./mis_numeros.html'">
+        <div class="icon">⭐</div>
+        <div class="ac-title">Mis números</div>
+        <div class="ac-desc">Ventas, ticket y conversión</div>
+      </div>
+    </div>`;
 
+  // skeleton inicial mientras carga
+  box.innerHTML = `
+    <div class="sec-title">Mis ventas de hoy</div>
+    <div class="quick-stats">
+      <div class="qs"><div class="num gold">…</div><div class="lbl">Vendido</div></div>
+      <div class="qs"><div class="num">…</div><div class="lbl">Pedidos</div></div>
+      <div class="qs"><div class="num">…</div><div class="lbl">Ticket prom.</div></div>
+    </div>
+    ${acciones}`;
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  const { data: peds } = await supabase.from('pedidos')
+    .select('id, fecha, clientes(nombre), pedido_items(cantidad, precio_unit, descuento)')
+    .eq('empresa_id', u.empresa_id)
+    .eq('usuario_id', u.id)
+    .in('estado', ['confirmado', 'entregado'])
+    .gte('fecha', hoy + 'T00:00:00').lte('fecha', hoy + 'T23:59:59')
+    .order('fecha', { ascending: false });
+
+  const pedidos = peds || [];
+  const montoPed = p => (p.pedido_items || []).reduce((s, it) =>
+    s + it.cantidad * it.precio_unit * (1 - (it.descuento||0)/100), 0);
+  const total  = pedidos.reduce((s, p) => s + montoPed(p), 0);
+  const ticket = pedidos.length ? total / pedidos.length : 0;
+
+  box.innerHTML = `
+    <div class="sec-title">Mis ventas de hoy</div>
+    <div class="quick-stats">
+      <div class="qs"><div class="num gold">${arsP(total)}</div><div class="lbl">Vendido</div></div>
+      <div class="qs"><div class="num">${pedidos.length}</div><div class="lbl">Pedidos</div></div>
+      <div class="qs"><div class="num">${arsP(ticket)}</div><div class="lbl">Ticket prom.</div></div>
+    </div>
+    ${acciones}
     <div class="sec-title">Mis pedidos de hoy</div>
     <div class="grid single">
-      ${[
-        {cli:'Kiosco La Esquina',   monto:'$67.500', hora:'09:12'},
-        {cli:'Almacén Doña Rosa',   monto:'$31.200', hora:'10:45'},
-        {cli:'Despensa San Martín', monto:'$22.800', hora:'11:30'},
-        {cli:'Maxikiosco 24hs',     monto:'$16.400', hora:'14:10'},
-      ].map(p=>`
+      ${pedidos.length ? pedidos.map(p=>`
         <div class="action-card" style="flex-direction:row;justify-content:space-between;align-items:center;padding:14px 16px">
           <div>
-            <div class="ac-title" style="font-size:15px">${p.cli}</div>
-            <div style="font-size:12px;color:var(--ink-soft)">${p.hora}</div>
+            <div class="ac-title" style="font-size:15px">${p.clientes?.nombre || 'Cliente'}</div>
+            <div style="font-size:12px;color:var(--ink-soft)">${horaArg(p.fecha)}</div>
           </div>
-          <div style="font-size:16px;font-weight:700;color:var(--gold)">${p.monto}</div>
-        </div>`).join('')}
+          <div style="font-size:16px;font-weight:700;color:var(--gold)">${arsP(montoPed(p))}</div>
+        </div>`).join('')
+      : `<div class="action-card" style="text-align:center;color:var(--ink-soft);font-size:14px">
+          Todavía no cargaste pedidos hoy.</div>`}
     </div>`;
 }
 

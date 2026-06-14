@@ -390,7 +390,7 @@ function renderTabStock(el) {
   if (puedeAjustar) {
     const bar = document.createElement('div');
     bar.className = 'bar';
-    bar.innerHTML = `<button class="bar-btn" onclick="window._abrirPanel('ingreso',null)">Registrar ingreso</button>`;
+    bar.innerHTML = `<button class="bar-btn" onclick="location.href='./ingreso_boleta.html'">Registrar ingreso</button>`;
     el.appendChild(bar);
   }
 }
@@ -475,9 +475,8 @@ function renderDetalle() {
     const bar = document.createElement('div');
     bar.className = 'bar';
     bar.innerHTML = `<div class="bar-2">
-      <button class="ghost" onclick="window._editarProducto('${p.id}')">✏ Editar producto</button>
-      <button class="ghost" onclick="window._abrirPanel('ajuste','${p.id}')">Ajuste</button>
-      <button class="bar-btn" onclick="window._abrirPanel('ingreso','${p.id}')">Registrar ingreso</button>
+      <button class="ghost" onclick="window._editarProducto('${p.id}')">✏ Editar</button>
+      <button class="bar-btn" onclick="window._abrirPanel('ajuste','${p.id}')">Ajuste de stock</button>
     </div>`;
     el.appendChild(bar);
   }
