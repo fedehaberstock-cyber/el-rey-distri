@@ -183,16 +183,16 @@ function render() {
         </div>
         <div>
           <div class="lbl">Subcategoría a asignar</div>
-          <input class="field" list="subs-existentes" placeholder="Ej: Bayer"
+          <input id="subnueva" class="field" list="subs-existentes" placeholder="Ej: Bayer"
             value="${subcategoriaNueva}" oninput="window._setSubNueva(this.value)">
           <datalist id="subs-existentes">
             ${subcategoriasExistentes.map(s => `<option value="${s}">`).join('')}
           </datalist>
         </div>
       </div>
-      <input class="search" placeholder="Buscar producto en ${categoriaSel}…" value="${busqueda}"
+      <input id="buscador" class="search" placeholder="Buscar producto en ${categoriaSel}…" value="${busqueda}"
         oninput="window._setBusq(this.value)">
-      <div class="lbl" style="margin-bottom:6px">
+      <div id="contador" class="lbl" style="margin-bottom:6px">
         ${lista.length} productos en ${categoriaSel} · ${totalConSub} con subcategoría asignada
       </div>
       <table>
@@ -231,8 +231,32 @@ function render() {
 }
 
 window._setCat = v => { categoriaSel = v; seleccionados.clear(); busqueda=''; render() }
-window._setSubNueva = v => { subcategoriaNueva = v; render() }
-window._setBusq = v => { busqueda = v; render() }
+window._setSubNueva = v => {
+  subcategoriaNueva = v
+  // sin re-render: solo actualizar el botón aplicar (preserva foco del input)
+  const btn = document.querySelector('.bar .btn-gold')
+  if (btn) btn.disabled = !(seleccionados.size && v.trim())
+}
+window._setBusq = v => {
+  busqueda = v
+  // sin re-render: filtrar filas y actualizar contador (preserva foco del input)
+  const q = v.trim().toLowerCase()
+  let visibles = 0
+  document.querySelectorAll('tbody tr').forEach(tr => {
+    const nombre = tr.children[1]?.textContent?.toLowerCase() || ''
+    const show = !q || nombre.includes(q)
+    tr.style.display = show ? '' : 'none'
+    if (show) visibles++
+  })
+  const cont = document.getElementById('contador')
+  if (cont) {
+    const totalConSub = productos.filter(p =>
+      p.categoria === categoriaSel && p.subcategoria &&
+      (!q || p.nombre.toLowerCase().includes(q))
+    ).length
+    cont.textContent = `${visibles} productos en ${categoriaSel} · ${totalConSub} con subcategoría asignada`
+  }
+}
 window._toggle = id => {
   if (seleccionados.has(id)) seleccionados.delete(id); else seleccionados.add(id)
   render()
