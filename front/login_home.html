@@ -324,7 +324,7 @@ async function renderHomeAdmin(){
     tile('pedidos', `<div class="action-card" onclick="location.href='./pedidos_dia.html'">
       <div class="icon">📝</div><div class="ac-title">Pedidos del día</div>
       <div class="ac-desc">Lo cargado hoy</div></div>`),
-    tile('pedidos', `<div class="action-card" onclick="location.href='./mis_numeros.html'">
+    tile('mis_numeros', `<div class="action-card" onclick="location.href='./mis_numeros.html'">
       <div class="icon">⭐</div><div class="ac-title">Mis números</div>
       <div class="ac-desc">Ventas, ticket y conversión</div></div>`),
   ].filter(Boolean).join('');
@@ -391,11 +391,11 @@ async function renderHomePreventista(){
         <div class="ac-title">Mis pedidos del día</div>
         <div class="ac-desc">Lo que cargué hoy</div>
       </div>
-      <div class="action-card" onclick="location.href='./mis_numeros.html'">
+      ${tienePermiso('mis_numeros') ? `<div class="action-card" onclick="location.href='./mis_numeros.html'">
         <div class="icon">⭐</div>
         <div class="ac-title">Mis números</div>
         <div class="ac-desc">Ventas, ticket y conversión</div>
-      </div>
+      </div>` : ''}
     </div>`;
 
   // skeleton inicial mientras carga

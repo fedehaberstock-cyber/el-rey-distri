@@ -85,6 +85,7 @@ import { requireSession, tienePermiso } from './src/auth.js'
 import { ars } from './src/utils.js'
 
 const { usuario } = await requireSession()
+if (!tienePermiso('mis_numeros')) { location.href = './login_home.html'; throw new Error('sin permiso') }
 
 // admin puede elegir preventista; el resto solo ve lo suyo
 const esAdmin = usuario.rol === 'admin'

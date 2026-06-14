@@ -132,9 +132,10 @@ const secciones = [
   {
     nombre: 'Operaciones',
     modulos: [
-      { id: 'pedidos',    icon: '🛒', nombre: 'Pedidos',          desc: 'Cargar y ver pedidos de clientes' },
-      { id: 'clientes',   icon: '👥', nombre: 'Clientes',         desc: 'Ver, crear y editar clientes' },
-      { id: 'hoja_ruta',  icon: '🗺️', nombre: 'Hoja de ruta',     desc: 'Generar y cerrar la hoja del día' },
+      { id: 'pedidos',     icon: '🛒', nombre: 'Pedidos',          desc: 'Cargar y ver pedidos de clientes' },
+      { id: 'clientes',    icon: '👥', nombre: 'Clientes',         desc: 'Ver, crear y editar clientes' },
+      { id: 'hoja_ruta',   icon: '🗺️', nombre: 'Hoja de ruta',     desc: 'Generar y cerrar la hoja del día' },
+      { id: 'mis_numeros', icon: '⭐', nombre: 'Mis números',      desc: 'Ventas, ticket y conversión del preventista' },
     ]
   },
   {
@@ -182,14 +183,14 @@ const NIVELES = [
 
 const DEFAULTS = {
   preventista: {
-    pedidos: 'crear', clientes: 'crear', hoja_ruta: 'vista',
+    pedidos: 'crear', clientes: 'crear', hoja_ruta: 'vista', mis_numeros: 'vista',
     stock: 'vista', ingresos: 'ninguno', boletas: 'ninguno',
     ventas_totales: 'vista', ventas_costos: 'ninguno', ventas_margenes: 'ninguno',
     deudores: 'ninguno', recaudacion: 'ninguno', reportes_stock: 'ninguno',
     configuracion: 'ninguno', usuarios_permisos: 'ninguno',
   },
   deposito: {
-    pedidos: 'vista', clientes: 'vista', hoja_ruta: 'editar',
+    pedidos: 'vista', clientes: 'vista', hoja_ruta: 'editar', mis_numeros: 'ninguno',
     stock: 'editar', ingresos: 'crear', boletas: 'editar',
     ventas_totales: 'vista', ventas_costos: 'ninguno', ventas_margenes: 'ninguno',
     deudores: 'ninguno', recaudacion: 'ninguno', reportes_stock: 'vista',
