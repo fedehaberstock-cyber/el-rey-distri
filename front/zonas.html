@@ -100,16 +100,16 @@ if (!tienePermiso('zonas', 'editar') && !tienePermiso('clientes', 'editar')) {
 
 const DIAS = ['—','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
-let zonas = [];      // {id, nombre, orden, activa, dia_semana}
+let zonas = [];      // {id, nombre, orden, activa, dias_semana:int[]}
 let panelId = null;  // null=cerrado, 'nuevo' o uuid
-let form = { nombre: '', activa: true, dia_semana: null };
+let form = { nombre: '', activa: true, dias_semana: [] };
 let errMsg = '';
 let saving = false;
 
 async function cargar() {
   const { data, error } = await supabase
     .from('zonas')
-    .select('id, nombre, orden, activa, dia_semana')
+    .select('id, nombre, orden, activa, dias_semana')
     .eq('empresa_id', usuario.empresa_id)
     .order('orden', { ascending: true });
   if (error) {
@@ -153,7 +153,7 @@ function renderList() {
       <div class="zona-orden">${i + 1}</div>
       <div class="zona-info">
         <div class="nm">${z.nombre}</div>
-        <div class="sub">${z.dia_semana ? '📅 ' + DIAS[z.dia_semana] + ' · ' : ''}Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
+        <div class="sub">${(z.dias_semana && z.dias_semana.length) ? '📅 ' + z.dias_semana.slice().sort().map(d=>DIAS[d].slice(0,3)).join('/') + ' · ' : ''}Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
       </div>
       <div class="ord-btns">
         <button onclick="window._mover('${z.id}', -1)" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button>
@@ -177,11 +177,18 @@ function renderPanel(el) {
       <input class="field" type="text" value="${form.nombre}"
         placeholder="Ej: Centro" oninput="window._setForm('nombre', this.value)">
 
-      <label class="fl">Día de visita</label>
-      <select class="field" onchange="window._setForm('dia_semana', this.value ? +this.value : null)">
-        <option value="" ${!form.dia_semana ? 'selected' : ''}>— sin asignar —</option>
-        ${[1,2,3,4,5,6,7].map(d => `<option value="${d}" ${form.dia_semana===d?'selected':''}>${DIAS[d]}</option>`).join('')}
-      </select>
+      <label class="fl">Días de visita</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${[1,2,3,4,5,6,7].map(d => `
+          <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;
+            border:1px solid var(--line);border-radius:10px;background:var(--card);
+            font-size:13px;cursor:pointer;user-select:none">
+            <input type="checkbox" value="${d}" ${form.dias_semana.includes(d)?'checked':''}
+              onchange="window._toggleDia(${d}, this.checked)"
+              style="width:16px;height:16px;accent-color:var(--gold)">
+            ${DIAS[d]}
+          </label>`).join('')}
+      </div>
 
       ${!esNuevo ? `
         <label class="fl">Estado</label>
@@ -214,11 +221,11 @@ async function guardar() {
       nombre: form.nombre.trim(),
       orden: maxOrden + 1,
       activa: true,
-      dia_semana: form.dia_semana,
+      dias_semana: form.dias_semana,
     }));
   } else {
     ({ error } = await supabase.from('zonas')
-      .update({ nombre: form.nombre.trim(), activa: form.activa, dia_semana: form.dia_semana })
+      .update({ nombre: form.nombre.trim(), activa: form.activa, dias_semana: form.dias_semana })
       .eq('id', panelId));
   }
   saving = false;
@@ -244,10 +251,15 @@ async function mover(id, delta) {
   if (r1.error || r2.error) { alert('Error al reordenar'); await cargar(); }
 }
 
-window._nuevo  = () => { form = { nombre: '', activa: true, dia_semana: null }; errMsg = ''; panelId = 'nuevo'; render(); };
+window._nuevo  = () => { form = { nombre: '', activa: true, dias_semana: [] }; errMsg = ''; panelId = 'nuevo'; render(); };
 window._editar = id => {
   const z = zonas.find(x => x.id === id); if (!z) return;
-  form = { nombre: z.nombre, activa: z.activa, dia_semana: z.dia_semana }; errMsg = ''; panelId = id; render();
+  form = { nombre: z.nombre, activa: z.activa, dias_semana: [...(z.dias_semana || [])] }; errMsg = ''; panelId = id; render();
+};
+window._toggleDia = (d, checked) => {
+  const set = new Set(form.dias_semana);
+  if (checked) set.add(d); else set.delete(d);
+  form.dias_semana = [...set].sort();
 };
 window._cerrar  = () => { panelId = null; render(); };
 window._setForm = (k, v) => { form[k] = v; };

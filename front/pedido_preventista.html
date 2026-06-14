@@ -278,7 +278,7 @@ async function cargarTodo(){
       .eq('activo', true)
       .order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
-    supabase.from('zonas').select('id, nombre, dia_semana').eq('activa', true),
+    supabase.from('zonas').select('id, nombre, dias_semana').eq('activa', true),
     usr?.id
       ? supabase.from('visitas_clientes')
           .select('cliente_id, resultado')
@@ -541,7 +541,7 @@ function render(){
 
 function renderListaDelDia(){
   const dow = _dowCordoba();
-  const zonasHoy = zonas.filter(z => z.dia_semana === dow);
+  const zonasHoy = zonas.filter(z => Array.isArray(z.dias_semana) && z.dias_semana.includes(dow));
   if (!zonasHoy.length) return '';
   const ids = new Set(zonasHoy.map(z => z.id));
   const lista = clientes.filter(c => ids.has(c.zona_id));
