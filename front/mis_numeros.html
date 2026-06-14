@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Mis números</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:520px;margin:0 auto;padding-bottom:30px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:57px;z-index:19}
+  .tab{flex:1;padding:11px 6px;text-align:center;font-size:13px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  .periodo{padding:14px 18px;border-bottom:1px solid var(--line-soft);
+    display:flex;gap:6px;align-items:center;font-size:13px}
+  .periodo button{padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:999px;
+    font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink-soft)}
+  .periodo button.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+
+  section{padding:14px 18px}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .kpi.dst{background:var(--gold-lt);border-color:var(--gold)}
+  .kpi .nro{font-size:24px;font-weight:700;color:var(--ink);line-height:1.1}
+  .kpi.dst .nro{color:var(--gold-dk)}
+  .kpi .desc{font-size:12px;color:var(--ink-soft);margin-top:4px;
+    text-transform:uppercase;letter-spacing:.04em}
+
+  .sec-title{font-size:13px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.07em;color:var(--ink-soft);margin:14px 0 8px}
+
+  .bar-row{display:flex;align-items:center;gap:10px;padding:8px 0;
+    border-bottom:1px solid var(--line-soft);font-size:14px}
+  .bar-row:last-child{border-bottom:none}
+  .bar-row .nm{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar-row .bar-wrap{flex:2;height:8px;background:var(--line-soft);border-radius:4px;overflow:hidden}
+  .bar-row .bar-fill{height:100%;background:var(--gold)}
+  .bar-row .val{flex-shrink:0;font-size:13px;font-weight:600;text-align:right;min-width:70px}
+
+  .ranking-row{display:flex;align-items:center;gap:10px;padding:10px 0;
+    border-bottom:1px solid var(--line-soft)}
+  .ranking-row .pos{width:28px;height:28px;border-radius:8px;background:var(--gold-lt);
+    color:var(--gold-dk);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .ranking-row .nm{flex:1;font-weight:600}
+  .ranking-row .val{font-weight:700}
+  .ranking-row.me{background:var(--gold-lt);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft);font-size:14px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .err{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx)}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+import { ars } from './src/utils.js'
+
+const { usuario } = await requireSession()
+
+// admin puede elegir preventista; el resto solo ve lo suyo
+const esAdmin = usuario.rol === 'admin'
+
+let periodo = 'mes'    // 'sem' | 'mes' | 'anio'
+let tab = 'kpi'        // 'kpi' | 'cats' | 'ranking'
+let usuarioId = usuario.id
+let preventistasList = []
+let pedidos = []
+let visitas = []
+let itemsPedidos = []  // pedido_items con join al producto
+let rankingMes = []    // [{usuario_id, nombre, total, pedidos}]
+let cargando = true
+
+function rangoFechas() {
+  const hoy = new Date()
+  let desde
+  if (periodo === 'sem') {
+    desde = new Date(hoy); desde.setDate(desde.getDate() - 7)
+  } else if (periodo === 'mes') {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+  } else {
+    desde = new Date(hoy.getFullYear(), 0, 1)
+  }
+  return { desde: desde.toISOString(), hasta: hoy.toISOString() }
+}
+
+async function cargar() {
+  cargando = true; render()
+  const { desde, hasta } = rangoFechas()
+
+  // preventistas (solo admin)
+  if (esAdmin && !preventistasList.length) {
+    const { data: prevs } = await supabase
+      .from('usuarios')
+      .select('id, nombre, rol')
+      .eq('empresa_id', usuario.empresa_id)
+      .in('rol', ['preventista', 'admin'])
+      .order('nombre')
+    preventistasList = prevs || []
+  }
+
+  // pedidos del usuario seleccionado en el rango
+  const { data: peds, error: e1 } = await supabase
+    .from('pedidos')
+    .select('id, fecha, cliente_id, estado, descuento, pedido_items(cantidad, precio_unit, descuento, productos(categoria))')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('usuario_id', usuarioId)
+    .gte('fecha', desde).lte('fecha', hasta)
+  if (e1) { document.getElementById('root').innerHTML = `<div class="err">${e1.message}</div>`; return }
+  pedidos = peds || []
+
+  // visitas (preventista solo ve las suyas por RLS)
+  const { data: vis, error: e2 } = await supabase
+    .from('visitas_clientes')
+    .select('id, fecha, resultado, motivo, cliente_id')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('usuario_id', usuarioId)
+    .gte('fecha', desde.split('T')[0])
+  if (e2) console.warn('visitas:', e2.message)
+  visitas = vis || []
+
+  // ranking de preventistas — solo admin lo ve completo;
+  // el preventista ve solo "tu posición de N" sin nombres
+  if (esAdmin) {
+    const { data: rank } = await supabase
+      .from('pedidos')
+      .select('usuario_id, pedido_items(cantidad, precio_unit, descuento)')
+      .eq('empresa_id', usuario.empresa_id)
+      .gte('fecha', desde).lte('fecha', hasta)
+    const map = new Map()
+    for (const p of (rank || [])) {
+      const total = (p.pedido_items || []).reduce((s, it) =>
+        s + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
+      const prev = map.get(p.usuario_id) || { total: 0, pedidos: 0 }
+      map.set(p.usuario_id, { total: prev.total + total, pedidos: prev.pedidos + 1 })
+    }
+    rankingMes = [...map.entries()].map(([uid, v]) => ({
+      usuario_id: uid,
+      nombre: preventistasList.find(u => u.id === uid)?.nombre || '?',
+      ...v,
+    })).sort((a,b) => b.total - a.total)
+  }
+
+  cargando = false; render()
+}
+
+function calcularKPIs() {
+  const totalMonto = pedidos.reduce((s, p) => {
+    const sub = (p.pedido_items || []).reduce((ss, it) =>
+      ss + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
+    return s + sub * (1 - Number(p.descuento||0)/100)
+  }, 0)
+  const cantPedidos = pedidos.length
+  const ticketProm = cantPedidos ? totalMonto / cantPedidos : 0
+  const comisionEstim = totalMonto * 0.05
+  const cantVisitasSinPedido = visitas.filter(v => v.resultado === 'sin_pedido').length
+  const totalIntentos = cantPedidos + cantVisitasSinPedido
+  const conversion = totalIntentos ? (cantPedidos / totalIntentos * 100) : null
+
+  return { totalMonto, cantPedidos, ticketProm, comisionEstim, cantVisitasSinPedido, conversion }
+}
+
+function topCategorias() {
+  const map = new Map()
+  for (const p of pedidos) {
+    for (const it of (p.pedido_items || [])) {
+      const cat = it.productos?.categoria || 'Sin categoría'
+      const monto = Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100)
+      map.set(cat, (map.get(cat) || 0) + monto)
+    }
+  }
+  return [...map.entries()]
+    .map(([cat, total]) => ({ cat, total }))
+    .sort((a,b) => b.total - a.total)
+}
+
+function render() {
+  const el = document.getElementById('root')
+  if (cargando) { el.innerHTML = `<div class="loading">Cargando…</div>`; return }
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Mis números</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    ${esAdmin && preventistasList.length ? `
+      <div style="padding:10px 18px;border-bottom:1px solid var(--line-soft);background:var(--line-soft)">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px">Ver datos de</div>
+        <select style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:14px"
+          onchange="window._setUsr(this.value)">
+          ${preventistasList.map(u => `<option value="${u.id}" ${u.id===usuarioId?'selected':''}>${u.nombre} (${u.rol})</option>`).join('')}
+        </select>
+      </div>` : ''}
+    <div class="periodo">
+      <span style="color:var(--ink-soft)">Período:</span>
+      <button class="${periodo==='sem'?'active':''}" onclick="window._setPer('sem')">Semana</button>
+      <button class="${periodo==='mes'?'active':''}" onclick="window._setPer('mes')">Mes</button>
+      <button class="${periodo==='anio'?'active':''}" onclick="window._setPer('anio')">Año</button>
+    </div>
+    <div class="tabs">
+      <div class="tab ${tab==='kpi'?'active':''}" onclick="window._setTab('kpi')">KPIs</div>
+      <div class="tab ${tab==='cats'?'active':''}" onclick="window._setTab('cats')">Categorías</div>
+      ${esAdmin ? `<div class="tab ${tab==='ranking'?'active':''}" onclick="window._setTab('ranking')">Ranking</div>` : ''}
+    </div>
+    <div id="tab-body"></div>`
+  renderBody()
+}
+
+function renderBody() {
+  const el = document.getElementById('tab-body'); if (!el) return
+  if (tab === 'kpi') {
+    const k = calcularKPIs()
+    el.innerHTML = `
+      <section>
+        <div class="kpi-grid">
+          <div class="kpi dst">
+            <div class="nro">${ars(k.totalMonto)}</div>
+            <div class="desc">Ventas del período</div>
+          </div>
+          <div class="kpi dst">
+            <div class="nro">${ars(k.comisionEstim)}</div>
+            <div class="desc">Comisión estimada (5%)</div>
+          </div>
+          <div class="kpi">
+            <div class="nro">${k.cantPedidos}</div>
+            <div class="desc">Pedidos tomados</div>
+          </div>
+          <div class="kpi">
+            <div class="nro">${ars(k.ticketProm)}</div>
+            <div class="desc">Ticket promedio</div>
+          </div>
+          ${k.conversion !== null ? `<div class="kpi">
+            <div class="nro">${k.conversion.toFixed(0)}%</div>
+            <div class="desc">% conversión</div>
+          </div>` : ''}
+          ${k.cantVisitasSinPedido ? `<div class="kpi">
+            <div class="nro">${k.cantVisitasSinPedido}</div>
+            <div class="desc">Visitas sin pedido</div>
+          </div>` : ''}
+        </div>
+        ${k.conversion === null ? `<div style="background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:10px;padding:10px;font-size:12px;color:var(--amber-tx)">
+          💡 Para ver tu % de conversión, registrá las visitas en las que no tomaste pedido desde la pantalla de tomar pedido (botón "No compró").
+        </div>` : ''}
+      </section>`
+  } else if (tab === 'cats') {
+    const cats = topCategorias().slice(0, 10)
+    if (!cats.length) { el.innerHTML = `<div class="empty">Sin ventas en el período</div>`; return }
+    const max = cats[0].total
+    el.innerHTML = `<section>
+      <div class="sec-title">Top categorías vendidas</div>
+      ${cats.map(c => `
+        <div class="bar-row">
+          <span class="nm">${c.cat}</span>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${(c.total/max*100).toFixed(0)}%"></div></div>
+          <span class="val">${ars(c.total)}</span>
+        </div>`).join('')}
+    </section>`
+  } else if (tab === 'ranking' && esAdmin) {
+    if (!rankingMes.length) { el.innerHTML = `<div class="empty">Sin datos</div>`; return }
+    el.innerHTML = `<section>
+      <div class="sec-title">Ranking del período</div>
+      ${rankingMes.map((r,i) => `
+        <div class="ranking-row ${r.usuario_id===usuarioId?'me':''}">
+          <div class="pos">${i+1}</div>
+          <div class="nm">${r.nombre}</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-right:8px">${r.pedidos} pedidos</div>
+          <div class="val">${ars(r.total)}</div>
+        </div>`).join('')}
+    </section>`
+  }
+}
+
+window._setUsr = v => { usuarioId = v; cargar() }
+window._setPer = v => { periodo = v; cargar() }
+window._setTab = v => { tab = v; renderBody() }
+
+await cargar()
+</script>
+</body>
+</html>

@@ -2,8 +2,8 @@
 // Estrategia: shell precacheado + network-first para páginas +
 //             cache-first para librerías CDN + network-only para Supabase API.
 
-const CACHE_SHELL   = 'elrey-shell-v17';
-const CACHE_CDN     = 'elrey-cdn-v17';
+const CACHE_SHELL   = 'elrey-shell-v18';
+const CACHE_CDN     = 'elrey-cdn-v18';
 const OFFLINE_PAGE  = './offline.html';
 
 const SHELL_FILES = [

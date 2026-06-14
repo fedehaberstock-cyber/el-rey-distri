@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Ajustar precios</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:720px;margin:0 auto;padding-bottom:120px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  section{padding:14px 18px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px}
+  .field{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:14px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .summary{background:var(--gold-lt);border:1px solid var(--gold);border-radius:12px;
+    padding:14px;display:flex;align-items:center;gap:14px;justify-content:space-between}
+  .summary .nro{font-size:24px;font-weight:700;color:var(--gold-dk)}
+  .summary .desc{font-size:13px;color:var(--ink)}
+
+  .btn-gold{background:var(--gold);color:#fff;border:none;padding:12px 16px;border-radius:10px;
+    font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
+  .btn-gold:active{background:var(--gold-dk)}
+  .btn-gold:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:11px 16px;
+    border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{padding:8px 6px;text-align:left;font-size:11px;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);
+    border-bottom:1px solid var(--line)}
+  tbody td{padding:7px 6px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  tbody tr.excluido{opacity:.4}
+  tbody tr.excluido td{text-decoration:line-through}
+  td.r{text-align:right}
+  td input.precio{width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;
+    text-align:right;font-family:inherit;font-size:13px;font-weight:600;background:#fff}
+  td input.precio:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .delta-up{color:var(--green-tx);font-weight:600;font-size:11px}
+  .delta-down{color:var(--red-tx);font-weight:600;font-size:11px}
+  .cb{width:18px;height:18px;accent-color:var(--gold);cursor:pointer}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft)}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;z-index:50}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar-row{display:flex;gap:10px}
+  .bar-row button{flex:1;padding:13px;border-radius:12px;font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+import { ars } from './src/utils.js'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('catalogo', 'editar')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+let productos = []     // {id, nombre, categoria, subcategoria, proveedor_id, costo, precio}
+let proveedores = []
+let categorias = []    // únicas
+let subcategorias = [] // únicas por categoría seleccionada
+let filtros = { categoria:'', subcategoria:'', proveedor_id:'' }
+let porcentaje = ''
+let preview = []       // [{prodId, precioActual, precioNuevo, excluido}]
+let aplicando = false
+
+async function cargar() {
+  const [{ data: prods, error: e1 }, { data: provs, error: e2 }] = await Promise.all([
+    supabase.from('productos')
+      .select('id, nombre, categoria, subcategoria, proveedor_id, costo, precio')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('proveedores').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ])
+  if (e1) return err(e1)
+  if (e2) return err(e2)
+  productos = (prods || []).map(p => ({
+    ...p, costo: Number(p.costo) || 0, precio: Number(p.precio) || 0
+  }))
+  proveedores = provs || []
+  categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort()
+  render()
+}
+
+function err(e) {
+  document.getElementById('root').innerHTML =
+    `<div style="margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);border-radius:12px;color:var(--red-tx)">Error: ${e.message}</div>`
+}
+
+function redondear50_00(p) {
+  if (!p || p <= 0) return 0
+  const base = Math.ceil(p)
+  const ult2 = base % 100
+  const cien = base - ult2
+  if (ult2 === 0) return base
+  if (ult2 <= 50) return cien + 50
+  return cien + 100
+}
+
+function productosFiltrados() {
+  return productos.filter(p =>
+    (!filtros.categoria    || p.categoria === filtros.categoria) &&
+    (!filtros.subcategoria || p.subcategoria === filtros.subcategoria) &&
+    (!filtros.proveedor_id || p.proveedor_id === filtros.proveedor_id)
+  )
+}
+
+function calcularPreview() {
+  const pct = parseFloat(porcentaje)
+  if (!isFinite(pct)) { alert('Ingresá un porcentaje válido'); return }
+  const lista = productosFiltrados()
+  if (!lista.length) { alert('No hay productos que coincidan con los filtros'); return }
+  preview = lista.map(p => {
+    const crudo = p.precio * (1 + pct / 100)
+    return {
+      prodId: p.id,
+      nombre: p.nombre,
+      categoria: p.categoria,
+      subcategoria: p.subcategoria || '',
+      costo: p.costo,
+      precioActual: p.precio,
+      precioNuevo: String(redondear50_00(crudo)),
+      excluido: false,
+    }
+  })
+  render()
+}
+
+async function aplicar() {
+  const aAplicar = preview.filter(r => !r.excluido)
+  if (!aAplicar.length) { alert('Sin productos para actualizar'); return }
+  if (!confirm(`Aplicar ${porcentaje}% sobre ${aAplicar.length} productos? Esta acción actualiza los precios.`)) return
+
+  aplicando = true; render()
+  const updates = aAplicar.map(r =>
+    supabase.from('productos')
+      .update({ precio: Math.round(parseFloat(r.precioNuevo) || 0) })
+      .eq('id', r.prodId)
+  )
+  const results = await Promise.all(updates)
+  const err = results.find(r => r.error)
+  aplicando = false
+
+  if (err) { alert('Error en algunos productos: ' + err.error.message); render(); return }
+
+  // log de auditoría
+  await supabase.from('ajustes_precios_log').insert({
+    empresa_id: usuario.empresa_id,
+    usuario_id: usuario.id,
+    filtros: { ...filtros, excluidos: preview.filter(r => r.excluido).map(r => r.prodId) },
+    porcentaje: parseFloat(porcentaje),
+    productos_afectados: aAplicar.length,
+  })
+
+  // refrescar productos en memoria
+  for (const r of aAplicar) {
+    const p = productos.find(x => x.id === r.prodId)
+    if (p) p.precio = Math.round(parseFloat(r.precioNuevo) || 0)
+  }
+  preview = []; porcentaje = ''
+  render()
+  toast(`✓ ${aAplicar.length} precios actualizados`)
+}
+
+function toast(msg) {
+  const t = document.createElement('div')
+  t.className = 'toast'; t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 2200)
+}
+
+function render() {
+  const el = document.getElementById('root')
+  if (filtros.categoria) {
+    subcategorias = [...new Set(
+      productos.filter(p => p.categoria === filtros.categoria && p.subcategoria)
+               .map(p => p.subcategoria)
+    )].sort()
+  } else {
+    subcategorias = []
+  }
+  const lista = productosFiltrados()
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Ajustar precios</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+
+    <section>
+      <div class="lbl">Filtros</div>
+      <div class="row3">
+        <select class="field" onchange="window._setCat(this.value)">
+          <option value="">Todas las categorías</option>
+          ${categorias.map(c => `<option value="${c}" ${filtros.categoria===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <select class="field" onchange="window._setSubCat(this.value)" ${!filtros.categoria?'disabled':''}>
+          <option value="">Todas las subcategorías</option>
+          ${subcategorias.map(s => `<option value="${s}" ${filtros.subcategoria===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <select class="field" onchange="window._setProv(this.value)">
+          <option value="">Todos los proveedores</option>
+          ${proveedores.map(p => `<option value="${p.id}" ${filtros.proveedor_id===p.id?'selected':''}>${p.nombre}</option>`).join('')}
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <div class="summary">
+        <div>
+          <div class="nro">${lista.length}</div>
+          <div class="desc">productos coinciden con los filtros</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:end">
+          <div>
+            <div class="lbl">% a aplicar</div>
+            <input class="field" id="pct" type="number" step="0.1" value="${porcentaje}"
+              placeholder="3.5" style="width:100px"
+              onchange="window._setPct(this.value)">
+          </div>
+          <button class="btn-gold" onclick="window._calcular()">Calcular preview →</button>
+        </div>
+      </div>
+    </section>
+
+    ${preview.length ? `
+    <section>
+      <div class="lbl">Vista previa — editá los precios manualmente o destildá para excluir</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px"></th>
+            <th>Producto</th>
+            <th class="r">Costo</th>
+            <th class="r">Precio actual</th>
+            <th class="r">Precio nuevo</th>
+            <th class="r">Margen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${preview.map((r,i) => {
+            const margenNuevo = r.costo > 0 ? ((parseFloat(r.precioNuevo) - r.costo) / r.costo * 100) : 0
+            const delta = parseFloat(r.precioNuevo) - r.precioActual
+            const deltaPct = r.precioActual > 0 ? (delta / r.precioActual * 100) : 0
+            return `<tr class="${r.excluido?'excluido':''}">
+              <td><input class="cb" type="checkbox" ${r.excluido?'':'checked'} onchange="window._toggleExcl(${i})"></td>
+              <td><div style="font-weight:600">${r.nombre}</div>
+                <div style="font-size:11px;color:var(--ink-soft)">${r.categoria}${r.subcategoria?` · ${r.subcategoria}`:''}</div></td>
+              <td class="r">${ars(r.costo)}</td>
+              <td class="r">${ars(r.precioActual)}</td>
+              <td class="r">
+                <input class="precio" type="number" value="${r.precioNuevo}"
+                  onchange="window._setPrecio(${i}, this.value)">
+                ${delta!==0?`<div class="${delta>=0?'delta-up':'delta-down'}">${delta>=0?'+':''}${deltaPct.toFixed(1)}%</div>`:''}
+              </td>
+              <td class="r" style="font-weight:600;${margenNuevo<20?'color:var(--red-tx)':margenNuevo<25?'color:var(--amber-tx)':'color:var(--green-tx)'}">${margenNuevo.toFixed(1)}%</td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
+    </section>
+    <div class="bar">
+      <div class="bar-row">
+        <button class="btn-ghost" onclick="window._cancelar()">Descartar preview</button>
+        <button class="btn-gold" onclick="window._aplicar()" ${aplicando?'disabled':''}>
+          ${aplicando?'Aplicando…':`Aplicar a ${preview.filter(r=>!r.excluido).length} productos`}
+        </button>
+      </div>
+    </div>` : ''}
+  `
+}
+
+window._setCat = v => { filtros.categoria = v; filtros.subcategoria=''; preview=[]; render() }
+window._setSubCat = v => { filtros.subcategoria = v; preview=[]; render() }
+window._setProv = v => { filtros.proveedor_id = v; preview=[]; render() }
+window._setPct = v => { porcentaje = v }
+window._calcular = () => calcularPreview()
+window._toggleExcl = i => { preview[i].excluido = !preview[i].excluido; render() }
+window._setPrecio = (i,v) => { preview[i].precioNuevo = v; render() }
+window._cancelar = () => { preview = []; render() }
+window._aplicar  = () => aplicar()
+
+await cargar()
+</script>
+</body>
+</html>

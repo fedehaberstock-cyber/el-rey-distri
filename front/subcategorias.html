@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Subcategorías</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:720px;margin:0 auto;padding-bottom:120px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  section{padding:14px 18px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px}
+  .help{font-size:12px;color:var(--ink-soft);line-height:1.5;margin-bottom:10px}
+  .field{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:14px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+  .row{display:flex;gap:8px;align-items:end}
+  .row > *{flex:1}
+
+  .search{width:100%;padding:11px 13px 11px 38px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-size:14px;font-family:inherit;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:11px center;margin-bottom:10px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{padding:8px 6px;text-align:left;font-size:10px;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);
+    border-bottom:1px solid var(--line)}
+  tbody td{padding:8px 6px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  .cb{width:18px;height:18px;accent-color:var(--gold);cursor:pointer}
+  .sub-actual{font-size:11px;font-weight:700;color:var(--gold-dk);
+    background:var(--gold-lt);padding:1px 7px;border-radius:999px;display:inline-block}
+
+  .btn-gold{background:var(--gold);color:#fff;border:none;padding:12px 16px;border-radius:10px;
+    font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
+  .btn-gold:active{background:var(--gold-dk)}
+  .btn-gold:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:11px 16px;
+    border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar-row{display:flex;gap:10px;align-items:center}
+  .bar-row .info{flex:1;font-size:13px;color:var(--ink-soft)}
+  .bar-row .info b{color:var(--ink)}
+  .bar-row button{padding:12px 18px;border-radius:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft)}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;z-index:50}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('catalogo', 'editar')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+let productos = []
+let categoriaSel = ''
+let subcategoriaNueva = ''
+let busqueda = ''
+let seleccionados = new Set()  // ids
+
+async function cargar() {
+  const { data, error } = await supabase
+    .from('productos')
+    .select('id, nombre, categoria, subcategoria, activo')
+    .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre')
+  if (error) {
+    document.getElementById('root').innerHTML =
+      `<div style="margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);border-radius:12px;color:var(--red-tx)">Error: ${error.message}</div>`
+    return
+  }
+  productos = data || []
+  if (!categoriaSel && productos.length) {
+    const cats = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort()
+    categoriaSel = cats[0] || ''
+  }
+  render()
+}
+
+async function aplicar() {
+  if (!subcategoriaNueva.trim()) { alert('Escribí la subcategoría a asignar'); return }
+  if (!seleccionados.size) { alert('Tildá al menos un producto'); return }
+  const ids = [...seleccionados]
+  if (!confirm(`Asignar subcategoría "${subcategoriaNueva.trim()}" a ${ids.length} productos?`)) return
+  const { error } = await supabase
+    .from('productos')
+    .update({ subcategoria: subcategoriaNueva.trim() })
+    .in('id', ids)
+  if (error) { alert('Error: ' + error.message); return }
+  // refrescar local
+  for (const p of productos) if (seleccionados.has(p.id)) p.subcategoria = subcategoriaNueva.trim()
+  seleccionados.clear()
+  subcategoriaNueva = ''
+  render()
+  toast(`✓ ${ids.length} productos asignados`)
+}
+
+async function quitarSubcat(ids) {
+  if (!confirm(`Quitar subcategoría de ${ids.length} productos?`)) return
+  const { error } = await supabase
+    .from('productos').update({ subcategoria: null }).in('id', ids)
+  if (error) { alert('Error: ' + error.message); return }
+  for (const p of productos) if (ids.includes(p.id)) p.subcategoria = null
+  seleccionados.clear()
+  render()
+  toast(`✓ Subcategoría quitada`)
+}
+
+function toast(msg) {
+  const t = document.createElement('div')
+  t.className = 'toast'; t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 2000)
+}
+
+function render() {
+  const el = document.getElementById('root')
+  const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort()
+  const subcategoriasExistentes = [...new Set(
+    productos.filter(p => p.categoria === categoriaSel && p.subcategoria)
+             .map(p => p.subcategoria)
+  )].sort()
+  const q = busqueda.trim().toLowerCase()
+  const lista = productos.filter(p =>
+    p.categoria === categoriaSel && (!q || p.nombre.toLowerCase().includes(q))
+  )
+  const totalConSub = lista.filter(p => p.subcategoria).length
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Subcategorías</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+
+    <section>
+      <div class="help">
+        Agrupá productos dentro de una categoría — por ejemplo todos los analgésicos
+        del laboratorio <b>Bayer</b>. Después podés ajustar precios o filtrar por
+        subcategoría rápido.
+      </div>
+      <div class="row" style="margin-bottom:12px">
+        <div>
+          <div class="lbl">Categoría</div>
+          <select class="field" onchange="window._setCat(this.value)">
+            ${categorias.map(c => `<option value="${c}" ${categoriaSel===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div class="lbl">Subcategoría a asignar</div>
+          <input class="field" list="subs-existentes" placeholder="Ej: Bayer"
+            value="${subcategoriaNueva}" oninput="window._setSubNueva(this.value)">
+          <datalist id="subs-existentes">
+            ${subcategoriasExistentes.map(s => `<option value="${s}">`).join('')}
+          </datalist>
+        </div>
+      </div>
+      <input class="search" placeholder="Buscar producto en ${categoriaSel}…" value="${busqueda}"
+        oninput="window._setBusq(this.value)">
+      <div class="lbl" style="margin-bottom:6px">
+        ${lista.length} productos en ${categoriaSel} · ${totalConSub} con subcategoría asignada
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px"><input class="cb" type="checkbox"
+              onchange="window._toggleAll(this.checked)"></th>
+            <th>Producto</th>
+            <th>Subcategoría actual</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lista.length ? lista.map(p => `
+            <tr>
+              <td><input class="cb" type="checkbox" ${seleccionados.has(p.id)?'checked':''}
+                onchange="window._toggle('${p.id}')"></td>
+              <td>${p.nombre}</td>
+              <td>${p.subcategoria ? `<span class="sub-actual">${p.subcategoria}</span>` : '<span style="color:var(--ink-soft);font-size:12px">—</span>'}</td>
+            </tr>`).join('')
+          : `<tr><td colspan="3" class="empty">Sin productos</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+
+    <div class="bar">
+      <div class="bar-row">
+        <div class="info"><b>${seleccionados.size}</b> seleccionados</div>
+        ${seleccionados.size ? `<button class="btn-ghost" onclick="window._quitar()">Quitar subcategoría</button>` : ''}
+        <button class="btn-gold" onclick="window._aplicar()"
+          ${seleccionados.size && subcategoriaNueva.trim() ? '' : 'disabled'}>
+          Asignar a ${seleccionados.size}
+        </button>
+      </div>
+    </div>
+  `
+}
+
+window._setCat = v => { categoriaSel = v; seleccionados.clear(); busqueda=''; render() }
+window._setSubNueva = v => { subcategoriaNueva = v; render() }
+window._setBusq = v => { busqueda = v; render() }
+window._toggle = id => {
+  if (seleccionados.has(id)) seleccionados.delete(id); else seleccionados.add(id)
+  render()
+}
+window._toggleAll = (v) => {
+  const q = busqueda.trim().toLowerCase()
+  const lista = productos.filter(p =>
+    p.categoria === categoriaSel && (!q || p.nombre.toLowerCase().includes(q))
+  )
+  for (const p of lista) { if (v) seleccionados.add(p.id); else seleccionados.delete(p.id) }
+  render()
+}
+window._aplicar = () => aplicar()
+window._quitar = () => quitarSubcat([...seleccionados])
+
+await cargar()
+</script>
+</body>
+</html>

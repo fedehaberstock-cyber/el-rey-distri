@@ -681,13 +681,13 @@ function markupPara(producto) {
 }
 
 function redondearPrecio50_90(p) {
+  // Grilla unificada 50/00 (el nombre quedó por legacy)
   if (p == null || p <= 0) return 0
   const base = Math.ceil(p)
   const ult2 = base % 100
   const cien = base - ult2
-  if (ult2 === 0)      return base
-  if (ult2 <= 50)      return cien + 50
-  if (ult2 <= 90)      return cien + 90
+  if (ult2 === 0)  return base
+  if (ult2 <= 50)  return cien + 50
   return cien + 100
 }
 
