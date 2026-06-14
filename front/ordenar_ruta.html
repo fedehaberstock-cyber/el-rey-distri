@@ -109,6 +109,7 @@ let lista = [];          // clientes de la zona sel, ordenados
 let dirty = false;       // hay cambios sin guardar
 let mostrarSinAsignar = true;
 let guardando = false;
+let busqueda = '';
 
 async function cargar() {
   const [{ data: zon, error: e1 }, { data: cli, error: e2 }] = await Promise.all([
@@ -199,13 +200,18 @@ function renderSinAsignar() {
   const sin = clientes.filter(c => !c.zona_id);
   cont.innerHTML = `
     <div class="sec-title" onclick="window._toggleSin()">
-      <span>Sin asignar</span><span class="count">${sin.length}</span>
+      <span>Sin asignar</span><span class="count" id="sin-count">${sin.length}</span>
       <span class="caret">${mostrarSinAsignar ? '▾' : '▸'}</span>
     </div>
     ${mostrarSinAsignar ? `
+      <div style="padding:0 18px 6px">
+        <input id="sin-search" class="field" placeholder="Buscar cliente por nombre…"
+          value="${busqueda}" oninput="window._setBusq(this.value)" autocomplete="off"
+          onclick="event.stopPropagation()">
+      </div>
       <div class="list">
         ${sin.length ? sin.map(c => `
-          <div class="unassigned-row">
+          <div class="unassigned-row" data-nm="${(c.nombre||'').toLowerCase()}">
             <div class="info">
               <div class="nm">${c.nombre}</div>
               <div class="sub">${c.direccion || '—'}</div>
@@ -217,6 +223,21 @@ function renderSinAsignar() {
           </div>`).join('')
         : `<div class="empty">Todos los clientes tienen zona asignada.</div>`}
       </div>` : ''}`;
+  if (busqueda) aplicarFiltroSinAsignar();
+}
+
+function aplicarFiltroSinAsignar() {
+  const q = busqueda.trim().toLowerCase();
+  let visibles = 0, total = 0;
+  document.querySelectorAll('#sin-asignar .unassigned-row').forEach(r => {
+    total++;
+    const nm = r.getAttribute('data-nm') || '';
+    const show = !q || nm.includes(q);
+    r.style.display = show ? '' : 'none';
+    if (show) visibles++;
+  });
+  const cnt = document.getElementById('sin-count');
+  if (cnt) cnt.textContent = q ? `${visibles}/${total}` : `${total}`;
 }
 
 function enableDragDrop() {
@@ -263,6 +284,7 @@ window._mover = (i, d) => {
   render();
 };
 window._toggleSin = () => { mostrarSinAsignar = !mostrarSinAsignar; renderSinAsignar(); };
+window._setBusq = (v) => { busqueda = v; aplicarFiltroSinAsignar(); };
 window._asignarZona = async (cliId, zid) => {
   if (!zid) return;
   // dejarlo al final de esa zona
