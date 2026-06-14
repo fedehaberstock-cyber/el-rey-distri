@@ -352,7 +352,7 @@ async function cargarTodo() {
   // Inicializar cierres
   pedidos.forEach(p => {
     if (!cierres[p.id]) {
-      cierres[p.id] = { noEntregado:false, motivo:'', usaEf:false, ef:'', usaTr:false, tr:'', usaCc:false, cc:'' }
+      cierres[p.id] = { noEntregado:false, anulado:false, motivo:'', usaEf:false, ef:'', usaTr:false, tr:'', usaCc:false, cc:'' }
     }
   })
 
@@ -376,7 +376,8 @@ window.cierres = cierres  // exponer para oninput inline
 
 const totalACobrar = p => p.tacobrar || (p.totalPedido + p.saldoAnt)
 const pagado  = id => { const c=cierres[id]; return (parseFloat(c.ef)||0)+(parseFloat(c.tr)||0)+(parseFloat(c.cc)||0) }
-const procesado = id => { const c=cierres[id]; return c.noEntregado||c.usaEf||c.usaTr||c.usaCc }
+const procesado = id => { const c=cierres[id]; return c.noEntregado||c.anulado||c.usaEf||c.usaTr||c.usaCc }
+const puedeAnular = tienePermiso('hoja_ruta','editar') || usuario.rol === 'admin'
 
 // ── RENDER ─────────────────────────────────────────────────────────────
 function render() {
@@ -523,8 +524,8 @@ function renderCierre(el) {
     const pg  = pagado(p.id)
     const tac = totalACobrar(p)
     const restante = Math.max(0, tac - pg)
-    const chipCl  = c.noEntregado ? 'no' : procesado(p.id) ? 'ok' : 'pend'
-    const chipTxt = c.noEntregado ? '✗ No entregado' : procesado(p.id) ? '✓ Procesado' : 'Pendiente'
+    const chipCl  = (c.anulado || c.noEntregado) ? 'no' : procesado(p.id) ? 'ok' : 'pend'
+    const chipTxt = c.anulado ? '⊘ Anulado (rechazado)' : c.noEntregado ? '✗ No entregado' : procesado(p.id) ? '✓ Procesado' : 'Pendiente'
 
     const card = document.createElement('div')
     card.className = `cierre-card ${chipCl==='ok'?'ok':chipCl==='no'?'no':''}`
@@ -556,8 +557,11 @@ function renderCierre(el) {
           <div class="op-btn ${c.usaTr?'sel':''}" onclick="activarTr('${p.id}')">
             <span class="op-icon">📲</span><span class="op-lbl">Transferencia</span>
           </div>
+          ${puedeAnular ? `<div class="op-btn ${c.anulado?'sel-red':''}" onclick="toggleAnular('${p.id}')" style="grid-column:1/-1">
+            <span class="op-icon">⊘</span><span class="op-lbl">Anular — el cliente lo rechazó (devuelve stock, sin comisión)</span>
+          </div>` : ''}
         </div>
-        ${c.noEntregado ? `<input class="motivo-input" placeholder="Motivo (opcional)"
+        ${(c.noEntregado || c.anulado) ? `<input class="motivo-input" placeholder="Motivo (opcional)"
           value="${c.motivo}" oninput="cierres['${p.id}'].motivo=this.value">` : ''}
         ${!c.noEntregado && c.usaEf ? `
           <div class="monto-row">
@@ -617,6 +621,7 @@ function actualizarResumen() {
   let ef=0, tr=0, cc=0, ne=0
   pedidos.forEach(p => {
     const c = cierres[p.id]
+    if (c.anulado) return
     if (c.noEntregado) { ne += totalACobrar(p); return }
     ef += parseFloat(c.ef) || 0
     tr += parseFloat(c.tr) || 0
@@ -636,12 +641,18 @@ function actualizarResumen() {
 function toggleNoEnt(id) {
   const c = cierres[id]
   c.noEntregado = !c.noEntregado
-  if (c.noEntregado) { c.usaEf=false; c.ef=''; c.usaTr=false; c.tr=''; c.usaCc=false; c.cc='' }
+  if (c.noEntregado) { c.anulado=false; c.usaEf=false; c.ef=''; c.usaTr=false; c.tr=''; c.usaCc=false; c.cc='' }
+  render()
+}
+function toggleAnular(id) {
+  const c = cierres[id]
+  c.anulado = !c.anulado
+  if (c.anulado) { c.noEntregado=false; c.usaEf=false; c.ef=''; c.usaTr=false; c.tr=''; c.usaCc=false; c.cc='' }
   render()
 }
 function activarEf(id) {
   const c = cierres[id]; const p = pedidos.find(x => x.id === id)
-  c.noEntregado = false
+  c.noEntregado = false; c.anulado = false
   if (c.usaEf) { c.usaEf=false; c.ef=''; render(); return }
   c.usaEf = true
   c.ef = Math.max(0, totalACobrar(p) - (parseFloat(c.tr)||0) - (parseFloat(c.cc)||0)).toString()
@@ -649,7 +660,7 @@ function activarEf(id) {
 }
 function activarTr(id) {
   const c = cierres[id]; const p = pedidos.find(x => x.id === id)
-  c.noEntregado = false
+  c.noEntregado = false; c.anulado = false
   if (c.usaTr) { c.usaTr=false; c.tr=''; render(); return }
   c.usaTr = true
   c.tr = Math.max(0, totalACobrar(p) - (parseFloat(c.ef)||0) - (parseFloat(c.cc)||0)).toString()
@@ -657,7 +668,7 @@ function activarTr(id) {
 }
 function toggleCc(id) {
   const c = cierres[id]; const p = pedidos.find(x => x.id === id)
-  c.noEntregado = false
+  c.noEntregado = false; c.anulado = false
   if (c.usaCc) { c.usaCc=false; c.cc=''; render(); return }
   c.usaCc = true
   c.cc = Math.max(0, totalACobrar(p) - (parseFloat(c.ef)||0) - (parseFloat(c.tr)||0)).toString()
@@ -672,6 +683,12 @@ async function confirmarCierre() {
     // Actualizar cada pedido con cobros/entrega
     for (const p of pedidos) {
       const c = cierres[p.id]
+      if (c.anulado) {
+        // rechazado: devuelve stock, anula, sin comisión, se desvincula de la hoja
+        const { error } = await supabase.rpc('anular_pedido', { p_pedido_id: p.id, p_motivo: c.motivo || null })
+        if (error) throw error
+        continue
+      }
       await supabase.from('pedidos').update({
         entregado:          !c.noEntregado,
         motivo_no_entrega:  c.motivo || null,
@@ -789,7 +806,7 @@ function confirmarImprBoletas() {
 
 Object.assign(window, {
   render, setTab, imprimirHoja, confirmarCierre,
-  toggleNoEnt, activarEf, activarTr, toggleCc, actualizarResumen,
+  toggleNoEnt, toggleAnular, activarEf, activarTr, toggleCc, actualizarResumen,
   abrirModalBoletas, cerrarModalBoletas, confirmarImprBoletas, editarBoleta
 })
 

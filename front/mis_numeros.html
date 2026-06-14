@@ -133,6 +133,7 @@ async function cargar() {
     .select('id, fecha, cliente_id, estado, descuento, pedido_items(cantidad, precio_unit, descuento, productos(categoria))')
     .eq('empresa_id', usuario.empresa_id)
     .eq('usuario_id', usuarioId)
+    .neq('estado', 'anulado')
     .gte('fecha', desde).lte('fecha', hasta)
   if (e1) { document.getElementById('root').innerHTML = `<div class="err">${e1.message}</div>`; return }
   pedidos = peds || []
@@ -154,6 +155,7 @@ async function cargar() {
       .from('pedidos')
       .select('usuario_id, pedido_items(cantidad, precio_unit, descuento)')
       .eq('empresa_id', usuario.empresa_id)
+      .neq('estado', 'anulado')
       .gte('fecha', desde).lte('fecha', hasta)
     const map = new Map()
     for (const p of (rank || [])) {
