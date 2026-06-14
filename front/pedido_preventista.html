@@ -170,9 +170,13 @@ let visitasHoy = {};// { cliente_id: 'pedido' | 'sin_pedido' }
 const DIAS_NOMBRE = ['—','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 function _dowCordoba(){
   // 1=Lunes ... 7=Domingo en zona Córdoba
+  // Vista previa: ?dia=1..7 fuerza un día (para ver la lista de otro día)
+  const ov = new URLSearchParams(location.search).get('dia');
+  if (ov) return Math.min(7, Math.max(1, parseInt(ov) || 1));
   const wd = new Intl.DateTimeFormat('en-US',{timeZone:'America/Argentina/Cordoba',weekday:'short'}).format(new Date());
   return ({Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:7})[wd] || 1;
 }
+const _esPreviewDia = !!new URLSearchParams(location.search).get('dia');
 function _hoyArg(){
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date());
 }
@@ -551,7 +555,7 @@ function renderListaDelDia(){
   return `
     <div class="hoy-box">
       <div class="hoy-hdr">
-        <div class="ti">📍 Hoy · ${DIAS_NOMBRE[dow]}</div>
+        <div class="ti">${_esPreviewDia ? '🔎 Vista previa' : '📍 Hoy'} · ${DIAS_NOMBRE[dow]}</div>
         <div class="ct">${totalHechos}/${lista.length} visitados</div>
       </div>
       ${lista.map(c => {
