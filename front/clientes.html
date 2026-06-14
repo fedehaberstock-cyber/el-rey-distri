@@ -482,9 +482,14 @@ function renderEditarZona(){
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `
-    <div class="cobro-panel">
-      <h3>Zona y posición</h3>
-      <p>${c.nombre}</p>
+    <div class="cobro-panel" style="max-height:88vh;overflow-y:auto">
+      <h3>Editar cliente</h3>
+      <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Nombre</label>
+      <input id="ez-nombre" class="field" type="text" value="${(c.nombre||'').replace(/"/g,'&quot;')}" style="margin-bottom:12px">
+      <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Teléfono</label>
+      <input id="ez-tel" class="field" type="tel" inputmode="tel" value="${(c.telefono||'').replace(/"/g,'&quot;')}" placeholder="Ej: 3547 123456" style="margin-bottom:12px">
+      <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Dirección</label>
+      <input id="ez-dir" class="field" type="text" value="${(c.direccion||'').replace(/"/g,'&quot;')}" placeholder="Ej: Belgrano 1240" style="margin-bottom:12px">
       <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Zona</label>
       <select id="ez-zona" class="field" style="margin-bottom:12px">
         <option value="">— Sin zona —</option>
@@ -503,10 +508,20 @@ function renderEditarZona(){
 window.abrirEditarZona = () => { editandoZona = true; render(); };
 window.cerrarEditarZona = () => { editandoZona = false; render(); };
 window.guardarZonaCliente = async () => {
+  const nombre = document.getElementById('ez-nombre')?.value.trim() || '';
+  const tel = document.getElementById('ez-tel')?.value.trim() || '';
+  const dir = document.getElementById('ez-dir')?.value.trim() || '';
   const zid = document.getElementById('ez-zona')?.value || null;
   const pos = parseInt(document.getElementById('ez-pos')?.value);
+  if (!nombre) { alert('El nombre es obligatorio.'); return; }
   const { error } = await supabase.from('clientes')
-    .update({ zona_id: zid, posicion_zona: Number.isFinite(pos) ? pos : 999 })
+    .update({
+      nombre,
+      telefono: tel || null,
+      direccion: dir || null,
+      zona_id: zid,
+      posicion_zona: Number.isFinite(pos) ? pos : 999,
+    })
     .eq('id', cliSelId);
   if (error) { alert('Error: ' + error.message); return; }
   editandoZona = false;
