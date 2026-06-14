@@ -100,25 +100,35 @@ if (!tienePermiso('zonas', 'editar') && !tienePermiso('clientes', 'editar')) {
 
 const DIAS = ['—','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
-let zonas = [];      // {id, nombre, orden, activa, dias_semana:int[]}
+let zonas = [];      // {id, nombre, orden, activa, dias_semana:int[], usuarios_ids:uuid[]}
+let usuarios = [];   // {id, nombre, rol}
 let panelId = null;  // null=cerrado, 'nuevo' o uuid
-let form = { nombre: '', activa: true, dias_semana: [] };
+let form = { nombre: '', activa: true, dias_semana: [], usuarios_ids: [] };
 let errMsg = '';
 let saving = false;
 
 async function cargar() {
-  const { data, error } = await supabase
-    .from('zonas')
-    .select('id, nombre, orden, activa, dias_semana')
-    .eq('empresa_id', usuario.empresa_id)
-    .order('orden', { ascending: true });
+  const [{ data, error }, { data: usrs }] = await Promise.all([
+    supabase.from('zonas')
+      .select('id, nombre, orden, activa, dias_semana, usuarios_ids')
+      .eq('empresa_id', usuario.empresa_id)
+      .order('orden', { ascending: true }),
+    supabase.from('usuarios')
+      .select('id, nombre, rol')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true)
+      .order('nombre'),
+  ]);
   if (error) {
     document.getElementById('root').innerHTML =
       `<div class="err-box">Error: ${error.message}</div>`; return;
   }
   zonas = data || [];
+  usuarios = usrs || [];
   render();
 }
+
+const nombresUsuarios = ids =>
+  (ids || []).map(id => usuarios.find(u => u.id === id)?.nombre).filter(Boolean);
 
 function render() {
   const el = document.getElementById('root');
@@ -154,6 +164,7 @@ function renderList() {
       <div class="zona-info">
         <div class="nm">${z.nombre}</div>
         <div class="sub">${(z.dias_semana && z.dias_semana.length) ? '📅 ' + z.dias_semana.slice().sort().map(d=>DIAS[d].slice(0,3)).join('/') + ' · ' : ''}Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
+        ${nombresUsuarios(z.usuarios_ids).length ? `<div class="sub">👤 ${nombresUsuarios(z.usuarios_ids).join(', ')}</div>` : ''}
       </div>
       <div class="ord-btns">
         <button onclick="window._mover('${z.id}', -1)" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button>
@@ -190,6 +201,19 @@ function renderPanel(el) {
           </label>`).join('')}
       </div>
 
+      <label class="fl">Preventistas con acceso</label>
+      ${usuarios.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${usuarios.map(u => `
+          <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;
+            border:1px solid var(--line);border-radius:10px;background:var(--card);
+            font-size:13px;cursor:pointer;user-select:none">
+            <input type="checkbox" value="${u.id}" ${form.usuarios_ids.includes(u.id)?'checked':''}
+              onchange="window._toggleUsuario('${u.id}', this.checked)"
+              style="width:16px;height:16px;accent-color:var(--gold)">
+            ${u.nombre}
+          </label>`).join('')}
+      </div>` : `<div style="font-size:13px;color:var(--ink-soft)">No hay usuarios cargados.</div>`}
+
       ${!esNuevo ? `
         <label class="fl">Estado</label>
         <select class="field" onchange="window._setForm('activa', this.value === 'true')">
@@ -222,10 +246,11 @@ async function guardar() {
       orden: maxOrden + 1,
       activa: true,
       dias_semana: form.dias_semana,
+      usuarios_ids: form.usuarios_ids,
     }));
   } else {
     ({ error } = await supabase.from('zonas')
-      .update({ nombre: form.nombre.trim(), activa: form.activa, dias_semana: form.dias_semana })
+      .update({ nombre: form.nombre.trim(), activa: form.activa, dias_semana: form.dias_semana, usuarios_ids: form.usuarios_ids })
       .eq('id', panelId));
   }
   saving = false;
@@ -251,15 +276,20 @@ async function mover(id, delta) {
   if (r1.error || r2.error) { alert('Error al reordenar'); await cargar(); }
 }
 
-window._nuevo  = () => { form = { nombre: '', activa: true, dias_semana: [] }; errMsg = ''; panelId = 'nuevo'; render(); };
+window._nuevo  = () => { form = { nombre: '', activa: true, dias_semana: [], usuarios_ids: [] }; errMsg = ''; panelId = 'nuevo'; render(); };
 window._editar = id => {
   const z = zonas.find(x => x.id === id); if (!z) return;
-  form = { nombre: z.nombre, activa: z.activa, dias_semana: [...(z.dias_semana || [])] }; errMsg = ''; panelId = id; render();
+  form = { nombre: z.nombre, activa: z.activa, dias_semana: [...(z.dias_semana || [])], usuarios_ids: [...(z.usuarios_ids || [])] }; errMsg = ''; panelId = id; render();
 };
 window._toggleDia = (d, checked) => {
   const set = new Set(form.dias_semana);
   if (checked) set.add(d); else set.delete(d);
   form.dias_semana = [...set].sort();
+};
+window._toggleUsuario = (id, checked) => {
+  const set = new Set(form.usuarios_ids);
+  if (checked) set.add(id); else set.delete(id);
+  form.usuarios_ids = [...set];
 };
 window._cerrar  = () => { panelId = null; render(); };
 window._setForm = (k, v) => { form[k] = v; };

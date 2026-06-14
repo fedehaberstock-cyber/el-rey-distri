@@ -282,7 +282,7 @@ async function cargarTodo(){
       .eq('activo', true)
       .order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
-    supabase.from('zonas').select('id, nombre, dias_semana').eq('activa', true),
+    supabase.from('zonas').select('id, nombre, dias_semana, usuarios_ids').eq('activa', true),
     usr?.id
       ? supabase.from('visitas_clientes')
           .select('cliente_id, resultado')
@@ -545,7 +545,13 @@ function render(){
 
 function renderListaDelDia(){
   const dow = _dowCordoba();
-  const zonasHoy = zonas.filter(z => Array.isArray(z.dias_semana) && z.dias_semana.includes(dow));
+  const usr = getUsuario && getUsuario();
+  const esAdmin = usr?.rol === 'admin';
+  let zonasHoy = zonas.filter(z => Array.isArray(z.dias_semana) && z.dias_semana.includes(dow));
+  // cada preventista ve solo las zonas asignadas a él; admin ve todas
+  if (!esAdmin && usr?.id) {
+    zonasHoy = zonasHoy.filter(z => Array.isArray(z.usuarios_ids) && z.usuarios_ids.includes(usr.id));
+  }
   if (!zonasHoy.length) return '';
   const ids = new Set(zonasHoy.map(z => z.id));
   const lista = clientes.filter(c => ids.has(c.zona_id));
