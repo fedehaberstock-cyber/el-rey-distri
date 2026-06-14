@@ -138,21 +138,7 @@ Object.assign(window, {
   eliminarCliente: async () => {
     const c = clientes.find(x => x.id === cliSelId);
     if (!c) return;
-    // primer confirm con resumen
-    const { count: pedCount } = await supabase
-      .from('pedidos').select('id', { count: 'exact', head: true }).eq('cliente_id', c.id);
-    const { count: movCount } = await supabase
-      .from('mov_cuenta').select('id', { count: 'exact', head: true }).eq('cliente_id', c.id);
-    const msg = `Eliminar a "${c.nombre}"?\n\n` +
-      `Se borrarán también:\n• ${pedCount || 0} pedidos (con boletas y items)\n• ${movCount || 0} movimientos de cuenta\n\n` +
-      `Esta acción es IRREVERSIBLE.`;
-    if (!confirm(msg)) return;
-    // confirmación con nombre
-    const tipeado = prompt(`Escribí el nombre exacto para confirmar:\n"${c.nombre}"`);
-    if (tipeado !== c.nombre) {
-      if (tipeado !== null) alert('El nombre no coincide. Cancelado.');
-      return;
-    }
+    if (!confirm(`Eliminar a "${c.nombre}"?`)) return;
     try {
       // ids de pedidos del cliente
       const { data: peds, error: ePeds } = await supabase
