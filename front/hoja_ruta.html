@@ -248,6 +248,20 @@ async function cargarTodo() {
     if (eP) throw eP
     if (prox?.length) {
       _resolvedHojaId = prox[0].id
+      // ── Linkear huerfanos confirmados con la misma fecha de reparto que la hoja ──
+      // Sin esto, los pedidos cargados despues de creada la hoja quedan invisibles.
+      const { data: huerfMismo } = await supabase
+        .from('pedidos')
+        .select('id')
+        .eq('empresa_id', usuario.empresa_id)
+        .eq('estado', 'confirmado')
+        .is('hoja_ruta_id', null)
+        .eq('fecha_reparto', prox[0].fecha)
+      if (huerfMismo?.length) {
+        await supabase.from('pedidos')
+          .update({ hoja_ruta_id: prox[0].id })
+          .in('id', huerfMismo.map(p => p.id))
+      }
     } else {
       // fallback: pedidos viejos sin hoja todavía
       const { data: huerf, error: eHu } = await supabase
