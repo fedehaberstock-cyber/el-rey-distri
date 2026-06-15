@@ -185,10 +185,10 @@ async function cargarPedidos() {
 }
 
 function totalPedido(p) {
-  return (p.pedido_items || []).reduce((s, it) => {
-    const base = it.cantidad * it.precio_unit * (it.es_bulto ? (it.u_por_bulto || 1) : 1);
-    return s + base * (1 - (it.descuento || 0) / 100);
-  }, 0);
+  // cantidad ya esta en unidades sueltas (bulto de 12 = cantidad 12)
+  const sub = (p.pedido_items || []).reduce((s, it) =>
+    s + it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100), 0);
+  return sub * (1 - (p.descuento || 0) / 100);
 }
 
 function pedidosFiltrados() {
@@ -303,13 +303,15 @@ function renderChart(pf) {
 function renderProductos(pf) {
   const box = document.getElementById('content');
   const mapa = {};
-  pf.forEach(ped => (ped.pedido_items || []).forEach(it => {
-    const nom = it.productos?.nombre || '(sin nombre)';
-    if (!mapa[nom]) mapa[nom] = { nom, u: 0, monto: 0 };
-    const cant = it.cantidad * (it.es_bulto ? (it.u_por_bulto || 1) : 1);
-    mapa[nom].u += cant;
-    mapa[nom].monto += cant * it.precio_unit * (1 - (it.descuento || 0) / 100);
-  }));
+  pf.forEach(ped => {
+    const descGral = 1 - (ped.descuento || 0) / 100;
+    (ped.pedido_items || []).forEach(it => {
+      const nom = it.productos?.nombre || '(sin nombre)';
+      if (!mapa[nom]) mapa[nom] = { nom, u: 0, monto: 0 };
+      mapa[nom].u += it.cantidad;
+      mapa[nom].monto += it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+    });
+  });
   const lista = Object.values(mapa).sort((a, b) => b.monto - a.monto);
   if (!lista.length) { box.innerHTML = `<div class="empty">Sin ventas en este período.</div>`; return; }
   const maxMonto = lista[0].monto || 1;
