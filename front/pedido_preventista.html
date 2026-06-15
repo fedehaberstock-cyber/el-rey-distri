@@ -438,6 +438,9 @@ function addUnidad(id){
   const inp = document.querySelector('.search-wrap input.field');
   if (inp) inp.value = '';
   refrescarItems();
+  // Devolver foco al input — como esto se dispara desde un user gesture (tap),
+  // Chrome reabre el teclado en lugar de cerrarlo.
+  if (inp) inp.focus();
 }
 
 function addBulto(id){
@@ -459,6 +462,9 @@ function addBulto(id){
   const inp = document.querySelector('.search-wrap input.field');
   if (inp) inp.value = '';
   refrescarItems();
+  // Devolver foco al input — como esto se dispara desde un user gesture (tap),
+  // Chrome reabre el teclado en lugar de cerrarlo.
+  if (inp) inp.focus();
 }
 
 function focoBuscador(){
