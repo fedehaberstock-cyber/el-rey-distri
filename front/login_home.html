@@ -115,10 +115,23 @@
     .action-card{animation:fd .15s ease}
     @keyframes fd{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   }
+
+  /* Banner instalación iOS */
+  .ios-install{position:fixed;bottom:14px;left:14px;right:14px;max-width:452px;
+    margin:0 auto;background:var(--ink);color:var(--paper);border-radius:14px;
+    padding:14px 16px;font-size:14px;line-height:1.45;z-index:60;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;gap:12px;align-items:flex-start}
+  .ios-install .ii-icon{font-size:24px;line-height:1;flex-shrink:0}
+  .ios-install b{color:#fff}
+  .ios-install .ii-x{background:none;border:none;color:var(--paper);opacity:.7;
+    font-size:22px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;flex-shrink:0}
+  .ios-install .ii-share{display:inline-block;background:rgba(255,255,255,.18);
+    padding:1px 6px;border-radius:5px;font-weight:600}
 </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="ios-install-banner"></div>
 <script type="module">
 import { login, logout as authLogout, requireSession, getSession, getUsuario, getPermisos, tienePermiso } from './src/auth.js'
 import { cap, fechaLarga } from './src/utils.js'
@@ -512,6 +525,39 @@ function renderHomeDeposito(){
 }
 
 arrancar();
+
+// ── Banner de instalación para iOS Safari ───────────────────────────────
+// iOS Safari no expone API beforeinstallprompt. Mostramos guía manual.
+function mostrarBannerIOS() {
+  const ua = navigator.userAgent;
+  const esIOS = /iPhone|iPad|iPod/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+  if (!esIOS) return;
+  // ya está instalada (modo standalone)
+  if (window.navigator.standalone === true) return;
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+  // descartado por el usuario en este dispositivo
+  if (localStorage.getItem('elrey:ios-install-dismiss') === '1') return;
+
+  const box = document.getElementById('ios-install-banner');
+  if (!box) return;
+  box.innerHTML = `
+    <div class="ios-install">
+      <span class="ii-icon">👑</span>
+      <div style="flex:1">
+        <div style="margin-bottom:4px"><b>Instalá El Rey en tu iPhone</b></div>
+        <div style="opacity:.85">
+          Tocá <span class="ii-share">⎙ Compartir</span> y elegí
+          <b>"Agregar a pantalla de inicio"</b>.
+        </div>
+      </div>
+      <button class="ii-x" onclick="window._cerrarBannerIOS()" aria-label="Cerrar">×</button>
+    </div>`;
+}
+window._cerrarBannerIOS = () => {
+  localStorage.setItem('elrey:ios-install-dismiss','1');
+  document.getElementById('ios-install-banner').innerHTML = '';
+};
+mostrarBannerIOS();
 </script>
 </body>
 </html>
