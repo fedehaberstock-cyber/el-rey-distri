@@ -119,6 +119,29 @@
   .ghost{width:100%;padding:15px;border:1px solid var(--line);border-radius:14px;
     background:var(--card);font-size:16px;font-weight:600;color:var(--ink);cursor:pointer}
 
+  /* PANEL COBRO */
+  .cb-overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:50;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .cb-panel{background:var(--paper);border-radius:22px 22px 0 0;width:100%;
+    padding:22px 20px 28px;animation:slideUp .18s ease}
+  @keyframes slideUp{from{transform:translateY(20px);opacity:.5}to{transform:none;opacity:1}}
+  .cb-panel h3{font-size:18px;font-weight:700;margin-bottom:4px}
+  .cb-panel .cb-sub{font-size:13px;color:var(--ink-soft);margin-bottom:18px}
+  .cb-panel .cb-lbl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .cb-panel .cb-lbl:first-of-type{margin-top:0}
+  .cb-panel .cb-formas{display:flex;gap:8px}
+  .cb-panel .cb-formas label{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);
+    font-size:14px;font-weight:600;cursor:pointer;user-select:none}
+  .cb-panel .cb-formas label.sel{border-color:var(--gold);background:var(--gold-lt,#F5E9D0);color:var(--gold-dk)}
+  .cb-panel .cb-btns{display:flex;gap:10px;margin-top:18px}
+  .cb-panel .cb-cancel{flex:1;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-weight:600;cursor:pointer;color:var(--ink);font-family:inherit}
+  .cb-panel .cb-ok{flex:2;padding:14px;border:none;border-radius:12px;background:var(--gold);
+    color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+  .cb-panel .cb-ok:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+
   /* LISTA DEL DÍA */
   .hoy-box{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:12px 14px;margin-bottom:12px}
@@ -201,6 +224,11 @@ let confirmando = false;
 let confirmadoData = null;     // {pedido_id, boleta_id, total, saldo_anterior, total_a_cobrar}
 let expandido = null;          // id producto con opciones abiertas en el buscador
 let pendienteSync = false;     // true cuando confirmado offline y aún no se sincronizó
+// Panel de cobro inline (registra pago al cliente seleccionado, queda en recaudación del preventista)
+let cobroOpen   = false;
+let cobroMonto  = '';
+let cobroForma  = 'efectivo';
+let cobroSaving = false;
 
 // expongo handlers
 Object.assign(window, {
@@ -220,6 +248,44 @@ Object.assign(window, {
   },
   setDescGeneral: v => { descGeneral = Math.min(100, Math.max(0, +v || 0)); renderBar(); },
   setFechaReparto: v => { fechaReparto = v; },
+  abrirCobro: () => {
+    if (!clienteId) return;
+    cobroOpen = true; cobroMonto = ''; cobroForma = 'efectivo'; cobroSaving = false;
+    render();
+    setTimeout(() => document.getElementById('cb-monto')?.focus(), 80);
+  },
+  cerrarCobro: () => { cobroOpen = false; render(); },
+  setCobroMonto: v => { cobroMonto = v; const b = document.getElementById('cb-ok'); if (b) b.disabled = !(parseFloat(v) > 0) || cobroSaving; },
+  setCobroForma: v => { cobroForma = v; render(); },
+  confirmarCobro: async () => {
+    const n = parseFloat(cobroMonto);
+    if (!n || n <= 0) return;
+    const usr = getUsuario && getUsuario();
+    if (!usr?.id) { alert('Sin usuario'); return; }
+    cobroSaving = true;
+    const btn = document.getElementById('cb-ok');
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+    const { error } = await supabase.from('mov_cuenta').insert({
+      empresa_id: usr.empresa_id,
+      cliente_id: clienteId,
+      tipo: 'pago',
+      monto: -Math.abs(n),         // pago = negativo (resta del saldo)
+      forma_pago: cobroForma,      // 'efectivo' | 'transferencia'
+      referencia_tipo: 'cobro_preventista',
+      usuario_id: usr.id,          // queda asociado al preventista → aparece en Recaudación
+    });
+    cobroSaving = false;
+    if (error) {
+      alert('Error al registrar cobro: ' + error.message);
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar cobro'; }
+      return;
+    }
+    // refrescar saldo del cliente en pantalla
+    const cli = clientes.find(c => c.id === clienteId);
+    if (cli) cli.saldo = (cli.saldo || 0) - n;
+    cobroOpen = false; cobroMonto = '';
+    render();
+  },
   registrarSinPedidoFor: async (cid) => {
     if (!cid) return;
     const motivo = prompt('Motivo (opcional): ej. no tenía, ya compró, ausente, debe saldo');
@@ -498,12 +564,20 @@ function render(){
         <div class="saldo ${cli.saldo>0?'deudor':'aldia'}">
           ${cli.saldo>0 ? 'Debe '+ars(cli.saldo) : (cli.saldo<0?'A favor '+ars(-cli.saldo):'Cuenta al día')}
         </div>
-        <button onclick="window.registrarSinPedido()"
-          style="margin-top:8px;width:100%;padding:10px;border:1px solid var(--line);
-            border-radius:10px;background:#fff;color:var(--ink-soft);font-size:13px;
-            font-weight:600;cursor:pointer;font-family:inherit">
-          ⊘ Registrar visita sin pedido
-        </button>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button onclick="window.registrarSinPedido()"
+            style="flex:1;padding:10px;border:1px solid var(--line);
+              border-radius:10px;background:#fff;color:var(--ink-soft);font-size:13px;
+              font-weight:600;cursor:pointer;font-family:inherit">
+            ⊘ Sin pedido
+          </button>
+          <button onclick="window.abrirCobro()"
+            style="flex:1;padding:10px;border:1px solid var(--gold);
+              border-radius:10px;background:var(--gold-lt,#F5E9D0);color:var(--gold-dk);font-size:13px;
+              font-weight:600;cursor:pointer;font-family:inherit">
+            💵 Registrar cobro
+          </button>
+        </div>
       ` : `
         ${renderListaDelDia()}
         <input class="field" placeholder="Buscar cliente por nombre…" value="${busquedaCli}"
@@ -541,9 +615,51 @@ function render(){
   renderResults();
   renderItems();
   renderBar();
+  if (cobroOpen) renderCobro();
 
   const badgeEl = document.getElementById('sync-badge-ped');
   if (badgeEl) mountStatusBadge(badgeEl);
+}
+
+function renderCobro(){
+  const cli = clientes.find(c => c.id === clienteId);
+  if (!cli) return;
+  // si ya hay overlay (re-render), no duplicar
+  document.querySelector('.cb-overlay')?.remove();
+  const ov = document.createElement('div');
+  ov.className = 'cb-overlay';
+  ov.onclick = e => { if (e.target === ov) window.cerrarCobro(); };
+  const debe = cli.saldo > 0;
+  ov.innerHTML = `
+    <div class="cb-panel">
+      <h3>Registrar cobro</h3>
+      <div class="cb-sub">${cli.nombre}${debe ? ' · Debe '+ars(cli.saldo) : ''}</div>
+      <label class="cb-lbl" for="cb-monto">Monto cobrado</label>
+      <input id="cb-monto" class="field" type="number" min="1" inputmode="numeric"
+        placeholder="Ej: 5000" value="${cobroMonto}"
+        oninput="window.setCobroMonto(this.value)">
+      <label class="cb-lbl">Forma de pago</label>
+      <div class="cb-formas">
+        <label class="${cobroForma==='efectivo'?'sel':''}">
+          <input type="radio" name="cbf" value="efectivo" ${cobroForma==='efectivo'?'checked':''}
+            onchange="window.setCobroForma('efectivo')" style="accent-color:var(--gold)">
+          💵 Efectivo
+        </label>
+        <label class="${cobroForma==='transferencia'?'sel':''}">
+          <input type="radio" name="cbf" value="transferencia" ${cobroForma==='transferencia'?'checked':''}
+            onchange="window.setCobroForma('transferencia')" style="accent-color:var(--gold)">
+          📲 Transferencia
+        </label>
+      </div>
+      <div class="cb-btns">
+        <button class="cb-cancel" onclick="window.cerrarCobro()">Cancelar</button>
+        <button class="cb-ok" id="cb-ok" onclick="window.confirmarCobro()"
+          ${parseFloat(cobroMonto) > 0 ? '' : 'disabled'}>
+          ${cobroSaving ? 'Guardando…' : 'Confirmar cobro'}
+        </button>
+      </div>
+    </div>`;
+  document.getElementById('app').appendChild(ov);
 }
 
 function renderListaDelDia(){
