@@ -817,7 +817,7 @@ function renderResults(){
       ? `<span style="font-size:11px;font-weight:600;color:${sinStock?'var(--red-tx)':p.stock<=5?'var(--bulto-tx)':'var(--green-tx)'}">Stock ${p.stock}</span>`
       : '';
     const tapAttrs = sinStock ? '' :
-      `onpointerdown="this.dataset.sy=event.clientY"
+      `onpointerdown="event.preventDefault();this.dataset.sy=event.clientY"
        onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.addUnidad('${p.id}')"`
     return `<div class="row" ${sinStock?'style="opacity:.55"':''}>
       <div class="row-main" ${tapAttrs}>
@@ -826,7 +826,7 @@ function renderResults(){
       </div>
       ${tieneBulto && !sinStock ? `
         <button
-          onpointerdown="this.dataset.sy=event.clientY;event.stopPropagation()"
+          onpointerdown="event.preventDefault();this.dataset.sy=event.clientY;event.stopPropagation()"
           onpointerup="event.stopPropagation();if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.addBulto('${p.id}')"
           style="display:block;width:100%;padding:8px;background:var(--gold-lt);border:none;border-top:1px solid var(--line-soft);
             font-size:12px;font-weight:600;color:var(--gold-dk);cursor:pointer;font-family:inherit">
