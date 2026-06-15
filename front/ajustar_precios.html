@@ -148,12 +148,14 @@ function calcularPreview() {
   if (!lista.length) { alert('No hay productos que coincidan con los filtros'); return }
   preview = lista.map(p => {
     const crudo = p.precio * (1 + pct / 100)
+    const costoCrudo = p.costo * (1 + pct / 100)
     return {
       prodId: p.id,
       nombre: p.nombre,
       categoria: p.categoria,
       subcategoria: p.subcategoria || '',
-      costo: p.costo,
+      costoActual: p.costo,
+      costoNuevo: String(Math.round(costoCrudo)),
       precioActual: p.precio,
       precioNuevo: String(redondear50_00(crudo)),
       excluido: false,
@@ -170,7 +172,10 @@ async function aplicar() {
   aplicando = true; render()
   const updates = aAplicar.map(r =>
     supabase.from('productos')
-      .update({ precio: Math.round(parseFloat(r.precioNuevo) || 0) })
+      .update({
+        precio: Math.round(parseFloat(r.precioNuevo) || 0),
+        costo:  Math.round(parseFloat(r.costoNuevo)  || 0),
+      })
       .eq('id', r.prodId)
   )
   const results = await Promise.all(updates)
@@ -191,7 +196,10 @@ async function aplicar() {
   // refrescar productos en memoria
   for (const r of aAplicar) {
     const p = productos.find(x => x.id === r.prodId)
-    if (p) p.precio = Math.round(parseFloat(r.precioNuevo) || 0)
+    if (p) {
+      p.precio = Math.round(parseFloat(r.precioNuevo) || 0)
+      p.costo  = Math.round(parseFloat(r.costoNuevo)  || 0)
+    }
   }
   preview = []; porcentaje = ''
   render()
@@ -268,7 +276,7 @@ function render() {
           <tr>
             <th style="width:24px"></th>
             <th>Producto</th>
-            <th class="r">Costo</th>
+            <th class="r">Costo (act / nuevo)</th>
             <th class="r">Precio actual</th>
             <th class="r">Precio nuevo</th>
             <th class="r">Margen</th>
@@ -276,14 +284,19 @@ function render() {
         </thead>
         <tbody>
           ${preview.map((r,i) => {
-            const margenNuevo = r.costo > 0 ? ((parseFloat(r.precioNuevo) - r.costo) / r.costo * 100) : 0
+            const costoNum = parseFloat(r.costoNuevo) || 0
+            const margenNuevo = costoNum > 0 ? ((parseFloat(r.precioNuevo) - costoNum) / costoNum * 100) : 0
             const delta = parseFloat(r.precioNuevo) - r.precioActual
             const deltaPct = r.precioActual > 0 ? (delta / r.precioActual * 100) : 0
             return `<tr class="${r.excluido?'excluido':''}">
               <td><input class="cb" type="checkbox" ${r.excluido?'':'checked'} onchange="window._toggleExcl(${i})"></td>
               <td><div style="font-weight:600">${r.nombre}</div>
                 <div style="font-size:11px;color:var(--ink-soft)">${r.categoria}${r.subcategoria?` · ${r.subcategoria}`:''}</div></td>
-              <td class="r">${ars(r.costo)}</td>
+              <td class="r">
+                <div style="font-size:10px;color:var(--ink-soft)">${ars(r.costoActual)}</div>
+                <input class="precio" type="number" value="${r.costoNuevo}"
+                  onchange="window._setCosto(${i}, this.value)">
+              </td>
               <td class="r">${ars(r.precioActual)}</td>
               <td class="r">
                 <input class="precio" type="number" value="${r.precioNuevo}"
@@ -314,6 +327,7 @@ window._setPct = v => { porcentaje = v }
 window._calcular = () => calcularPreview()
 window._toggleExcl = i => { preview[i].excluido = !preview[i].excluido; render() }
 window._setPrecio = (i,v) => { preview[i].precioNuevo = v; render() }
+window._setCosto  = (i,v) => { preview[i].costoNuevo  = v; render() }
 window._cancelar = () => { preview = []; render() }
 window._aplicar  = () => aplicar()
 
