@@ -303,7 +303,7 @@ async function cargarTodo(){
     precio: Number(p.precio) || 0,
     u_bulto: p.u_bulto || 1,
     desc_bulto: Number(p.desc_bulto) || 0,
-    stock: stockMap[p.id] ?? null,
+    stock: stockMap[p.id] ?? 0,  // si no hay fila en stock_actual → asumir 0 (no Infinity)
   }));
   zonas = (zonResp?.data || []);
   visitasHoy = {};
