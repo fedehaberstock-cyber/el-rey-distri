@@ -53,6 +53,18 @@
   section.search-wrap:focus-within,
   section.search-wrap.has-items{position:sticky;top:0;background:var(--paper);z-index:15;padding-top:10px;padding-bottom:6px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
   section.search-wrap.has-items #res{max-height:55vh;overflow-y:auto}
+  .last-card{margin-top:6px;background:var(--gold-lt);border:1px solid var(--gold);border-radius:12px;padding:8px 10px}
+  .last-card .ttl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--gold-dk);margin-bottom:4px}
+  .last-card .row1{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+  .last-card .nm{font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .last-card .x{background:none;border:none;color:var(--ink-soft);font-size:18px;cursor:pointer;font-family:inherit;padding:0 4px;line-height:1}
+  .last-card .ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .last-card .stepper{display:flex;align-items:center;gap:4px}
+  .last-card .stepper button{width:30px;height:30px;border:1px solid var(--gold);border-radius:8px;background:#fff;font-size:16px;font-weight:700;color:var(--ink);font-family:inherit;cursor:pointer}
+  .last-card .stepper input{width:50px;text-align:center;border:1px solid var(--gold);border-radius:8px;padding:4px;font-size:14px;font-weight:700;font-family:inherit;background:#fff;color:var(--ink)}
+  .last-card .disc{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)}
+  .last-card .disc input{width:46px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;font-weight:600;text-align:right;background:#fff;color:var(--ink)}
+  .last-card .lt{font-size:13px;font-weight:700;color:var(--gold-dk);margin-left:auto}
   .results{margin-top:6px;border:1px solid var(--line);border-radius:12px;
     overflow:hidden;background:var(--card)}
   .results .row{padding:0;border-bottom:1px solid var(--line-soft)}
@@ -238,7 +250,7 @@ let cobroSaving = false;
 // expongo handlers
 Object.assign(window, {
   addUnidad, addBulto, setCant, setCantDirecto, setDisc, quitar,
-  toggleExpandido, confirmar, nuevo,
+  toggleExpandido, confirmar, nuevo, render,
   setCliente: v => { clienteId = v; busquedaCli = ''; render(); },
   setBusquedaCli: v => { busquedaCli = v; renderCliResults(); },
   limpiarCliente: () => { clienteId = ''; busquedaCli = ''; render(); },
@@ -595,7 +607,7 @@ function render(){
     </section>
     <div class="divider"></div>
     <section class="search-wrap ${orden.length?'has-items':''}">
-      <div class="lbl">Agregar producto</div>
+      ${orden.length ? '' : '<div class="lbl">Agregar producto</div>'}
       <input class="field" placeholder="Buscar por nombre…" value="${busqueda}"
         oninput="window.setBusqueda(this.value)" onfocus="window.scrollAProductos()" autocomplete="off">
       <div id="res"></div>
@@ -726,7 +738,40 @@ const _norm = s => (s || '').toLowerCase()
 function renderResults(){
   const box = document.getElementById('res'); if(!box) return;
   const partes = _norm(busqueda).split(/\s+/).filter(Boolean);
-  if(!partes.length){ box.innerHTML=''; return; }
+  if(!partes.length){
+    if (orden.length) {
+      const i = orden.length - 1;
+      const it = orden[i];
+      const p = prod(it.productoId);
+      const bultos = it.esBulto ? it.cant / it.uPorBulto : null;
+      box.innerHTML = `
+        <div class="last-card">
+          <div class="ttl">Último agregado</div>
+          <div class="row1">
+            <span class="nm">${p.nombre}${it.esBulto?' 📦':''}</span>
+            <span class="lt">${ars(lineTotal(it))}</span>
+            <button class="x" onclick="window.quitar(${i})" aria-label="Quitar">×</button>
+          </div>
+          <div class="ctrls">
+            <div class="stepper">
+              <button onclick="window.setCant(${i},-1)" aria-label="Menos">−</button>
+              <input type="number" min="1" inputmode="numeric"
+                value="${it.esBulto ? bultos : it.cant}"
+                onfocus="this.select()"
+                onchange="window.setCantDirecto(${i}, this.value)">
+              <button onclick="window.setCant(${i},1)" aria-label="Más">+</button>
+            </div>
+            <div class="disc">
+              <input type="number" min="0" max="100" value="${it.disc}"
+                onchange="window.setDisc(${i},this.value);window.render()"> % desc
+            </div>
+          </div>
+        </div>`;
+    } else {
+      box.innerHTML = '';
+    }
+    return;
+  }
   const m = productos.filter(p => {
     const nom = _norm(p.nombre);
     return partes.every(t => nom.includes(t));
