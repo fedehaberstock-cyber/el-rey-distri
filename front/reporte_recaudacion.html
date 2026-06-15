@@ -97,6 +97,21 @@
   .dia-prev-total{font-size:14px;font-weight:700}
   .dia-prev-forms{font-size:12px;color:var(--ink-soft);margin-top:2px}
 
+  .dia-detail-lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin:10px 0 4px;padding-top:8px;border-top:1px dashed var(--line)}
+  .cobro-row{display:flex;justify-content:space-between;align-items:center;
+    padding:6px 0;border-bottom:1px solid var(--line-soft);gap:8px}
+  .cobro-row:last-child{border-bottom:none}
+  .cobro-left{flex:1;min-width:0}
+  .cobro-cli{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cobro-meta{font-size:11px;color:var(--ink-soft);margin-top:1px}
+  .cobro-right{text-align:right;flex-shrink:0}
+  .cobro-monto{font-size:13px;font-weight:700}
+  .cobro-forma{font-size:11px;margin-top:1px}
+  .cobro-forma.ef{color:var(--green-tx)}
+  .cobro-forma.tr{color:var(--blue-tx)}
+  .cobro-forma.cc{color:var(--amber-tx)}
+
   .chart-wrap{padding:0 18px 18px}
   .chart-title{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
     color:var(--ink-soft);margin-bottom:10px}
@@ -175,7 +190,7 @@ async function cargarTodo() {
 
   // No-admin: limitar a sus propios cobros (defensa cliente; RLS no filtra por usuario aquí).
   let qCobros = supabase.from('mov_cuenta')
-    .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios(nombre)')
+    .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios(nombre), clientes(nombre)')
     .eq('empresa_id', usuario.empresa_id)
     .eq('tipo', 'pago')
     .gte('fecha', hace180)
@@ -197,15 +212,14 @@ async function cargarTodo() {
 
   todosLosCobros = (cobros || []).map(c => ({
     ...c,
-    // c.fecha llega como timestamptz; normalizamos a YYYY-MM-DD para comparar con
-    // desde/hasta (también YYYY-MM-DD) — antes comparaba '2026-06-15T18:30Z' <= '2026-06-15'
-    // y los cobros del día de hoy quedaban fuera del filtro.
-    fecha: (c.fecha || '').slice(0, 10),
+    fechaTs: c.fecha || '',                 // timestamp completo (para ordenar y mostrar hora)
+    fecha:   (c.fecha || '').slice(0, 10),  // YYYY-MM-DD para filtros de rango
     nombreUsuario: c.usuarios?.nombre || 'Desconocido',
-    // normalise forma_pago: efectivo / transferencia / cuenta_corriente
+    nombreCliente: c.clientes?.nombre || 'Sin cliente',
     efectivo: (c.forma_pago === 'efectivo'       || !c.forma_pago) ? Math.abs(c.monto) : 0,
     transf:   c.forma_pago === 'transferencia'   ? Math.abs(c.monto) : 0,
     cc:       c.forma_pago === 'cuenta_corriente' ? Math.abs(c.monto) : 0,
+    monto:    Math.abs(c.monto),
   }));
 
   // derive preventistas from data OR from users table
@@ -363,6 +377,28 @@ function render() {
             <div class="dia-prev-detail">
               <div class="dia-prev-total" style="color:${p.color}">${ars(tot)}</div>
               <div class="dia-prev-forms">${partes.join(' · ')}</div>
+            </div>
+          </div>`;
+        }).join('')}
+        <div class="dia-detail-lbl">Cobros del día (${cobDia.length})</div>
+        ${[...cobDia].sort((a,b) => (b.fechaTs || '').localeCompare(a.fechaTs || '')).map(c => {
+          const fmt = c.forma_pago === 'transferencia'   ? { ic:'📲', cl:'tr', lbl:'Transferencia' }
+                    : c.forma_pago === 'cuenta_corriente'? { ic:'📒', cl:'cc', lbl:'En cuenta' }
+                    :                                       { ic:'💵', cl:'ef', lbl:'Efectivo' };
+          const hora = c.fechaTs ? new Date(c.fechaTs).toLocaleTimeString('es-AR',
+            { timeZone:'America/Argentina/Cordoba', hour:'2-digit', minute:'2-digit' }) : '';
+          const prevDot = preventistas.find(p => p.nombre === c.nombreUsuario)?.color || '#999';
+          return `<div class="cobro-row">
+            <div class="cobro-left">
+              <div class="cobro-cli">${c.nombreCliente}</div>
+              <div class="cobro-meta">
+                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${prevDot};vertical-align:middle;margin-right:4px"></span>
+                ${c.nombreUsuario}${hora ? ' · ' + hora : ''}
+              </div>
+            </div>
+            <div class="cobro-right">
+              <div class="cobro-monto">${ars(c.monto)}</div>
+              <div class="cobro-forma ${fmt.cl}">${fmt.ic} ${fmt.lbl}</div>
             </div>
           </div>`;
         }).join('')}
