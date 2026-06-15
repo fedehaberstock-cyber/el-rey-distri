@@ -50,7 +50,9 @@
   /* BÚSQUEDA */
   .search-wrap{position:relative}
   /* cuando el input está enfocado, fijar la sección arriba */
-  section.search-wrap:focus-within{position:sticky;top:0;background:var(--paper);z-index:15;padding-top:10px;padding-bottom:6px}
+  section.search-wrap:focus-within,
+  section.search-wrap.has-items{position:sticky;top:0;background:var(--paper);z-index:15;padding-top:10px;padding-bottom:6px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
+  section.search-wrap.has-items #res{max-height:55vh;overflow-y:auto}
   .results{margin-top:6px;border:1px solid var(--line);border-radius:12px;
     overflow:hidden;background:var(--card)}
   .results .row{padding:0;border-bottom:1px solid var(--line-soft)}
@@ -592,7 +594,7 @@ function render(){
         onchange="window.setFechaReparto(this.value)">
     </section>
     <div class="divider"></div>
-    <section class="search-wrap">
+    <section class="search-wrap ${orden.length?'has-items':''}">
       <div class="lbl">Agregar producto</div>
       <input class="field" placeholder="Buscar por nombre…" value="${busqueda}"
         oninput="window.setBusqueda(this.value)" onfocus="window.scrollAProductos()" autocomplete="off">
