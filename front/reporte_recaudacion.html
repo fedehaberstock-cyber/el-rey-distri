@@ -190,6 +190,10 @@ async function cargarTodo() {
 
   todosLosCobros = (cobros || []).map(c => ({
     ...c,
+    // c.fecha llega como timestamptz; normalizamos a YYYY-MM-DD para comparar con
+    // desde/hasta (también YYYY-MM-DD) — antes comparaba '2026-06-15T18:30Z' <= '2026-06-15'
+    // y los cobros del día de hoy quedaban fuera del filtro.
+    fecha: (c.fecha || '').slice(0, 10),
     nombreUsuario: c.usuarios?.nombre || 'Desconocido',
     // normalise forma_pago: efectivo / transferencia / cuenta_corriente
     efectivo: (c.forma_pago === 'efectivo'       || !c.forma_pago) ? Math.abs(c.monto) : 0,
