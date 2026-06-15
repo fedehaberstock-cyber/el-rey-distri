@@ -129,6 +129,10 @@ import { requireSession, tienePermiso } from './src/auth.js';
 const { usuario } = await requireSession();
 if (!tienePermiso('recaudacion')) { location.href = './login_home.html'; }
 
+// Solo admin del módulo (o rol admin) ve la recaudación de todos.
+// El resto ve únicamente la propia.
+const verTodo = usuario.rol === 'admin' || tienePermiso('recaudacion', 'admin');
+
 // ── HELPERS ────────────────────────────────────────────────────────────────
 const ars  = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
 const arsK = n => n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n / 1000) + 'k' : '$' + n;
@@ -169,17 +173,20 @@ let preventistas = [];     // [{nombre, color}]
 async function cargarTodo() {
   const hace180 = isoOffset(-180);
 
+  // No-admin: limitar a sus propios cobros (defensa cliente; RLS no filtra por usuario aquí).
+  let qCobros = supabase.from('mov_cuenta')
+    .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios(nombre)')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('tipo', 'pago')
+    .gte('fecha', hace180)
+    .order('fecha', { ascending: false });
+  if (!verTodo) qCobros = qCobros.eq('usuario_id', usuario.id);
+
   const [{ data: cobros, error: errC }, { data: prevs, error: errP }] = await Promise.all([
-    supabase.from('mov_cuenta')
-      .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios(nombre)')
-      .eq('empresa_id', usuario.empresa_id)
-      .eq('tipo', 'pago')
-      .gte('fecha', hace180)
-      .order('fecha', { ascending: false }),
-    supabase.from('usuarios')
-      .select('id, nombre')
-      .eq('empresa_id', usuario.empresa_id)
-      .eq('rol', 'preventista'),
+    qCobros,
+    verTodo
+      ? supabase.from('usuarios').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('rol', 'preventista')
+      : Promise.resolve({ data: [{ id: usuario.id, nombre: usuario.nombre }] }),
   ]);
 
   if (errC) {
