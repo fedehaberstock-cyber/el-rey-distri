@@ -162,8 +162,7 @@ async function cargar() {
 //   − lo que actualmente hay en items (todas las líneas del mismo producto)
 function maxCantParaItem(idx){
   const it = items[idx]
-  const stock = stockMap[it.producto_id]
-  if (stock == null) return Infinity
+  const stock = stockMap[it.producto_id] ?? 0   // sin fila → 0 (no Infinity)
   const orig = cantOriginal[it.producto_id] || 0
   const enItems = items.reduce((s,o,j) => j===idx ? s : (o.producto_id===it.producto_id ? s + o.cantidad : s), 0)
   return stock + orig - enItems
@@ -297,17 +296,26 @@ function renderPickerList() {
   if (!list) return
   const term = pickerSearch.toLowerCase().trim()
   const matches = productos.filter(p => !term || p.nombre.toLowerCase().includes(term)).slice(0, 50)
-  list.innerHTML = matches.map(p => `
-    <div class="picker-item" onclick="window._pickAdd('${p.id}', false)">
+  list.innerHTML = matches.map(p => {
+    const stock = stockMap[p.id] ?? 0
+    const orig = cantOriginal[p.id] || 0
+    const enItems = items.filter(o => o.producto_id === p.id).reduce((s,o)=>s+o.cantidad, 0)
+    const disp = stock + orig - enItems
+    const sinStock = disp <= 0
+    const color = sinStock ? 'var(--red-tx)' : disp <= 5 ? 'var(--gold-dk)' : 'var(--green-tx)'
+    return `
+    <div class="picker-item" ${sinStock ? 'style="opacity:.55"' : `onclick="window._pickAdd('${p.id}', false)"`}>
       <div><div style="font-weight:600;font-size:14px">${p.nombre}</div>
-        <div style="font-size:11px;color:var(--ink-soft)">${ars(p.precio)}</div></div>
-      ${p.u_bulto > 1 ? `
+        <div style="font-size:11px;color:var(--ink-soft)">${ars(p.precio)}
+          <span style="margin-left:8px;font-weight:700;color:${color}">${sinStock ? 'Sin stock' : 'Stock ' + disp}</span>
+        </div></div>
+      ${p.u_bulto > 1 && !sinStock && disp >= p.u_bulto ? `
         <button onclick="event.stopPropagation();window._pickAdd('${p.id}', true)"
           style="padding:5px 10px;border:1px solid var(--gold);border-radius:8px;
             background:var(--gold-lt);color:var(--gold-dk);font-size:12px;font-weight:600;
             cursor:pointer;font-family:inherit">+ Bulto</button>` : ''}
-    </div>
-  `).join('')
+    </div>`
+  }).join('')
 }
 
 window._setCli = v => { clienteId = v }
@@ -344,10 +352,10 @@ window._pickSearch = v => { pickerSearch = v; renderPickerList() }
 window._pickAdd = (id, esBulto) => {
   const p = productos.find(x => x.id === id)
   if (!p) return
-  const stock = stockMap[p.id]
+  const stock = stockMap[p.id] ?? 0   // sin fila → 0
   const orig = cantOriginal[p.id] || 0
   const enItems = items.filter(o => o.producto_id === p.id).reduce((s,o)=>s+o.cantidad, 0)
-  const disponible = stock != null ? stock + orig - enItems : Infinity
+  const disponible = stock + orig - enItems
   const cantAAgregar = esBulto ? (p.u_bulto || 1) : 1
   if (disponible < cantAAgregar) {
     alert(`Stock insuficiente. Disponible: ${Math.max(0,disponible)} u.`)
