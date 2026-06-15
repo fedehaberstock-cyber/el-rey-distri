@@ -111,6 +111,13 @@ export async function requireSession(redirectTo = './login_home.html') {
     throw new Error('sin sesión')
   }
   if (!_usuario) await cargarUsuarioYPermisos(session.user.id)
+  // Registrar dispositivo una vez por session storage (sobrevive recargas, no recarga por página)
+  try {
+    if (!sessionStorage.getItem('elrey:dev_registered')) {
+      registrarDispositivo()
+      sessionStorage.setItem('elrey:dev_registered', '1')
+    }
+  } catch {}
   return { usuario: _usuario, permisos: _permisos }
 }
 
