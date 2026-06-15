@@ -17,7 +17,8 @@
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{background:var(--paper);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    font-size:16px;line-height:1.4}
+    font-size:16px;line-height:1.4;
+    overscroll-behavior-y:contain}  /* evita pull-to-refresh que borra el pedido */
   body{max-width:480px;margin:0 auto;padding-bottom:140px}
 
   .hdr{display:flex;align-items:center;justify-content:space-between;
