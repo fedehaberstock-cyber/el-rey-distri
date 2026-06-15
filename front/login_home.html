@@ -370,6 +370,9 @@ async function renderHomeAdmin(){
     tile('usuarios_permisos', `<div class="action-card" onclick="location.href='./permisos.html'">
       <div class="icon">🔐</div><div class="ac-title">Permisos</div>
       <div class="ac-desc">Accesos del equipo</div></div>`),
+    tile('usuarios_permisos', `<div class="action-card" onclick="location.href='./dispositivos.html'">
+      <div class="icon">📱</div><div class="ac-title">Dispositivos</div>
+      <div class="ac-desc">Equipos por cuenta</div></div>`),
   ].filter(Boolean).join('');
 
   box.innerHTML += `

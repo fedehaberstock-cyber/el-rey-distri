@@ -48,7 +48,23 @@ export async function login(email, password) {
   })
   if (error) throw new Error(error.message)
   await cargarUsuarioYPermisos(data.user.id)
+  registrarDispositivo()  // fire and forget; no bloquea login
   return { usuario: _usuario, permisos: _permisos }
+}
+
+function registrarDispositivo() {
+  try {
+    let did = localStorage.getItem('elrey:device_id')
+    if (!did) {
+      did = (crypto.randomUUID && crypto.randomUUID()) ||
+            (Date.now().toString(36) + Math.random().toString(36).slice(2))
+      localStorage.setItem('elrey:device_id', did)
+    }
+    supabase.rpc('registrar_dispositivo', {
+      p_device_id: did,
+      p_user_agent: navigator.userAgent || null,
+    }).then(({ error }) => { if (error) console.warn('[device] registro falló:', error.message) })
+  } catch (e) { console.warn('[device] error:', e) }
 }
 
 export async function logout() {

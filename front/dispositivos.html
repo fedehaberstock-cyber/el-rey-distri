@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Dispositivos</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF; --line-soft:#EEEADD;
+    --gold:#A9760E; --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:720px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;
+    cursor:pointer;font-family:inherit}
+
+  .hint{padding:12px 18px;font-size:13px;color:var(--ink-soft)}
+  .list{padding:0 18px}
+  .usr-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    margin-bottom:12px;overflow:hidden}
+  .usr-hdr{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .usr-hdr .nm{font-size:15px;font-weight:700}
+  .usr-hdr .sub{font-size:12px;color:var(--ink-soft);margin-top:1px}
+  .count-pill{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .count-pill.ok{background:var(--green-bg);color:var(--green-tx)}
+  .count-pill.warn{background:var(--amber-bg);color:var(--amber-tx)}
+  .count-pill.alert{background:var(--red-bg);color:var(--red-tx)}
+  .count-pill.none{background:var(--line-soft);color:var(--ink-soft)}
+  .dev-row{padding:10px 14px;border-top:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .dev-row .ua{font-size:13px;line-height:1.35;flex:1;min-width:0;word-break:break-word}
+  .dev-row .meta{font-size:11px;color:var(--ink-soft);margin-top:3px}
+  .dev-row .acc{font-size:12px;font-weight:700;color:var(--ink-soft);white-space:nowrap}
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft)}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('usuarios_permisos')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+const fmt = s => s ? new Date(s).toLocaleString('es-AR',{timeZone:'America/Argentina/Cordoba',
+  day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'
+
+// Resumen amigable del user agent ("Chrome / Android", "Safari / iPhone")
+function uaResumen(ua) {
+  if (!ua) return 'Desconocido'
+  let nav = /Edg\//.test(ua) ? 'Edge'
+        : /OPR\//.test(ua) ? 'Opera'
+        : /Chrome\//.test(ua) ? 'Chrome'
+        : /Firefox\//.test(ua) ? 'Firefox'
+        : /Safari\//.test(ua) ? 'Safari'
+        : 'Otro'
+  let so = /Android/.test(ua) ? 'Android'
+        : /iPhone|iPad|iPod/.test(ua) ? 'iPhone/iPad'
+        : /Windows/.test(ua) ? 'Windows'
+        : /Mac OS X/.test(ua) ? 'Mac'
+        : /Linux/.test(ua) ? 'Linux'
+        : ''
+  return so ? `${nav} · ${so}` : nav
+}
+
+const [{ data: usrs, error: e1 }, { data: devs, error: e2 }] = await Promise.all([
+  supabase.from('usuarios').select('id, nombre, rol, activo').eq('empresa_id', usuario.empresa_id).order('nombre'),
+  supabase.from('dispositivos')
+    .select('id, usuario_id, device_id, user_agent, primer_uso, ultimo_uso, accesos')
+    .eq('empresa_id', usuario.empresa_id)
+    .order('ultimo_uso', { ascending: false }),
+])
+
+if (e1 || e2) {
+  document.getElementById('root').innerHTML = `<div class="err-box">${(e1||e2).message}</div>`
+  throw new Error('fail')
+}
+
+const byUser = {}
+for (const d of (devs || [])) {
+  if (!byUser[d.usuario_id]) byUser[d.usuario_id] = []
+  byUser[d.usuario_id].push(d)
+}
+
+const ROLES = { admin:'Admin', preventista:'Preventista', deposito:'Depósito' }
+const lista = (usrs || []).filter(u => u.activo)
+
+document.getElementById('root').innerHTML = `
+  <div class="hdr">
+    <div class="brand"><span class="crown">&#9818;</span>
+      <div>El Rey<small>Dispositivos</small></div>
+    </div>
+    <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+  </div>
+  <div class="hint">Cada navegador queda registrado al loguearse. Más de 1 dispositivo por cuenta puede indicar acceso compartido.</div>
+  <div class="list">
+    ${lista.map(u => {
+      const ds = byUser[u.id] || []
+      const cls = ds.length === 0 ? 'none' : ds.length === 1 ? 'ok' : ds.length <= 2 ? 'warn' : 'alert'
+      return `
+      <div class="usr-card">
+        <div class="usr-hdr">
+          <div style="flex:1;min-width:0">
+            <div class="nm">${u.nombre}</div>
+            <div class="sub">${ROLES[u.rol] || u.rol}</div>
+          </div>
+          <span class="count-pill ${cls}">${ds.length} ${ds.length===1?'dispositivo':'dispositivos'}</span>
+        </div>
+        ${ds.length ? ds.map(d => `
+          <div class="dev-row">
+            <div class="ua">
+              ${uaResumen(d.user_agent)}
+              <div class="meta">Primer uso: ${fmt(d.primer_uso)} · Último: ${fmt(d.ultimo_uso)}</div>
+            </div>
+            <span class="acc">${d.accesos} accesos</span>
+          </div>`).join('')
+          : `<div class="dev-row" style="color:var(--ink-soft);font-size:13px">Sin registros — aún no se logueó desde la nueva versión.</div>`}
+      </div>`
+    }).join('')}
+  </div>
+`
+</script>
+</body>
+</html>
