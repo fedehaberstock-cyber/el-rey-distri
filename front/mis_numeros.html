@@ -131,7 +131,9 @@ async function cargar() {
   // pedidos del usuario seleccionado en el rango
   const { data: peds, error: e1 } = await supabase
     .from('pedidos')
-    .select('id, fecha, cliente_id, estado, descuento, pedido_items(cantidad, precio_unit, descuento, productos(categoria))')
+    .select(`id, fecha, cliente_id, estado, descuento,
+      clientes(nombre),
+      pedido_items(cantidad, precio_unit, descuento, es_bulto, productos(nombre, categoria))`)
     .eq('empresa_id', usuario.empresa_id)
     .eq('usuario_id', usuarioId)
     .neq('estado', 'anulado')
@@ -191,6 +193,42 @@ function calcularKPIs() {
   return { totalMonto, cantPedidos, ticketProm, comisionEstim, cantVisitasSinPedido, conversion }
 }
 
+// Lista de descuentos aplicados manualmente (excluye descuentos automáticos de bulto).
+// Un descuento general del pedido cuenta como una sola entrada.
+// Un descuento por item solo cuenta si NO es bulto (los de bulto son automáticos del producto).
+function descuentosAplicados() {
+  const out = []
+  for (const p of pedidos) {
+    const cliente = p.clientes?.nombre || 'Sin cliente'
+    const fecha = (p.fecha || '').slice(0, 10)
+    const subPedido = (p.pedido_items || []).reduce((s, it) =>
+      s + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
+
+    if (Number(p.descuento) > 0) {
+      const pct = Number(p.descuento)
+      const monto = subPedido * (pct / 100)
+      out.push({
+        pedido_id: p.id, fecha, cliente,
+        tipo: 'general', producto: '— Descuento general del pedido —',
+        pct, monto,
+      })
+    }
+    for (const it of (p.pedido_items || [])) {
+      if (it.es_bulto) continue                       // descuentos de bulto son automáticos
+      const pct = Number(it.descuento || 0)
+      if (pct <= 0) continue
+      const bruto = Number(it.cantidad) * Number(it.precio_unit)
+      const monto = bruto * (pct / 100)
+      out.push({
+        pedido_id: p.id, fecha, cliente,
+        tipo: 'item', producto: it.productos?.nombre || '?',
+        pct, monto,
+      })
+    }
+  }
+  return out.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.monto - a.monto)
+}
+
 function topCategorias() {
   const map = new Map()
   for (const p of pedidos) {
@@ -233,6 +271,7 @@ function render() {
     <div class="tabs">
       <div class="tab ${tab==='kpi'?'active':''}" onclick="window._setTab('kpi')">KPIs</div>
       <div class="tab ${tab==='cats'?'active':''}" onclick="window._setTab('cats')">Categorías</div>
+      <div class="tab ${tab==='desc'?'active':''}" onclick="window._setTab('desc')">Descuentos</div>
       ${esAdmin ? `<div class="tab ${tab==='ranking'?'active':''}" onclick="window._setTab('ranking')">Ranking</div>` : ''}
     </div>
     <div id="tab-body"></div>`
@@ -288,6 +327,49 @@ function renderBody() {
           <span class="val">${ars(c.total)}</span>
         </div>`).join('')}
     </section>`
+  } else if (tab === 'desc') {
+    const lista = descuentosAplicados()
+    const totalDesc = lista.reduce((s, d) => s + d.monto, 0)
+    const cantDesc = lista.length
+    const pctProm = cantDesc ? lista.reduce((s, d) => s + d.pct, 0) / cantDesc : 0
+    el.innerHTML = `
+      <section>
+        <div class="kpi-grid">
+          <div class="kpi dst">
+            <div class="nro">${ars(totalDesc)}</div>
+            <div class="desc">Total descontado</div>
+          </div>
+          <div class="kpi">
+            <div class="nro">${cantDesc}</div>
+            <div class="desc">Descuentos aplicados</div>
+          </div>
+          <div class="kpi">
+            <div class="nro">${pctProm.toFixed(1)}%</div>
+            <div class="desc">% promedio aplicado</div>
+          </div>
+        </div>
+        <div style="background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:10px;padding:10px;font-size:12px;color:var(--amber-tx);margin-bottom:14px">
+          💡 No se cuentan los descuentos automáticos por bulto.
+        </div>
+        <div class="sec-title">Detalle</div>
+        ${!cantDesc ? `<div class="empty">Sin descuentos manuales en el período.</div>` :
+          lista.map(d => `
+            <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.cliente}</div>
+                  <div style="font-size:12px;color:var(--ink-soft);margin-top:1px">
+                    ${d.fecha.split('-').reverse().join('/')} ·
+                    ${d.tipo === 'general' ? '<b>Desc. general</b>' : d.producto}
+                  </div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                  <div style="font-weight:700;color:var(--red-tx);font-size:14px">−${ars(d.monto)}</div>
+                  <div style="font-size:12px;color:var(--ink-soft)">${d.pct}%</div>
+                </div>
+              </div>
+            </div>`).join('')}
+      </section>`
   } else if (tab === 'ranking' && esAdmin) {
     if (!rankingMes.length) { el.innerHTML = `<div class="empty">Sin datos</div>`; return }
     el.innerHTML = `<section>
