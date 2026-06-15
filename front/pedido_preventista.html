@@ -744,22 +744,24 @@ function renderResults(){
       const it = orden[i];
       const p = prod(it.productoId);
       const bultos = it.esBulto ? it.cant / it.uPorBulto : null;
+      // onmousedown="event.preventDefault()" en los botones evita que el input
+      // del buscador pierda el foco -> el teclado del cel no se cierra al usar +/-.
       box.innerHTML = `
         <div class="last-card">
           <div class="ttl">Último agregado</div>
           <div class="row1">
             <span class="nm">${p.nombre}${it.esBulto?' 📦':''}</span>
             <span class="lt">${ars(lineTotal(it))}</span>
-            <button class="x" onclick="window.quitar(${i})" aria-label="Quitar">×</button>
+            <button class="x" onmousedown="event.preventDefault()" onclick="window.quitar(${i})" aria-label="Quitar">×</button>
           </div>
           <div class="ctrls">
             <div class="stepper">
-              <button onclick="window.setCant(${i},-1)" aria-label="Menos">−</button>
+              <button onmousedown="event.preventDefault()" onclick="window.setCant(${i},-1)" aria-label="Menos">−</button>
               <input type="number" min="1" inputmode="numeric"
                 value="${it.esBulto ? bultos : it.cant}"
                 onfocus="this.select()"
                 onchange="window.setCantDirecto(${i}, this.value)">
-              <button onclick="window.setCant(${i},1)" aria-label="Más">+</button>
+              <button onmousedown="event.preventDefault()" onclick="window.setCant(${i},1)" aria-label="Más">+</button>
             </div>
             <div class="disc">
               <input type="number" min="0" max="100" value="${it.disc}"
