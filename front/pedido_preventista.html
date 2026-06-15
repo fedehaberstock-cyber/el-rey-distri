@@ -53,6 +53,7 @@
   section.search-wrap:focus-within,
   section.search-wrap.has-items{position:sticky;top:0;background:var(--paper);z-index:15;padding-top:10px;padding-bottom:6px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
   section.search-wrap.has-items #res{max-height:55vh;overflow-y:auto}
+  section.search-wrap.has-items > .lbl{display:none}
   .last-card{margin-top:6px;background:var(--gold-lt);border:1px solid var(--gold);border-radius:12px;padding:8px 10px}
   .last-card .ttl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--gold-dk);margin-bottom:4px}
   .last-card .row1{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
@@ -433,7 +434,10 @@ function addUnidad(id){
   const ex = orden.find(o=>o.productoId===id && !o.esBulto);
   if(ex){ ex.cant++; }
   else { orden.push({productoId:id, cant:1, disc:0, esBulto:false, uPorBulto:1}); }
-  busqueda=''; expandido=null; render(); focoBuscador();
+  busqueda=''; expandido=null;
+  const inp = document.querySelector('.search-wrap input.field');
+  if (inp) inp.value = '';
+  refrescarItems();
 }
 
 function addBulto(id){
@@ -451,7 +455,10 @@ function addBulto(id){
       uPorBulto: p.u_bulto
     });
   }
-  busqueda=''; expandido=null; render(); focoBuscador();
+  busqueda=''; expandido=null;
+  const inp = document.querySelector('.search-wrap input.field');
+  if (inp) inp.value = '';
+  refrescarItems();
 }
 
 function focoBuscador(){
@@ -459,6 +466,17 @@ function focoBuscador(){
     const i = document.querySelector('.search-wrap input.field');
     if (i) { i.focus(); i.select(); }
   }, 80);
+}
+
+// Refresco parcial: actualiza la lista, la mini-card del buscador y la barra de total
+// SIN recrear el DOM completo. Asi el input del buscador no se destruye y el
+// teclado del cel se queda abierto al usar la mini-card.
+function refrescarItems(){
+  renderItems();
+  renderResults();
+  renderBar();
+  const sw = document.querySelector('section.search-wrap');
+  if (sw) sw.classList.toggle('has-items', orden.length > 0);
 }
 
 function setCant(i,d){
@@ -473,7 +491,7 @@ function setCant(i,d){
     if (nuevo > max) { alert(`Stock insuficiente. Disponible: ${Math.max(0,max)} u.`); return; }
   }
   it.cant = nuevo;
-  render();
+  refrescarItems();
 }
 function setCantDirecto(i, v){
   const it = orden[i];
@@ -489,10 +507,10 @@ function setCantDirecto(i, v){
     }
   }
   it.cant = nuevo;
-  render();
+  refrescarItems();
 }
-function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); renderBar(); }
-function quitar(i){ orden.splice(i,1); render(); }
+function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); refrescarItems(); }
+function quitar(i){ orden.splice(i,1); refrescarItems(); }
 function toggleExpandido(id){ expandido = expandido===id ? null : id; renderResults(); }
 
 // ── CONFIRMAR (RPC atómica, con fallback offline) ─────────────────────
@@ -607,7 +625,7 @@ function render(){
     </section>
     <div class="divider"></div>
     <section class="search-wrap ${orden.length?'has-items':''}">
-      ${orden.length ? '' : '<div class="lbl">Agregar producto</div>'}
+      <div class="lbl">Agregar producto</div>
       <input class="field" placeholder="Buscar por nombre…" value="${busqueda}"
         oninput="window.setBusqueda(this.value)" onfocus="window.scrollAProductos()" autocomplete="off">
       <div id="res"></div>
@@ -771,7 +789,7 @@ function renderResults(){
             </div>
             <div class="disc">
               <input type="number" min="0" max="100" value="${it.disc}"
-                onchange="window.setDisc(${i},this.value);window.render()"> % desc
+                onchange="window.setDisc(${i},this.value)"> % desc
             </div>
           </div>
         </div>`;
