@@ -121,9 +121,9 @@ async function cargar() {
   if (esAdmin && !preventistasList.length) {
     const { data: prevs } = await supabase
       .from('usuarios')
-      .select('id, nombre, rol')
+      .select('id, nombre, rol, activo')
       .eq('empresa_id', usuario.empresa_id)
-      .in('rol', ['preventista', 'admin'])
+      .eq('activo', true)
       .order('nombre')
     preventistasList = prevs || []
   }
