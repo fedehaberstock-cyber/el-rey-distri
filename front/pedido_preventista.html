@@ -314,18 +314,21 @@ async function cargarTodo(){
 }
 
 async function cargarDesdeLocal(){
-  const [cliRows, salRows, prodRows] = await Promise.all([
+  const [cliRows, salRows, prodRows, stkRows] = await Promise.all([
     db.clientes.where('activo').equals(1).sortBy('nombre'),
     db.saldo_actual.toArray(),
     db.productos.where('activo').equals(1).sortBy('nombre'),
+    db.stock_actual.toArray(),
   ]);
   const saldoMap = Object.fromEntries(salRows.map(s => [s.cliente_id, Number(s.saldo) || 0]));
+  const stockMap = Object.fromEntries(stkRows.map(s => [s.producto_id, Number(s.stock) || 0]));
   clientes  = cliRows.map(c => ({ ...c, saldo: saldoMap[c.id] || 0 }));
   productos = prodRows.map(p => ({
     ...p,
     precio: Number(p.precio) || 0,
     u_bulto: p.u_bulto || 1,
     desc_bulto: Number(p.desc_bulto) || 0,
+    stock: stockMap[p.id] ?? 0,
   }));
   if (!clientes.length && !productos.length) {
     mostrarError('Sin datos locales. Conectate una vez para sincronizar.');
