@@ -50,12 +50,11 @@
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='7' cy='7' r='4'/><path d='M12 12l-2.5-2.5'/></svg>");
     background-repeat:no-repeat;background-position:12px center}
   .search-input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
-  .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
-  .chips::-webkit-scrollbar{display:none}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:2px}
   .chip{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;
     border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
     white-space:nowrap;cursor:pointer;flex-shrink:0}
-  .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
 
   /* BANNER NEGATIVOS */
   .neg-banner{margin:12px 18px 0;padding:12px 14px;background:var(--red-bg);
@@ -397,7 +396,7 @@ function renderTabStock(el) {
 
 function renderStockList() {
   const box = document.getElementById('stock-list'); if (!box) return;
-  let lista = prodsFiltrados().sort((a, b) => a.stock - b.stock);
+  let lista = prodsFiltrados().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
   if (!lista.length) { box.innerHTML = `<div class="empty">Sin resultados.</div>`; return; }
   box.innerHTML = lista.map(p => {
     const cl = claseStock(p.stock);
@@ -583,9 +582,29 @@ function renderPanelEditar() {
         <button class="cancel" onclick="window._cerrarPanel()">Cancelar</button>
         <button class="bar-btn" onclick="window._guardarEdicion()">Guardar</button>
       </div>
+      <button onclick="window._eliminarProducto()"
+        style="width:100%;margin-top:10px;padding:13px;border:1px solid var(--red-tx);
+          border-radius:12px;background:transparent;color:var(--red-tx);font-size:14px;
+          font-weight:600;cursor:pointer;font-family:inherit">
+        🗑 Eliminar producto
+      </button>
     </div>`;
   document.getElementById('root').appendChild(ov);
 }
+
+async function eliminarProducto() {
+  if (!pInput.prodId) return;
+  const p = productos.find(x => x.id === pInput.prodId);
+  if (!p) return;
+  if (!confirm(`Eliminar "${p.nombre}"?\n\nQueda inactivo y no aparece en pedidos ni en stock. El historial de movimientos se conserva.`)) return;
+  const { error } = await supabase.from('productos').update({ activo: false }).eq('id', pInput.prodId);
+  if (error) { alert('Error: ' + error.message); return; }
+  panelOpen = null; edit = null;
+  vista = 'lista'; prodSelId = null;
+  await cargarTodo();
+  render();
+}
+window._eliminarProducto = eliminarProducto;
 
 // ── TAB SIN INGRESO ────────────────────────────────────────────────────────
 function renderTabSinIngreso(el) {
@@ -852,7 +871,7 @@ async function confirmarPanel() {
 window._setTab            = t  => { tab = t; filtroGrupo = 'todo'; busqueda = ''; vista = 'lista'; render(); };
 window._setBusqueda       = v  => { busqueda = v; renderStockList(); };
 window._setAgrupar        = v  => { agrupar = v; filtroGrupo = 'todo'; render(); };
-window._setFiltroGrupo    = i  => { filtroGrupo = (window._gruposCache || grupos())[i]; renderStockList(); };
+window._setFiltroGrupo    = i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
 window._setFiltroGrupoFull= i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
 window._setBannerNeg      = () => { busqueda = ''; filtroGrupo = 'todo'; render(); /* negativos ya primeros por sort */ };
 window._irDetalle         = async id => {
