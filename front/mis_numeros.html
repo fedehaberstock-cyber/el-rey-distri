@@ -103,7 +103,9 @@ let cargando = true
 function rangoFechas() {
   const hoy = new Date()
   let desde
-  if (periodo === 'sem') {
+  if (periodo === 'dia') {
+    desde = new Date(hoy); desde.setHours(0, 0, 0, 0)
+  } else if (periodo === 'sem') {
     desde = new Date(hoy); desde.setDate(desde.getDate() - 7)
   } else if (periodo === 'mes') {
     desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
@@ -156,16 +158,24 @@ async function cargar() {
   if (esAdmin) {
     const { data: rank } = await supabase
       .from('pedidos')
-      .select('usuario_id, pedido_items(cantidad, precio_unit, descuento)')
+      .select('usuario_id, descuento, pedido_items(cantidad, precio_unit, descuento, productos(categoria))')
       .eq('empresa_id', usuario.empresa_id)
       .neq('estado', 'anulado')
       .gte('fecha', desde).lte('fecha', hasta)
     const map = new Map()
     for (const p of (rank || [])) {
-      const total = (p.pedido_items || []).reduce((s, it) =>
-        s + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
-      const prev = map.get(p.usuario_id) || { total: 0, pedidos: 0 }
-      map.set(p.usuario_id, { total: prev.total + total, pedidos: prev.pedidos + 1 })
+      const descGral = 1 - Number(p.descuento || 0) / 100
+      const prev = map.get(p.usuario_id) || { total: 0, pedidos: 0, cats: {} }
+      let totalPedido = 0
+      for (const it of (p.pedido_items || [])) {
+        const monto = Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100) * descGral
+        totalPedido += monto
+        const cat = it.productos?.categoria || 'Sin categoría'
+        prev.cats[cat] = (prev.cats[cat] || 0) + monto
+      }
+      prev.total += totalPedido
+      prev.pedidos += 1
+      map.set(p.usuario_id, prev)
     }
     rankingMes = [...map.entries()].map(([uid, v]) => ({
       usuario_id: uid,
@@ -264,6 +274,7 @@ function render() {
       </div>` : ''}
     <div class="periodo">
       <span style="color:var(--ink-soft)">Período:</span>
+      <button class="${periodo==='dia'?'active':''}" onclick="window._setPer('dia')">Día</button>
       <button class="${periodo==='sem'?'active':''}" onclick="window._setPer('sem')">Semana</button>
       <button class="${periodo==='mes'?'active':''}" onclick="window._setPer('mes')">Mes</button>
       <button class="${periodo==='anio'?'active':''}" onclick="window._setPer('anio')">Año</button>
@@ -318,14 +329,17 @@ function renderBody() {
     const cats = topCategorias().slice(0, 10)
     if (!cats.length) { el.innerHTML = `<div class="empty">Sin ventas en el período</div>`; return }
     const max = cats[0].total
+    const totalCats = cats.reduce((s, c) => s + c.total, 0)
     el.innerHTML = `<section>
       <div class="sec-title">Top categorías vendidas</div>
-      ${cats.map(c => `
-        <div class="bar-row">
+      ${cats.map(c => {
+        const pct = totalCats ? (c.total / totalCats * 100) : 0
+        return `<div class="bar-row">
           <span class="nm">${c.cat}</span>
           <div class="bar-wrap"><div class="bar-fill" style="width:${(c.total/max*100).toFixed(0)}%"></div></div>
-          <span class="val">${ars(c.total)}</span>
-        </div>`).join('')}
+          <span class="val">${ars(c.total)} <span style="color:var(--ink-soft);font-weight:600">· ${pct.toFixed(0)}%</span></span>
+        </div>`
+      }).join('')}
     </section>`
   } else if (tab === 'desc') {
     const lista = descuentosAplicados()
@@ -374,13 +388,33 @@ function renderBody() {
     if (!rankingMes.length) { el.innerHTML = `<div class="empty">Sin datos</div>`; return }
     el.innerHTML = `<section>
       <div class="sec-title">Ranking del período</div>
-      ${rankingMes.map((r,i) => `
-        <div class="ranking-row ${r.usuario_id===usuarioId?'me':''}">
-          <div class="pos">${i+1}</div>
-          <div class="nm">${r.nombre}</div>
-          <div style="font-size:12px;color:var(--ink-soft);margin-right:8px">${r.pedidos} pedidos</div>
-          <div class="val">${ars(r.total)}</div>
-        </div>`).join('')}
+      ${rankingMes.map((r,i) => {
+        const cats = Object.entries(r.cats || {}).sort((a,b) => b[1] - a[1]).slice(0, 5)
+        const totCats = cats.reduce((s,[,v]) => s + v, 0) || 1
+        return `
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;${r.usuario_id===usuarioId?'background:var(--gold-lt);border-color:var(--gold)':''}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="pos">${i+1}</div>
+            <div class="nm" style="flex:1">${r.nombre}</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-right:8px">${r.pedidos} pedidos</div>
+            <div class="val">${ars(r.total)}</div>
+          </div>
+          ${cats.length ? `
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line-soft)">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:5px">Mix por categoría</div>
+              ${cats.map(([cat, monto]) => {
+                const pct = monto / totCats * 100
+                return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0">
+                  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat}</span>
+                  <div style="flex:1;height:5px;background:var(--line-soft);border-radius:999px;overflow:hidden">
+                    <div style="height:100%;background:var(--gold);width:${pct.toFixed(0)}%"></div>
+                  </div>
+                  <span style="font-weight:600;min-width:36px;text-align:right">${pct.toFixed(0)}%</span>
+                </div>`
+              }).join('')}
+            </div>` : ''}
+        </div>`
+      }).join('')}
     </section>`
   }
 }
