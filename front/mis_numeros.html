@@ -389,7 +389,7 @@ function renderBody() {
     el.innerHTML = `<section>
       <div class="sec-title">Ranking del período</div>
       ${rankingMes.map((r,i) => {
-        const cats = Object.entries(r.cats || {}).sort((a,b) => b[1] - a[1]).slice(0, 5)
+        const cats = Object.entries(r.cats || {}).sort((a,b) => b[1] - a[1])
         const totCats = cats.reduce((s,[,v]) => s + v, 0) || 1
         return `
         <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;${r.usuario_id===usuarioId?'background:var(--gold-lt);border-color:var(--gold)':''}">
