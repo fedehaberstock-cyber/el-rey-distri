@@ -150,6 +150,7 @@ async function cargar() {
     .eq('empresa_id', usuario.empresa_id)
     .eq('usuario_id', usuarioId)
     .gte('fecha', desde.split('T')[0])
+    .lte('fecha', hasta.split('T')[0])
   if (e2) console.warn('visitas:', e2.message)
   visitas = vis || []
 
@@ -196,9 +197,21 @@ function calcularKPIs() {
   const cantPedidos = pedidos.length
   const ticketProm = cantPedidos ? totalMonto / cantPedidos : 0
   const comisionEstim = totalMonto * 0.05
-  const cantVisitasSinPedido = visitas.filter(v => v.resultado === 'sin_pedido').length
-  const totalIntentos = cantPedidos + cantVisitasSinPedido
-  const conversion = totalIntentos ? (cantPedidos / totalIntentos * 100) : null
+
+  // Conversión por clientes únicos: si un cliente tuvo al menos 1 pedido en el
+  // período cuenta como conversión; si solo tuvo visitas sin_pedido, cuenta como
+  // intento fallido. Evita inflar el denominador con visitas repetidas al mismo
+  // cliente y respeta el caso "vino dos veces y compró la segunda".
+  const clientesConPedido = new Set(pedidos.map(p => p.cliente_id).filter(Boolean))
+  const clientesSinPedido = new Set(
+    visitas
+      .filter(v => v.resultado === 'sin_pedido' && !clientesConPedido.has(v.cliente_id))
+      .map(v => v.cliente_id)
+  )
+  const cantPedidosUnicos      = clientesConPedido.size
+  const cantVisitasSinPedido   = clientesSinPedido.size
+  const totalIntentos          = cantPedidosUnicos + cantVisitasSinPedido
+  const conversion = totalIntentos ? (cantPedidosUnicos / totalIntentos * 100) : null
 
   return { totalMonto, cantPedidos, ticketProm, comisionEstim, cantVisitasSinPedido, conversion }
 }

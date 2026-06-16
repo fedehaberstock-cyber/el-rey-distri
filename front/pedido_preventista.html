@@ -355,6 +355,11 @@ async function cargarTodo(){
   }
   const usr = getUsuario && getUsuario();
   const hoy = _hoyArg();
+  // Auto sin_pedido: marca clientes del día anterior sin acción (idempotente).
+  // No bloquea — si falla, seguimos con la carga normal.
+  supabase.rpc('cerrar_dia_anterior_visitas').then(({ error }) => {
+    if (error) console.warn('[auto sin_pedido]', error.message);
+  });
   const [cliResp, salResp, prodResp, stkResp, zonResp, visResp] = await Promise.all([
     supabase.from('clientes')
       .select('id, nombre, zona_id')
