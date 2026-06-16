@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Edge Function: extraer-ingreso
 // Recibe una o más URLs/base64 de fotos de una boleta de proveedor,
-// llama a Claude Haiku 4.5 con visión y devuelve los items detectados.
+// llama a Claude Sonnet 4.6 con visión y devuelve los items detectados.
 //
 // Body esperado:
 //   { imagenes: ["https://...jpg", "data:image/jpeg;base64,..."] }
@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "claude-sonnet-4-6";
 
 const SYSTEM_PROMPT = `Sos un extractor de líneas de boletas de proveedores de distribuidoras.
 Recibís una o más fotos de la MISMA boleta (distintas zonas o ángulos) y devolvés un JSON
