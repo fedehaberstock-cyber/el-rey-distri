@@ -355,9 +355,10 @@ async function cargarTodo(){
   }
   const usr = getUsuario && getUsuario();
   const hoy = _hoyArg();
-  // Auto sin_pedido: marca clientes del día anterior sin acción (idempotente).
+  // Auto sin_pedido: marca clientes de los ultimos 3 dias sin acción (idempotente).
+  // Cubre que el preventista no abra la app varios dias (ej. viernes->martes).
   // No bloquea — si falla, seguimos con la carga normal.
-  supabase.rpc('cerrar_dia_anterior_visitas').then(({ error }) => {
+  supabase.rpc('cerrar_dia_anterior_visitas', { p_dias: 3 }).then(({ error }) => {
     if (error) console.warn('[auto sin_pedido]', error.message);
   });
   const [cliResp, salResp, prodResp, stkResp, zonResp, visResp] = await Promise.all([
