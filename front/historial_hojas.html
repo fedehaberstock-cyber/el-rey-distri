@@ -82,7 +82,7 @@ let abierta = null  // id de hoja expandida
 async function cargar() {
   const { data: hojasData, error: e1 } = await supabase
     .from('hojas_ruta')
-    .select('id, fecha, estado')
+    .select('id, fecha, estado, total_efectivo, total_transf, total_cuenta, total_gastos, efectivo_entregado, faltante, observaciones')
     .eq('empresa_id', usuario.empresa_id)
     .order('fecha', { ascending: false })
     .limit(60)
@@ -91,11 +91,17 @@ async function cargar() {
   const hojaIds = (hojasData || []).map(h => h.id)
   if (!hojaIds.length) { hojas = []; return }
 
-  const { data: peds, error: e2 } = await supabase
-    .from('pedidos')
-    .select('id, hoja_ruta_id, clientes(nombre), boletas(id, total)')
-    .in('hoja_ruta_id', hojaIds)
+  const [{ data: peds, error: e2 }, { data: gas, error: e3 }] = await Promise.all([
+    supabase.from('pedidos')
+      .select('id, hoja_ruta_id, clientes(nombre), boletas(id, total)')
+      .in('hoja_ruta_id', hojaIds),
+    supabase.from('hoja_gastos')
+      .select('hoja_id, concepto, monto')
+      .in('hoja_id', hojaIds)
+      .order('fecha', { ascending: true }),
+  ])
   if (e2) throw e2
+  if (e3) throw e3
 
   const mapPeds = new Map()
   for (const p of (peds || [])) {
@@ -110,9 +116,17 @@ async function cargar() {
     mapPeds.set(p.hoja_ruta_id, arr)
   }
 
+  const mapGas = new Map()
+  for (const g of (gas || [])) {
+    const arr = mapGas.get(g.hoja_id) || []
+    arr.push({ concepto: g.concepto, monto: Number(g.monto) || 0 })
+    mapGas.set(g.hoja_id, arr)
+  }
+
   hojas = hojasData.map(h => ({
     ...h,
     pedidos: mapPeds.get(h.id) || [],
+    gastos:  mapGas.get(h.id)  || [],
   }))
 }
 
@@ -130,17 +144,41 @@ function render() {
       : hojas.map(h => {
           const total = h.pedidos.reduce((s,p)=>s+p.total,0)
           const exp = abierta === h.id
+          const totGastos = Number(h.total_gastos) || 0
+          const falt = Number(h.faltante) || 0
+          const badges = []
+          if (totGastos > 0) badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600">💸 ${ars(totGastos)}</span>`)
+          if (falt > 0.5)    badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--red-bg);color:var(--red-tx);font-weight:600">⚠ faltan ${ars(falt)}</span>`)
+          if (falt < -0.5)   badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--green-bg);color:var(--green-tx);font-weight:600">+ sobra ${ars(-falt)}</span>`)
           return `
             <div class="hoja">
               <div class="hoja-top" onclick="window._toggle('${h.id}')">
-                <div>
+                <div style="flex:1;min-width:0">
                   <div class="hoja-fecha">${fmtFecha(h.fecha)}</div>
                   <div class="hoja-sub">${h.pedidos.length} pedidos · ${ars(total)}</div>
+                  ${badges.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${badges.join('')}</div>` : ''}
                 </div>
                 <span class="hoja-estado ${h.estado}">${h.estado}</span>
               </div>
               ${exp ? `
                 <div class="ped-list">
+                  ${(h.gastos.length || h.observaciones || h.efectivo_entregado != null) ? `
+                    <div style="padding:12px 14px;background:var(--paper);border-bottom:1px solid var(--line-soft)">
+                      ${h.gastos.length ? `
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px">Gastos</div>
+                        ${h.gastos.map(g => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0">
+                          <span>${g.concepto}</span><span style="font-weight:600;color:var(--red-tx)">−${ars(g.monto)}</span>
+                        </div>`).join('')}` : ''}
+                      ${h.efectivo_entregado != null ? `
+                        <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;margin-top:6px;border-top:1px solid var(--line-soft)">
+                          <span style="color:var(--ink-soft)">Efectivo entregado</span>
+                          <span style="font-weight:600">${ars(Number(h.efectivo_entregado))}</span>
+                        </div>` : ''}
+                      ${h.observaciones ? `
+                        <div style="margin-top:8px;padding:8px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px;font-size:13px;color:var(--ink-soft);line-height:1.4">
+                          📝 ${h.observaciones}
+                        </div>` : ''}
+                    </div>` : ''}
                   ${h.pedidos.length === 0 ? `<div style="padding:14px;color:var(--ink-soft);font-size:13px">Sin pedidos.</div>`
                     : h.pedidos.map(p => `
                       <div class="ped-row" onclick="window._verBoleta('${p.boleta_id || ''}')">

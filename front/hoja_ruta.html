@@ -386,6 +386,9 @@ async function cargarTodo() {
 let tab        = 'hoja'
 let confirmado = false
 let cierres    = {}
+let gastos     = []   // [{concepto, monto}]
+let efEntregado = ''
+let observaciones = ''
 window.cierres = cierres  // exponer para oninput inline
 
 const totalACobrar = p => p.tacobrar || (p.totalPedido + p.saldoAnt)
@@ -610,6 +613,70 @@ function renderCierre(el) {
   el.appendChild(resBox)
   actualizarResumen()
 
+  // ── Gastos del día ───────────────────────────────────────────────────
+  const gBox = document.createElement('div')
+  gBox.className = 'resumen-cierre'
+  gBox.innerHTML = `
+    <div class="rc-title">Gastos del día</div>
+    ${gastos.length ? gastos.map((g, i) => `
+      <div class="rc-row" style="gap:8px">
+        <input type="text" placeholder="Concepto"
+          value="${g.concepto || ''}"
+          onchange="window.setGastoConcepto(${i}, this.value)"
+          style="flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;background:var(--card);color:var(--ink)">
+        <input type="number" placeholder="0" min="0" inputmode="numeric"
+          value="${g.monto || ''}"
+          onchange="window.setGastoMonto(${i}, this.value)"
+          style="width:90px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;text-align:right;background:var(--card);color:var(--ink);font-weight:600">
+        <button onclick="window.quitarGasto(${i})"
+          style="background:none;border:none;color:var(--red-tx);font-size:18px;cursor:pointer;font-family:inherit;padding:0 4px">×</button>
+      </div>`).join('') : `<div style="font-size:13px;color:var(--ink-soft);padding:4px 0">Sin gastos cargados.</div>`}
+    <button onclick="window.agregarGasto()"
+      style="margin-top:8px;width:100%;padding:9px;border:1px dashed var(--gold);border-radius:10px;background:transparent;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">
+      + Agregar gasto
+    </button>`
+  el.appendChild(gBox)
+
+  // ── Cierre de caja: efectivo entregado + faltante ────────────────────
+  const totGastos = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0)
+  let efCobrado = 0
+  pedidos.forEach(p => {
+    const c = cierres[p.id]
+    if (c && !c.anulado && !c.noEntregado) efCobrado += parseFloat(c.ef) || 0
+  })
+  const aDepositar = efCobrado - totGastos
+  const entregado = parseFloat(efEntregado) || 0
+  const faltante = efEntregado.toString().trim() === '' ? null : (aDepositar - entregado)
+
+  const cajaBox = document.createElement('div')
+  cajaBox.className = 'resumen-cierre'
+  cajaBox.innerHTML = `
+    <div class="rc-title">Cierre de caja</div>
+    <div class="rc-row"><span class="k">💵 Efectivo cobrado</span><span class="v">${ars(efCobrado)}</span></div>
+    <div class="rc-row"><span class="k">− Gastos</span><span class="v" style="color:var(--red-tx)">${ars(totGastos)}</span></div>
+    <div class="rc-row total"><span class="k">= A depositar</span><span class="v">${ars(aDepositar)}</span></div>
+    <div class="monto-row" style="margin-top:10px">
+      <span class="monto-lbl">Efectivo entregado</span>
+      <input class="monto-input" type="number" min="0" inputmode="numeric"
+        value="${efEntregado}"
+        onchange="window.setEfEntregado(this.value)"
+        placeholder="(opcional)">
+    </div>
+    ${faltante !== null && Math.abs(faltante) > 0.5 ? `
+      <div class="saldo-row ${faltante > 0 ? 'warn' : 'ok'}">
+        <span>${faltante > 0 ? '⚠ Faltante' : '✓ Sobrante'}</span>
+        <b>${ars(Math.abs(faltante))}</b>
+      </div>
+      ${faltante > 0 ? `
+        <input class="motivo-input" placeholder="Observación (obligatoria si hay faltante)"
+          value="${observaciones}"
+          oninput="window.setObservaciones(this.value)">` : ''}` : ''}
+    ${faltante === null || Math.abs(faltante) <= 0.5 ? `
+      <input class="motivo-input" placeholder="Observación (opcional)"
+        value="${observaciones}"
+        oninput="window.setObservaciones(this.value)">` : ''}`
+  el.appendChild(cajaBox)
+
   const puede = pedidos.length > 0 && pedidos.filter(p => procesado(p.id)).length === pedidos.length
   const bar = document.createElement('div')
   bar.className = 'bar'
@@ -690,6 +757,29 @@ function toggleCc(id) {
 }
 
 async function confirmarCierre() {
+  // Validar faltante con observación obligatoria
+  const totGastos = gastos.reduce((s, g) => s + (parseFloat(g.monto) || 0), 0)
+  let efCobrado = 0
+  pedidos.forEach(p => {
+    const c = cierres[p.id]
+    if (c && !c.anulado && !c.noEntregado) efCobrado += parseFloat(c.ef) || 0
+  })
+  const aDepositar = efCobrado - totGastos
+  const entregado = parseFloat(efEntregado) || 0
+  const faltante = efEntregado.toString().trim() === '' ? 0 : (aDepositar - entregado)
+  if (faltante > 0.5 && !observaciones.trim()) {
+    alert('Hay un faltante de ' + new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(faltante) + '. Escribí una observación para registrar el motivo.')
+    return
+  }
+  // Validar gastos: si tienen monto deben tener concepto, y viceversa
+  const gastosLimpios = gastos
+    .map(g => ({ concepto: (g.concepto || '').trim(), monto: parseFloat(g.monto) || 0 }))
+    .filter(g => g.concepto && g.monto > 0)
+  if (gastosLimpios.length !== gastos.filter(g => (g.concepto || '').trim() || g.monto).length) {
+    alert('Hay gastos incompletos: cada gasto necesita concepto y monto.')
+    return
+  }
+
   const btn = document.querySelector('.bar .bar-btn')
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…' }
 
@@ -698,7 +788,6 @@ async function confirmarCierre() {
     for (const p of pedidos) {
       const c = cierres[p.id]
       if (c.anulado) {
-        // rechazado: devuelve stock, anula, sin comisión, se desvincula de la hoja
         const { error } = await supabase.rpc('anular_pedido', { p_pedido_id: p.id, p_motivo: c.motivo || null })
         if (error) throw error
         continue
@@ -711,8 +800,15 @@ async function confirmarCierre() {
         monto_cuenta:       parseFloat(c.cc)  || 0,
       }).eq('id', p.id)
     }
-    // Cerrar hoja — genera mov_cuenta
-    const { error } = await supabase.rpc('cerrar_hoja_ruta', { p_hoja_id: hojaId })
+    // Cerrar hoja con payload — incluye gastos, efectivo entregado y observación
+    const { error } = await supabase.rpc('cerrar_hoja_ruta', {
+      p_payload: {
+        hoja_id:            hojaId,
+        gastos:             gastosLimpios,
+        efectivo_entregado: efEntregado.toString().trim() === '' ? null : entregado,
+        observaciones:      observaciones.trim() || null,
+      },
+    })
     if (error) throw error
     confirmado = true; render()
   } catch(e) {
@@ -818,10 +914,18 @@ function confirmarImprBoletas() {
   window.open('./boletas_lote.html?ids=' + ids.join(','), '_blank')
 }
 
+function agregarGasto() { gastos.push({ concepto: '', monto: '' }); render() }
+function quitarGasto(i) { gastos.splice(i, 1); render() }
+function setGastoConcepto(i, v) { if (gastos[i]) gastos[i].concepto = v }
+function setGastoMonto(i, v) { if (gastos[i]) { gastos[i].monto = v; render() } }
+function setEfEntregado(v) { efEntregado = v; render() }
+function setObservaciones(v) { observaciones = v }
+
 Object.assign(window, {
   render, setTab, imprimirHoja, confirmarCierre,
   toggleNoEnt, toggleAnular, activarEf, activarTr, toggleCc, actualizarResumen,
-  abrirModalBoletas, cerrarModalBoletas, confirmarImprBoletas, editarBoleta
+  abrirModalBoletas, cerrarModalBoletas, confirmarImprBoletas, editarBoleta,
+  agregarGasto, quitarGasto, setGastoConcepto, setGastoMonto, setEfEntregado, setObservaciones,
 })
 
 // ── INIT ──────────────────────────────────────────────────────────────
