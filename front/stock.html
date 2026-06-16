@@ -194,7 +194,7 @@ const puedeAjustar = tienePermiso('stock', 'editar');
 
 // Tabs visibles — "Capital" (info financiera) solo para quien administra stock
 const TABS = [['stock','Stock'],['sin_ingreso','Sin ingreso'],['precio','Precios'],['resumen','Resumen']];
-if (puedeAjustar) TABS.push(['capital','Capital']);
+if (puedeAjustar) TABS.push(['capital','Capital'], ['inactivos','Inactivos']);
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 const ars     = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
@@ -216,6 +216,7 @@ const DIAS_ALERTA = 45;
 
 // ── ESTADO ─────────────────────────────────────────────────────────────────
 let productos  = [];
+let productosInactivos = [];
 let movs       = [];
 let tab        = 'stock';
 let vista      = 'lista';   // 'lista' | 'detalle'
@@ -281,7 +282,31 @@ async function cargarTodo() {
     ultimo_ingreso: ingresoMap[p.id] || null,
     ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
   }));
+
+  if (puedeAjustar) {
+    const { data: inact } = await supabase.from('productos')
+      .select('id, nombre, categoria, costo, precio, updated_at, proveedores(nombre)')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', false).order('nombre');
+    productosInactivos = (inact || []).map(p => ({
+      id: p.id, nombre: p.nombre,
+      cat: p.categoria || 'Sin categoría',
+      prov: p.proveedores?.nombre || 'Sin proveedor',
+      costo: p.costo || 0, precio: p.precio || 0,
+      eliminado: p.updated_at ? p.updated_at.slice(0, 10) : null,
+    }));
+  }
 }
+
+async function reactivarProducto(id) {
+  const p = productosInactivos.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`Reactivar "${p.nombre}"?\n\nVuelve a aparecer en stock y en pedidos.`)) return;
+  const { error } = await supabase.from('productos').update({ activo: true }).eq('id', id);
+  if (error) { alert('Error: ' + error.message); return; }
+  await cargarTodo();
+  render();
+}
+window._reactivarProducto = reactivarProducto;
 
 window._editarProducto = (id) => {
   const p = productos.find(x => x.id === id); if (!p) return;
@@ -357,6 +382,7 @@ function render() {
   else if (tab === 'sin_ingreso') renderTabSinIngreso(el);
   else if (tab === 'precio')      renderTabPrecio(el);
   else if (tab === 'capital')     renderTabCapital(el);
+  else if (tab === 'inactivos')   renderTabInactivos(el);
   else                            renderTabResumen(el);
 
   if (panelOpen) renderPanel();
@@ -769,6 +795,41 @@ function renderTabCapital(el) {
         productos con stock que no rotan — lo primero a ofertar o liquidar.
       </div>`}
   `;
+}
+
+// ── TAB INACTIVOS ──────────────────────────────────────────────────────────
+function renderTabInactivos(el) {
+  if (!productosInactivos.length) {
+    el.innerHTML += `<div class="empty" style="padding-top:60px">No hay productos eliminados.</div>`;
+    return;
+  }
+  el.innerHTML += `
+    <div style="padding:12px 18px 4px;font-size:13px;color:var(--ink-soft)">
+      ${productosInactivos.length} producto${productosInactivos.length===1?'':'s'} eliminado${productosInactivos.length===1?'':'s'}. Reactivá para que vuelvan a aparecer en stock y pedidos.
+    </div>
+    <div class="list">
+      ${productosInactivos.map(p => `
+        <div class="prod-card" style="cursor:default">
+          <div class="top">
+            <span class="nm">${p.nombre}</span>
+            <button onclick="window._reactivarProducto('${p.id}')"
+              style="padding:7px 12px;border:1px solid var(--green-tx);border-radius:8px;
+                background:var(--green-bg);color:var(--green-tx);font-size:13px;font-weight:600;
+                cursor:pointer;font-family:inherit;white-space:nowrap">
+              ↺ Reactivar
+            </button>
+          </div>
+          <div class="meta">
+            <span class="meta-tag">${p.cat}</span>
+            <span class="meta-tag">·</span>
+            <span class="meta-tag">${p.prov}</span>
+            <span class="meta-tag">·</span>
+            <span class="meta-tag">Costo <b>${ars(p.costo)}</b></span>
+            <span class="meta-tag">·</span>
+            <span class="meta-tag">Precio <b>${ars(p.precio)}</b></span>
+          </div>
+        </div>`).join('')}
+    </div>`;
 }
 
 // ── TAB RESUMEN ────────────────────────────────────────────────────────────
