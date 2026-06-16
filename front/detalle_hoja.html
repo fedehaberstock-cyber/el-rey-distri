@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Detalle de hoja</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  .info-box{margin:14px 18px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px}
+  .info-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px}
+  .info-row{display:flex;justify-content:space-between;padding:3px 0;font-size:14px;gap:8px}
+  .info-row .k{color:var(--ink-soft)}
+  .info-row .v{font-weight:600;text-align:right}
+  .info-row.total{padding-top:6px;border-top:1px solid var(--line-soft);margin-top:5px}
+  .info-row.total .k{font-weight:700;color:var(--ink)}
+  .info-row.total .v{font-size:16px;color:var(--gold)}
+
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .badge{font-size:11px;padding:3px 8px;border-radius:999px;font-weight:600}
+  .badge.gold{background:var(--gold-lt);color:var(--gold-dk)}
+  .badge.red{background:var(--red-bg);color:var(--red-tx)}
+  .badge.green{background:var(--green-bg);color:var(--green-tx)}
+  .badge.amber{background:var(--amber-bg);color:var(--amber-tx)}
+
+  .observ{margin:0 18px 14px;padding:10px 12px;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;font-size:13px;color:var(--ink-soft);line-height:1.4}
+
+  .zona-hdr{display:flex;align-items:center;gap:10px;padding:14px 18px 6px;
+    font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
+  .zona-hdr::after{content:'';flex:1;height:1px;background:var(--line)}
+
+  .ped-card{margin:0 18px 10px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:11px 13px;cursor:pointer}
+  .ped-card.no-entrega{border-color:var(--red-tx);background:var(--red-bg)}
+  .ped-card.anulado{opacity:.55;background:var(--line-soft)}
+  .ped-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+  .ped-cli{font-size:14px;font-weight:700;flex:1;min-width:0}
+  .ped-num{font-size:11px;color:var(--ink-soft);font-weight:500;margin-top:1px}
+  .ped-total{font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap}
+  .ped-meta{font-size:12px;color:var(--ink-soft)}
+  .ped-pago{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .pago-tag{font-size:11px;padding:2px 7px;border-radius:6px;font-weight:600}
+  .pago-tag.ef{background:var(--green-bg);color:var(--green-tx)}
+  .pago-tag.tr{background:#E8F0FB;color:#2A4E9A}
+  .pago-tag.cc{background:var(--amber-bg);color:var(--amber-tx)}
+  .pago-tag.ne{background:var(--red-bg);color:var(--red-tx)}
+  .pago-tag.anu{background:var(--line-soft);color:var(--ink-soft)}
+
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('ventas_totales') && !tienePermiso('hoja_ruta') && usuario.rol !== 'admin') {
+  location.href = './login_home.html'
+}
+
+const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n)
+const fmtFecha = s => {
+  if (!s) return '—'
+  const [y,m,d] = s.slice(0,10).split('-')
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+  return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`
+}
+const fmtHora = s => s ? new Date(s).toLocaleTimeString('es-AR',{timeZone:'America/Argentina/Cordoba',hour:'2-digit',minute:'2-digit'}) : ''
+
+const hojaId = new URLSearchParams(location.search).get('hoja_id')
+if (!hojaId) {
+  document.getElementById('root').innerHTML = `<div class="err-box">Falta ?hoja_id=UUID</div>`
+  throw new Error('sin hoja_id')
+}
+
+const [{ data: hoja, error: e1 }, { data: peds, error: e2 }, { data: gas, error: e3 }] = await Promise.all([
+  supabase.from('hojas_ruta')
+    .select('id, fecha, estado, total_efectivo, total_transf, total_cuenta, total_no_entregado, total_gastos, efectivo_entregado, faltante, observaciones, cerrada_en, usuarios!hojas_ruta_usuario_id_fkey(nombre)')
+    .eq('id', hojaId).single(),
+  supabase.from('pedidos')
+    .select(`id, estado, entregado, motivo_no_entrega, monto_efectivo, monto_transf, monto_cuenta, descuento,
+      clientes(id, nombre, direccion, telefono, posicion_zona, zonas(nombre, orden)),
+      boletas(id, total, saldo_anterior, total_a_cobrar),
+      usuarios!pedidos_usuario_id_fkey(nombre)`)
+    .eq('hoja_ruta_id', hojaId),
+  supabase.from('hoja_gastos').select('concepto, monto, fecha').eq('hoja_id', hojaId).order('fecha', { ascending: true }),
+])
+
+if (e1 || e2 || e3) {
+  document.getElementById('root').innerHTML = `<div class="err-box">${(e1||e2||e3).message}</div>`
+  throw new Error('fail')
+}
+
+// Adaptar pedidos
+const pedidos = (peds || []).map(p => {
+  const b = Array.isArray(p.boletas) ? p.boletas[0] : p.boletas
+  return {
+    id:        p.id,
+    estado:    p.estado,
+    entregado: p.entregado,
+    motivo:    p.motivo_no_entrega || '',
+    cli:       p.clientes?.nombre || 'Sin cliente',
+    dir:       p.clientes?.direccion || '',
+    tel:       p.clientes?.telefono || '',
+    pos:       p.clientes?.posicion_zona ?? 99,
+    zona:      p.clientes?.zonas?.nombre || 'Sin zona',
+    zonaOrden: p.clientes?.zonas?.orden ?? 99,
+    prev:      p.usuarios?.nombre || '',
+    boletaId:  b?.id || null,
+    total:     Number(b?.total) || 0,
+    saldoAnt:  Number(b?.saldo_anterior) || 0,
+    tacobrar:  Number(b?.total_a_cobrar) || 0,
+    ef:        Number(p.monto_efectivo) || 0,
+    tr:        Number(p.monto_transf) || 0,
+    cc:        Number(p.monto_cuenta) || 0,
+  }
+})
+
+// Agrupar por zona
+const zonaMap = new Map()
+pedidos.forEach(p => {
+  if (!zonaMap.has(p.zona)) zonaMap.set(p.zona, { orden: p.zonaOrden, lista: [] })
+  zonaMap.get(p.zona).lista.push(p)
+})
+const zonasOrdenadas = [...zonaMap.entries()].sort((a,b) => a[1].orden - b[1].orden)
+
+// Totales
+const totEf = Number(hoja.total_efectivo) || 0
+const totTr = Number(hoja.total_transf) || 0
+const totCc = Number(hoja.total_cuenta) || 0
+const totNe = Number(hoja.total_no_entregado) || 0
+const totGastos = Number(hoja.total_gastos) || 0
+const efEntr = hoja.efectivo_entregado != null ? Number(hoja.efectivo_entregado) : null
+const falt = Number(hoja.faltante) || 0
+const totalCobrado = totEf + totTr + totCc
+
+const cantEntregados   = pedidos.filter(p => p.entregado === true).length
+const cantNoEntregados = pedidos.filter(p => p.entregado === false).length
+const cantAnulados     = pedidos.filter(p => p.estado === 'anulado').length
+
+// Render
+document.getElementById('root').innerHTML = `
+  <div class="hdr">
+    <div class="brand"><span class="crown">&#9818;</span>
+      <div>Detalle de hoja<small>${fmtFecha(hoja.fecha)}</small></div>
+    </div>
+    <button class="back" onclick="location.href='./historial_hojas.html'">Volver ›</button>
+  </div>
+
+  <div class="info-box">
+    <div class="info-title">Hoja del día</div>
+    <div class="info-row"><span class="k">Fecha de reparto</span><span class="v">${fmtFecha(hoja.fecha)}</span></div>
+    <div class="info-row"><span class="k">Estado</span><span class="v">${hoja.estado === 'cerrada' ? '✓ Cerrada' : hoja.estado}</span></div>
+    ${hoja.cerrada_en ? `<div class="info-row"><span class="k">Cerrada el</span><span class="v">${fmtFecha(hoja.cerrada_en)} ${fmtHora(hoja.cerrada_en)}</span></div>` : ''}
+    ${hoja.usuarios?.nombre ? `<div class="info-row"><span class="k">Preventista</span><span class="v">${hoja.usuarios.nombre}</span></div>` : ''}
+    <div class="info-row"><span class="k">Pedidos</span><span class="v">${pedidos.length}</span></div>
+    <div class="badges">
+      ${cantEntregados ? `<span class="badge green">✓ ${cantEntregados} entregados</span>` : ''}
+      ${cantNoEntregados ? `<span class="badge red">✗ ${cantNoEntregados} no entregados</span>` : ''}
+      ${cantAnulados ? `<span class="badge amber">⊘ ${cantAnulados} anulados</span>` : ''}
+    </div>
+  </div>
+
+  <div class="info-box">
+    <div class="info-title">Recaudación por forma de pago</div>
+    <div class="info-row"><span class="k">💵 Efectivo</span><span class="v">${ars(totEf)}</span></div>
+    <div class="info-row"><span class="k">📲 Transferencia</span><span class="v">${ars(totTr)}</span></div>
+    <div class="info-row"><span class="k">📒 En cuenta corriente</span><span class="v">${ars(totCc)}</span></div>
+    ${totNe ? `<div class="info-row"><span class="k" style="color:var(--red-tx)">❌ No entregado</span><span class="v" style="color:var(--red-tx)">${ars(totNe)}</span></div>` : ''}
+    <div class="info-row total"><span class="k">Total cobrado</span><span class="v">${ars(totalCobrado)}</span></div>
+  </div>
+
+  ${gas.length ? `
+    <div class="info-box">
+      <div class="info-title">Gastos del día</div>
+      ${gas.map(g => `<div class="info-row">
+        <span class="k">${g.concepto}</span>
+        <span class="v" style="color:var(--red-tx)">−${ars(Number(g.monto)||0)}</span>
+      </div>`).join('')}
+      <div class="info-row total"><span class="k">Total gastos</span><span class="v" style="color:var(--red-tx)">−${ars(totGastos)}</span></div>
+    </div>` : ''}
+
+  ${efEntr != null ? `
+    <div class="info-box">
+      <div class="info-title">Cierre de caja</div>
+      <div class="info-row"><span class="k">Efectivo cobrado</span><span class="v">${ars(totEf)}</span></div>
+      ${totGastos ? `<div class="info-row"><span class="k">− Gastos</span><span class="v" style="color:var(--red-tx)">−${ars(totGastos)}</span></div>` : ''}
+      <div class="info-row"><span class="k">A depositar (esperado)</span><span class="v">${ars(totEf - totGastos)}</span></div>
+      <div class="info-row"><span class="k">Efectivo entregado</span><span class="v">${ars(efEntr)}</span></div>
+      ${Math.abs(falt) > 0.5 ? `<div class="info-row total"><span class="k" style="color:${falt > 0 ? 'var(--red-tx)' : 'var(--green-tx)'}">${falt > 0 ? '⚠ Faltante' : '✓ Sobrante'}</span><span class="v" style="color:${falt > 0 ? 'var(--red-tx)' : 'var(--green-tx)'}">${ars(Math.abs(falt))}</span></div>` : `<div class="info-row total"><span class="k" style="color:var(--green-tx)">✓ Caja ok</span><span class="v" style="color:var(--green-tx)">$ 0</span></div>`}
+    </div>` : ''}
+
+  ${hoja.observaciones ? `<div class="observ">📝 ${hoja.observaciones}</div>` : ''}
+
+  ${zonasOrdenadas.map(([zonaNombre, { lista }]) => {
+    lista.sort((a, b) => a.pos - b.pos)
+    return `
+      <div class="zona-hdr">${zonaNombre}</div>
+      ${lista.map(p => {
+        const anu = p.estado === 'anulado'
+        const noE = p.entregado === false
+        const cls = anu ? 'anulado' : noE ? 'no-entrega' : ''
+        const tags = []
+        if (anu) tags.push(`<span class="pago-tag anu">⊘ Anulado</span>`)
+        else if (noE) tags.push(`<span class="pago-tag ne">✗ No entregado${p.motivo?': '+p.motivo:''}</span>`)
+        else {
+          if (p.ef > 0) tags.push(`<span class="pago-tag ef">💵 ${ars(p.ef)}</span>`)
+          if (p.tr > 0) tags.push(`<span class="pago-tag tr">📲 ${ars(p.tr)}</span>`)
+          if (p.cc > 0) tags.push(`<span class="pago-tag cc">📒 ${ars(p.cc)}</span>`)
+          if (!p.ef && !p.tr && !p.cc) tags.push(`<span class="pago-tag cc">📒 Quedó en cuenta</span>`)
+        }
+        return `<div class="ped-card ${cls}" onclick="${p.boletaId ? `window.open('./boleta.html?id=${p.boletaId}','_blank')` : ''}">
+          <div class="ped-top">
+            <div style="flex:1;min-width:0">
+              <div class="ped-cli">${p.cli}</div>
+              <div class="ped-num">#${p.id.slice(-4).toUpperCase()} · pos ${p.pos}${p.prev?` · ${p.prev}`:''}</div>
+            </div>
+            <div class="ped-total">${ars(p.tacobrar || p.total)}</div>
+          </div>
+          ${p.dir ? `<div class="ped-meta">📍 ${p.dir}${p.tel?' · 📞 '+p.tel:''}</div>` : ''}
+          ${p.saldoAnt > 0 ? `<div class="ped-meta" style="color:var(--red-tx);margin-top:3px">⚠ Saldo anterior: ${ars(p.saldoAnt)} (total pedido: ${ars(p.total)})</div>` : ''}
+          <div class="ped-pago">${tags.join('')}</div>
+        </div>`
+      }).join('')}`
+  }).join('')}
+`
+</script>
+</body>
+</html>

@@ -162,6 +162,14 @@ function render() {
               </div>
               ${exp ? `
                 <div class="ped-list">
+                  <div style="padding:10px 14px;background:var(--paper);border-bottom:1px solid var(--line-soft)">
+                    <button onclick="event.stopPropagation();location.href='./detalle_hoja.html?hoja_id=${h.id}'"
+                      style="width:100%;padding:10px;border:1px solid var(--gold);border-radius:10px;
+                        background:var(--gold-lt);color:var(--gold-dk);font-size:13px;font-weight:600;
+                        cursor:pointer;font-family:inherit">
+                      📋 Ver detalle completo
+                    </button>
+                  </div>
                   ${(h.gastos.length || h.observaciones || h.efectivo_entregado != null) ? `
                     <div style="padding:12px 14px;background:var(--paper);border-bottom:1px solid var(--line-soft)">
                       ${h.gastos.length ? `
