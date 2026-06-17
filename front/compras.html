@@ -86,17 +86,22 @@ if (!tienePermiso('catalogo', 'vista')) { location.href = './login_home.html'; t
 let sugerencias = []   // [{producto_id, nombre, categoria, proveedor_id, proveedor_nombre, stock_actual,
                        //   velocidad, dias_restantes, cantidad_sugerida, ultimo_costo, cantidad, excluido}]
 
+let telefonosProv = {}  // proveedor_id -> telefono
+
 async function cargar() {
-  const { data, error } = await supabase
-    .from('sugerencia_compra')
-    .select('*')
-    .eq('empresa_id', usuario.empresa_id)
-    .order('proveedor_nombre, dias_restantes')
+  const [{ data, error }, { data: provs }] = await Promise.all([
+    supabase.from('sugerencia_compra').select('*')
+      .eq('empresa_id', usuario.empresa_id)
+      .order('proveedor_nombre, dias_restantes'),
+    supabase.from('proveedores').select('id, telefono')
+      .eq('empresa_id', usuario.empresa_id),
+  ])
   if (error) {
     document.getElementById('root').innerHTML =
       `<div style="margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);border-radius:12px;color:var(--red-tx)">Error: ${error.message}</div>`
     return
   }
+  telefonosProv = Object.fromEntries((provs || []).map(p => [p.id, p.telefono || '']))
   sugerencias = (data || []).map(s => ({
     ...s,
     cantidad: s.cantidad_sugerida,
@@ -119,20 +124,39 @@ function porProveedor() {
   return [...map.values()].sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
 }
 
-function copiarMensaje(provId) {
+function armarMensaje(provId) {
   const grupo = porProveedor().find(g => g.proveedor_id === provId)
-  if (!grupo) return
+  if (!grupo) return null
   const lineas = grupo.items
     .filter(it => !it.excluido && it.cantidad > 0)
     .map(it => `${it.cantidad}u  ${it.nombre}`)
-  if (!lineas.length) { alert('Sin productos para copiar'); return }
+  if (!lineas.length) return null
   const total = grupo.items
     .filter(it => !it.excluido && it.cantidad > 0)
     .reduce((s, it) => s + it.cantidad * Number(it.ultimo_costo || 0), 0)
-  const msg = `Buen día!\nPedido para ${grupo.nombre}:\n\n${lineas.join('\n')}\n\nTotal estimado: ${ars(total)}`
-  navigator.clipboard.writeText(msg)
+  return {
+    grupo,
+    texto: `Buen día!\nPedido para ${grupo.nombre}:\n\n${lineas.join('\n')}\n\nTotal estimado: ${ars(total)}`,
+  }
+}
+
+function copiarMensaje(provId) {
+  const m = armarMensaje(provId)
+  if (!m) { alert('Sin productos para copiar'); return }
+  navigator.clipboard.writeText(m.texto)
     .then(() => toast('✓ Copiado al portapapeles'))
-    .catch(() => { alert(msg) })
+    .catch(() => { alert(m.texto) })
+}
+
+function whatsappMensaje(provId) {
+  const m = armarMensaje(provId)
+  if (!m) { alert('Sin productos para enviar'); return }
+  const tel = (telefonosProv[provId] || '').replace(/[^0-9]/g, '')
+  const url = tel
+    ? `https://wa.me/${tel}?text=${encodeURIComponent(m.texto)}`
+    : `https://wa.me/?text=${encodeURIComponent(m.texto)}`
+  window.open(url, '_blank')
+  if (!tel) toast('Sin teléfono cargado — abrí un chat manualmente')
 }
 
 function toast(msg) {
@@ -186,7 +210,12 @@ function render() {
               <div class="nm">${g.nombre}</div>
               <div class="meta">${g.items.length} ítem${g.items.length===1?'':'s'} · total ${ars(g.items.filter(it=>!it.excluido && it.cantidad>0).reduce((s,it)=>s+it.cantidad*Number(it.ultimo_costo||0),0))}</div>
             </div>
-            <button onclick="window._copiar('${g.proveedor_id||''}')">📋 Copiar pedido</button>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button onclick="window._whatsapp('${g.proveedor_id||''}')" style="background:#25D366;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px;white-space:nowrap">
+                📤 WhatsApp${telefonosProv[g.proveedor_id] ? '' : ' (sin tel)'}
+              </button>
+              <button onclick="window._copiar('${g.proveedor_id||''}')">📋 Copiar</button>
+            </div>
           </div>
           <table>
             <thead>
@@ -234,6 +263,7 @@ function render() {
 window._toggleExcl = i => { sugerencias[i].excluido = !sugerencias[i].excluido; render() }
 window._setCant = (i,v) => { sugerencias[i].cantidad = Math.max(0, parseInt(v)||0); render() }
 window._copiar = provId => copiarMensaje(provId || null)
+window._whatsapp = provId => whatsappMensaje(provId || null)
 
 await cargar()
 </script>

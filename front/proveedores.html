@@ -102,7 +102,7 @@ if (!tienePermiso('proveedores', 'editar')) { location.href = './login_home.html
 let proveedores = [];
 let busqueda    = '';
 let panelId     = null;   // null = cerrado, 'nuevo' = nuevo, uuid = editar
-let form        = { nombre: '', dias_objetivo: 30, dias_reorden: '', activo: true };
+let form        = { nombre: '', telefono: '', dias_objetivo: 30, dias_reorden: '', activo: true };
 let errMsg      = '';
 let saving      = false;
 
@@ -110,7 +110,7 @@ let saving      = false;
 async function cargar() {
   const { data, error } = await supabase
     .from('proveedores')
-    .select('id, nombre, dias_objetivo, dias_reorden, activo')
+    .select('id, nombre, telefono, dias_objetivo, dias_reorden, activo')
     .eq('empresa_id', usuario.empresa_id)
     .order('nombre');
   if (error) {
@@ -175,6 +175,11 @@ function renderPanel(el) {
       <input class="field" type="text" value="${form.nombre}"
         placeholder="Ej: Unilever" oninput="window._setForm('nombre', this.value)">
 
+      <label class="fl">Teléfono <span style="font-weight:500;text-transform:none;letter-spacing:0">(para WhatsApp, formato internacional sin "+", ej: 5493511234567)</span></label>
+      <input class="field" type="tel" value="${form.telefono || ''}"
+        placeholder="5493511234567" inputmode="tel"
+        oninput="window._setForm('telefono', this.value)">
+
       <div class="row2">
         <div>
           <label class="fl">Días objetivo</label>
@@ -217,6 +222,7 @@ async function guardar() {
 
   const payload = {
     nombre:         form.nombre.trim(),
+    telefono:       (form.telefono || '').trim().replace(/[^0-9]/g, '') || null,
     dias_objetivo:  parseInt(form.dias_objetivo) || 30,
     dias_reorden:   form.dias_reorden !== '' ? parseInt(form.dias_reorden) : null,
     activo:         form.activo,
@@ -248,13 +254,13 @@ async function desactivar() {
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
 window._setBusq  = v  => { busqueda = v; renderProvList(); };
 window._nuevo    = () => {
-  form = { nombre: '', dias_objetivo: 30, dias_reorden: '', activo: true };
+  form = { nombre: '', telefono: '', dias_objetivo: 30, dias_reorden: '', activo: true };
   errMsg = ''; panelId = 'nuevo'; render();
 };
 window._editar   = id => {
   const p = proveedores.find(x => x.id === id);
   if (!p) return;
-  form = { nombre: p.nombre, dias_objetivo: p.dias_objetivo, dias_reorden: p.dias_reorden ?? '', activo: p.activo };
+  form = { nombre: p.nombre, telefono: p.telefono || '', dias_objetivo: p.dias_objetivo, dias_reorden: p.dias_reorden ?? '', activo: p.activo };
   errMsg = ''; panelId = id; render();
 };
 window._cerrar      = () => { panelId = null; render(); };
