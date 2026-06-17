@@ -158,22 +158,28 @@ let desde = inicioMes();
 let hasta = isoHoy();
 let tab = 'resumen';
 let todosPedidos = [];  // cache full dataset
+let gastosCache  = []; // [{ fecha, total_gastos }]
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
 async function cargarPedidos() {
   // load last 6 months; filter client-side for speed
   const hace180 = isoOffset(-180);
-  const { data, error } = await supabase
-    .from('pedidos')
-    .select(`
-      id, fecha, estado, descuento,
-      usuarios!pedidos_usuario_id_fkey(nombre),
-      pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, productos(nombre))
-    `)
-    .eq('empresa_id', usuario.empresa_id)
-    .in('estado', ['confirmado', 'entregado'])
-    .gte('fecha', hace180)
-    .order('fecha', { ascending: false });
+  const [{ data, error }, { data: gas }] = await Promise.all([
+    supabase.from('pedidos')
+      .select(`
+        id, fecha, estado, descuento,
+        usuarios!pedidos_usuario_id_fkey(nombre),
+        pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, costo_unit_snapshot, productos(nombre, costo))
+      `)
+      .eq('empresa_id', usuario.empresa_id)
+      .in('estado', ['confirmado', 'entregado'])
+      .gte('fecha', hace180)
+      .order('fecha', { ascending: false }),
+    supabase.from('hojas_ruta')
+      .select('fecha, total_gastos')
+      .eq('empresa_id', usuario.empresa_id)
+      .gte('fecha', hace180.slice(0,10)),
+  ]);
 
   if (error) {
     document.getElementById('root').innerHTML =
@@ -181,6 +187,7 @@ async function cargarPedidos() {
     return;
   }
   todosPedidos = data || [];
+  gastosCache  = gas || [];
   render();
 }
 
@@ -232,7 +239,7 @@ function render() {
     </div>
 
     <div class="tabs">
-      ${[['resumen','Resumen'],['productos','Productos'],['preventistas','Preventistas']].map(([id, lbl]) =>
+      ${[['resumen','Resumen'],['productos','Productos'],['preventistas','Preventistas'],['ganancia','Ganancia']].map(([id, lbl]) =>
         `<div class="tab ${tab === id ? 'active' : ''}" onclick="window._setTab('${id}')">${lbl}</div>`
       ).join('')}
     </div>
@@ -241,7 +248,126 @@ function render() {
 
   if (tab === 'resumen')         renderResumen(pf, totalVentas, cantPedidos, ticket);
   else if (tab === 'productos')  renderProductos(pf);
+  else if (tab === 'ganancia')   renderGanancia(pf, totalVentas);
   else                           renderPreventistas(pf, totalVentas);
+}
+
+// ── TAB GANANCIA ───────────────────────────────────────────────────────────
+function renderGanancia(pf, totalVentas) {
+  const box = document.getElementById('content');
+
+  // Costo de lo vendido: snapshot si existe (preciso), sino costo actual (aprox)
+  let costoTotal = 0;
+  let sinSnapshot = 0;
+  pf.forEach(ped => {
+    const descGral = 1 - (ped.descuento || 0) / 100;
+    (ped.pedido_items || []).forEach(it => {
+      const costoUnit = it.costo_unit_snapshot != null
+        ? Number(it.costo_unit_snapshot)
+        : Number(it.productos?.costo || 0);
+      if (it.costo_unit_snapshot == null) sinSnapshot += 1;
+      costoTotal += it.cantidad * costoUnit;
+      // descGral usado solo para info de ventas, no afecta costo
+      void descGral;
+    });
+  });
+
+  const totalGastos = gastosCache
+    .filter(g => g.fecha >= desde && g.fecha <= hasta)
+    .reduce((s, g) => s + (Number(g.total_gastos) || 0), 0);
+
+  const gananciaBruta = totalVentas - costoTotal;
+  const margenPct = totalVentas > 0 ? gananciaBruta / totalVentas * 100 : 0;
+  const gananciaNeta = gananciaBruta - totalGastos;
+
+  // Top productos por ganancia aportada
+  const mapa = {};
+  pf.forEach(ped => {
+    const descGral = 1 - (ped.descuento || 0) / 100;
+    (ped.pedido_items || []).forEach(it => {
+      const nom = it.productos?.nombre || '(sin nombre)';
+      const costoUnit = it.costo_unit_snapshot != null
+        ? Number(it.costo_unit_snapshot)
+        : Number(it.productos?.costo || 0);
+      const ingreso = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+      const costo   = it.cantidad * costoUnit;
+      const gan     = ingreso - costo;
+      if (!mapa[nom]) mapa[nom] = { nom, ingreso: 0, costo: 0, ganancia: 0, u: 0 };
+      mapa[nom].ingreso  += ingreso;
+      mapa[nom].costo    += costo;
+      mapa[nom].ganancia += gan;
+      mapa[nom].u        += it.cantidad;
+    });
+  });
+  const ranking = Object.values(mapa).sort((a, b) => b.ganancia - a.ganancia);
+  const maxGan = ranking[0]?.ganancia || 1;
+
+  // Productos vendidos con margen < 20% (sospechosos)
+  const bajoMargen = ranking
+    .filter(p => p.ingreso > 0 && (p.ganancia / p.ingreso * 100) < 20)
+    .slice(0, 10);
+
+  box.innerHTML = `
+    <div class="kpis">
+      <div class="kpi wide">
+        <div>
+          <div class="num green">${ars(gananciaNeta)}</div>
+          <div class="lbl">Ganancia neta (después de gastos)</div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="num gold">${ars(gananciaBruta)}</div>
+        <div class="lbl">Ganancia bruta</div>
+      </div>
+      <div class="kpi">
+        <div class="num">${margenPct.toFixed(1)}%</div>
+        <div class="lbl">Margen global</div>
+      </div>
+      <div class="kpi">
+        <div class="num">${ars(totalVentas)}</div>
+        <div class="lbl">Ventas</div>
+      </div>
+      <div class="kpi">
+        <div class="num" style="color:var(--red-tx)">−${ars(costoTotal)}</div>
+        <div class="lbl">Costo de lo vendido</div>
+      </div>
+      ${totalGastos > 0 ? `
+        <div class="kpi wide">
+          <div>
+            <div class="num" style="color:var(--red-tx)">−${ars(totalGastos)}</div>
+            <div class="lbl">Gastos del período (hojas cerradas)</div>
+          </div>
+        </div>` : ''}
+    </div>
+    ${sinSnapshot > 0 ? `
+      <div style="margin:0 18px 14px;padding:10px 12px;background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:10px;font-size:12px;color:var(--amber-tx);line-height:1.4">
+        ⚠ ${sinSnapshot} ítem${sinSnapshot===1?'':'s'} sin snapshot de costo — para esos uso el costo actual del producto. Pedidos cargados antes del cambio.
+      </div>` : ''}
+    ${ranking.length ? `
+      <div class="section-lbl">Top productos por ganancia aportada</div>
+      ${ranking.slice(0, 10).map((p, i) => `
+        <div class="rank-item">
+          <div class="top">
+            <span class="num-badge ${i === 0 ? 'top1' : ''}">${i + 1}</span>
+            <span class="nm">${p.nom}</span>
+            <span class="val" style="color:var(--green-tx)">${ars(p.ganancia)}</span>
+          </div>
+          <div class="sub">${p.u} u · ${ars(p.ingreso)} venta · margen ${(p.ingreso > 0 ? p.ganancia/p.ingreso*100 : 0).toFixed(0)}%</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, Math.round(p.ganancia / maxGan * 100))}%"></div></div>
+        </div>`).join('')}` : ''}
+    ${bajoMargen.length ? `
+      <div class="section-lbl" style="margin-top:8px">⚠ Vendidos con margen &lt; 20%</div>
+      ${bajoMargen.map(p => {
+        const m = p.ganancia / p.ingreso * 100;
+        return `<div class="rank-item">
+          <div class="top">
+            <span class="nm">${p.nom}</span>
+            <span class="val" style="color:${m<0?'var(--red-tx)':'var(--amber-tx)'}">${m.toFixed(0)}%</span>
+          </div>
+          <div class="sub">${ars(p.ganancia)} de ganancia en ${p.u} u vendidas</div>
+        </div>`;
+      }).join('')}` : ''}
+  `;
 }
 
 // ── TAB RESUMEN ────────────────────────────────────────────────────────────
