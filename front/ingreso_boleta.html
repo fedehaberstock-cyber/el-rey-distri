@@ -364,6 +364,8 @@ let resumenDone = {}
 
 // IA / extracción desde foto
 let iaProcesando = false
+let iaTexto = ''       // textarea para "cargar desde texto" (Haiku)
+let iaModoTexto = false  // muestra/oculta el textarea
 let iaPendientes = []  // {texto_original, cantidad, costo_unit, costo_total_linea,
                        //  selProdId:'', selBusq:'', cantReal:'', costoReal:''}
 let iaAliases = []     // cache de alias_productos del proveedor actual
@@ -447,11 +449,25 @@ function render() {
     <div class="divider"></div>
     <section>
       <div class="lbl">Productos <span class="lbl-sub">(${items.length} ${items.length===1?'ítem':'ítems'}, precios netos)</span></div>
-      <button class="ia-btn" ${iaProcesando?'disabled':''} onclick="document.getElementById('ia-file').click()">
-        ${iaProcesando ? '⏳ Procesando con IA…' : '📷 Cargar desde foto'}
-      </button>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="ia-btn" style="flex:1" ${iaProcesando?'disabled':''} onclick="document.getElementById('ia-file').click()">
+          ${iaProcesando ? '⏳ IA…' : '📷 Desde foto'}
+        </button>
+        <button class="ia-btn" style="flex:1" ${iaProcesando?'disabled':''} onclick="window.iaToggleTexto()">
+          📝 Desde texto
+        </button>
+      </div>
       <input id="ia-file" type="file" accept="image/*" multiple style="display:none"
         onchange="window.iaCargarFotos(this.files)">
+      ${iaModoTexto ? `
+        <div style="margin-bottom:8px">
+          <textarea id="ia-texto" placeholder="Pegá la lista de productos (Excel, mail, lo que sea)…"
+            oninput="window.iaSetTexto(this.value)"
+            style="width:100%;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:14px;background:var(--card);color:var(--ink);resize:vertical">${iaTexto}</textarea>
+          <button class="ia-btn" ${iaProcesando?'disabled':''} onclick="window.iaCargarTexto()" style="margin-top:6px">
+            ${iaProcesando ? '⏳ Procesando…' : '🔎 Extraer items del texto'}
+          </button>
+        </div>` : ''}
       <div id="ia-pend-box"></div>
       <div id="items-box"></div>
       <button class="add-prod" onclick="abrirPanel()">+ Agregar producto</button>
@@ -985,40 +1001,85 @@ async function iaCargarFotos(fileList) {
       iaProcesando = false; render(); return
     }
 
-    // Matchear contra alias y dispatchear (normalización fuerte para tolerar
-    // diferencias menores de mayúsculas, acentos, espacios, puntuación)
-    const sinMatch = []
-    for (const d of detectados) {
-      const target = normAlias(d.texto_original || '')
-      const a = iaAliases.find(x => normAlias(x.alias_text) === target)
-      if (a) {
-        const p = prod(a.producto_id)
-        if (!p) { sinMatch.push(d); continue }
-        const factor = Number(a.factor_conversion) || 1
-        const costoUnit = d.costo_unit != null
-          ? Number(d.costo_unit) / factor
-          : (d.costo_total_linea && d.cantidad ? (Number(d.costo_total_linea) / Number(d.cantidad)) / factor : 0)
-        const cantInterna = Number(d.cantidad) * factor
-        items.push({
-          prodId: a.producto_id,
-          bultos: p.u_bulto > 1 ? Math.max(1, Math.round(cantInterna / p.u_bulto)) : Math.max(1, Math.round(cantInterna)),
-          uPorBulto: p.u_bulto > 1 ? p.u_bulto : 1,
-          costo: Math.round(costoUnit)
-        })
-      } else {
-        sinMatch.push(d)
-      }
+    procesarDetectados(detectados)
+  } catch (e) {
+    alert('Error procesando: ' + (e.message || e))
+  } finally {
+    iaProcesando = false
+    render()
+  }
+}
+
+// Matchea los items detectados contra alias_productos, agrega los que matchean
+// directo a `items` y deja en `iaPendientes` los que el usuario tiene que asignar.
+function procesarDetectados(detectados) {
+  const sinMatch = []
+  for (const d of detectados) {
+    const target = normAlias(d.texto_original || '')
+    const a = iaAliases.find(x => normAlias(x.alias_text) === target)
+    if (a) {
+      const p = prod(a.producto_id)
+      if (!p) { sinMatch.push(d); continue }
+      const factor = Number(a.factor_conversion) || 1
+      const costoUnit = d.costo_unit != null
+        ? Number(d.costo_unit) / factor
+        : (d.costo_total_linea && d.cantidad ? (Number(d.costo_total_linea) / Number(d.cantidad)) / factor : 0)
+      const cantInterna = Number(d.cantidad) * factor
+      items.push({
+        prodId: a.producto_id,
+        bultos: p.u_bulto > 1 ? Math.max(1, Math.round(cantInterna / p.u_bulto)) : Math.max(1, Math.round(cantInterna)),
+        uPorBulto: p.u_bulto > 1 ? p.u_bulto : 1,
+        costo: Math.round(costoUnit)
+      })
+    } else {
+      sinMatch.push(d)
     }
-    iaPendientes = sinMatch.map(d => ({
-      ...d,
-      selProdId: '',
-      selBusq: '',
-      cantReal: String(d.cantidad ?? ''),
-      costoReal: String(
-        d.costo_unit != null ? d.costo_unit
-        : (d.costo_total_linea && d.cantidad ? Math.round(Number(d.costo_total_linea)/Number(d.cantidad)) : '')
-      ),
-    }))
+  }
+  iaPendientes = sinMatch.map(d => ({
+    ...d,
+    selProdId: '',
+    selBusq: '',
+    cantReal: String(d.cantidad ?? ''),
+    costoReal: String(
+      d.costo_unit != null ? d.costo_unit
+      : (d.costo_total_linea && d.cantidad ? Math.round(Number(d.costo_total_linea)/Number(d.cantidad)) : '')
+    ),
+  }))
+}
+
+// ── IA: cargar desde texto plano (Haiku) ──────────────────────────────
+async function iaCargarTexto() {
+  if (!proveedorId) { alert('Elegí primero el proveedor.'); return }
+  const texto = (iaTexto || '').trim()
+  if (!texto) { alert('Pegá la lista de productos en el cuadro de texto.'); return }
+
+  iaProcesando = true
+  render()
+  try {
+    const { data, error } = await supabase.functions.invoke('extraer-ingreso', {
+      body: { texto }
+    })
+    if (error) {
+      let detalle = error.message || 'Error desconocido'
+      try {
+        const ctx = error.context
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.json()
+          if (body?.error) detalle = body.error
+        } else if (ctx && typeof ctx.text === 'function') {
+          detalle = await ctx.text()
+        }
+      } catch {}
+      throw new Error(detalle)
+    }
+    if (data?.error) throw new Error(data.error)
+    const detectados = data?.items || []
+    if (!detectados.length) {
+      alert('La IA no detectó productos en el texto.')
+      iaProcesando = false; render(); return
+    }
+    procesarDetectados(detectados)
+    iaTexto = ''  // limpiar para no procesar dos veces
   } catch (e) {
     alert('Error procesando: ' + (e.message || e))
   } finally {
@@ -1129,8 +1190,11 @@ Object.assign(window, {
   render, setProveedor, abrirPanel, cerrarPanel,
   confirmarPanelItem, rerenderPanel, selProd, confirmar, reset, quitar,
   setBultos, setUporBulto, setCosto, cargos, panelProd,
-  iaCargarFotos, iaConfirmar,
+  iaCargarFotos, iaCargarTexto, iaConfirmar,
 })
+
+window.iaToggleTexto = () => { iaModoTexto = !iaModoTexto; render() }
+window.iaSetTexto    = (v) => { iaTexto = v }
 
 window.iaSetBusq = (i, v) => { iaPendientes[i].selBusq = v; renderIaResults(i) }
 window.iaSelProd = (i, id) => {

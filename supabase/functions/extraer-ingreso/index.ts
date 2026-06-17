@@ -1,10 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Edge Function: extraer-ingreso
-// Recibe una o más URLs/base64 de fotos de una boleta de proveedor,
-// llama a Claude Sonnet 4.6 con visión y devuelve los items detectados.
+// Recibe imágenes (fotos) o texto plano de una boleta de proveedor y
+// devuelve los items detectados.
 //
-// Body esperado:
+// Modelos:
+//   - imagenes → Claude Sonnet 4.6 (visión, más estable)
+//   - texto    → Claude Haiku 4.5 (más barato, suficiente para texto)
+//
+// Body esperado (uno u otro):
 //   { imagenes: ["https://...jpg", "data:image/jpeg;base64,..."] }
+//   { texto: "lista de productos pegada del Excel/email" }
 //
 // Respuesta:
 //   { items: [{ texto_original, cantidad, costo_unit, costo_total_linea }, ...] }
@@ -13,11 +18,12 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-6";
+const MODEL_VISION = "claude-sonnet-4-6";
+const MODEL_TEXT   = "claude-haiku-4-5-20251001";
 
 const SYSTEM_PROMPT = `Sos un extractor de líneas de boletas de proveedores de distribuidoras.
-Recibís una o más fotos de la MISMA boleta (distintas zonas o ángulos) y devolvés un JSON
-con todos los productos que aparezcan.
+Recibís una boleta (en foto o texto plano) y devolvés un JSON con todos los
+productos que aparezcan.
 
 REGLAS:
 - Devolvés ÚNICAMENTE JSON válido, sin markdown ni texto adicional.
@@ -63,7 +69,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!apiKey) return json({ error: "ANTHROPIC_API_KEY no configurada" }, 500);
   console.log("[extraer-ingreso] inicio, apiKey len =", apiKey.length);
 
-  let body: { imagenes?: string[] };
+  let body: { imagenes?: string[]; texto?: string };
   try {
     body = await req.json();
   } catch {
@@ -71,17 +77,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const imagenes = body.imagenes || [];
-  if (!Array.isArray(imagenes) || imagenes.length === 0) {
-    return json({ error: "Falta el array 'imagenes'" }, 400);
+  const texto = (body.texto || "").trim();
+  const tieneImg = Array.isArray(imagenes) && imagenes.length > 0;
+  const tieneTexto = texto.length > 0;
+
+  if (!tieneImg && !tieneTexto) {
+    return json({ error: "Pasá 'imagenes' o 'texto'" }, 400);
   }
-  if (imagenes.length > 8) {
+  if (tieneImg && imagenes.length > 8) {
     return json({ error: "Máximo 8 fotos por boleta" }, 400);
   }
+  if (tieneTexto && texto.length > 30000) {
+    return json({ error: "Texto demasiado largo (máx 30k chars)" }, 400);
+  }
+
+  // Modelo según modalidad: imagen → Sonnet (visión); texto → Haiku (más barato).
+  const model = tieneImg ? MODEL_VISION : MODEL_TEXT;
 
   // Armar los content blocks para Anthropic.
   // Siempre mandamos base64 (más confiable que URL; Anthropic puede no
   // alcanzar URLs firmadas de Storage).
   const content: Array<Record<string, unknown>> = [];
+
+  if (tieneTexto) {
+    content.push({
+      type: "text",
+      text: "Extraé los items de esta boleta (texto plano del proveedor). Devolvé SOLO el JSON pedido.\n\n--- BOLETA ---\n" + texto,
+    });
+  }
+
   for (const img of imagenes) {
     if (img.startsWith("data:")) {
       const m = img.match(/^data:(image\/[a-z]+);base64,(.+)$/);
@@ -116,10 +140,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ error: "Imagen debe ser URL http(s) o data:base64" }, 400);
     }
   }
-  content.push({
-    type: "text",
-    text: "Extraé los items de esta boleta. Devolvé SOLO el JSON pedido.",
-  });
+  if (tieneImg) {
+    content.push({
+      type: "text",
+      text: "Extraé los items de esta boleta. Devolvé SOLO el JSON pedido.",
+    });
+  }
 
   // Llamada a Anthropic
   let resp: Response;
@@ -132,7 +158,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         max_tokens: 4000,
         temperature: 0,
         system: SYSTEM_PROMPT,
