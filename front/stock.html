@@ -396,9 +396,15 @@ function renderTabStock(el) {
     <div class="filters">
       <input class="search-input" placeholder="Buscar producto…" value="${busqueda}"
         oninput="window._setBusqueda(this.value)" autocomplete="off">
-      <div style="display:flex;gap:6px;margin-bottom:8px">
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
         <div class="chip ${agrupar==='cat'?'active':''}" onclick="window._setAgrupar('cat')">Por categoría</div>
         <div class="chip ${agrupar==='prov'?'active':''}" onclick="window._setAgrupar('prov')">Por proveedor</div>
+        <button onclick="window._abrirListaPrecios()"
+          style="margin-left:auto;padding:6px 12px;border:1px solid var(--gold);border-radius:999px;
+            background:var(--gold-lt);color:var(--gold-dk);font-size:13px;font-weight:600;
+            cursor:pointer;font-family:inherit;white-space:nowrap">
+          📋 Compartir lista
+        </button>
       </div>
       <div class="chips">
         ${gs.map((g,i) => `<div class="chip ${filtroGrupo===g?'active':''}"
@@ -931,6 +937,68 @@ async function confirmarPanel() {
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
 window._setTab            = t  => { tab = t; filtroGrupo = 'todo'; busqueda = ''; vista = 'lista'; render(); };
 window._setBusqueda       = v  => { busqueda = v; renderStockList(); };
+
+// Genera texto WhatsApp con productos en stock agrupados por categoría.
+// Si u_bulto > 1 usa el precio unitario final del bulto (con desc_bulto aplicado).
+window._abrirListaPrecios = () => {
+  const conStock = productos
+    .filter(p => p.stock > 0 && p.precio > 0)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+  if (!conStock.length) { alert('No hay productos con stock disponible.'); return; }
+
+  const porCat = new Map();
+  for (const p of conStock) {
+    const arr = porCat.get(p.cat) || [];
+    arr.push(p);
+    porCat.set(p.cat, arr);
+  }
+  const cats = [...porCat.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
+
+  const hoy = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Cordoba' });
+  let txt = `*📋 Lista de precios — El Rey*\n${hoy}\n`;
+  for (const [cat, lista] of cats) {
+    txt += `\n*${cat}*\n`;
+    for (const p of lista) {
+      const precioFinal = p.u_bulto > 1
+        ? Math.round(p.precio * (1 - (p.desc_bulto || 0) / 100))
+        : p.precio;
+      txt += `• ${p.nombre} — ${ars(precioFinal)}\n`;
+    }
+  }
+
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `
+    <div class="panel" style="max-height:85vh;display:flex;flex-direction:column">
+      <h3>Lista para compartir</h3>
+      <p class="sub">${conStock.length} productos con stock</p>
+      <textarea id="lp-txt" readonly
+        style="flex:1;min-height:280px;padding:12px;border:1px solid var(--line);border-radius:10px;
+          font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;
+          background:var(--card);color:var(--ink);resize:vertical">${txt}</textarea>
+      <div class="panel-btns" style="margin-top:12px">
+        <button class="cancel" onclick="document.querySelector('.overlay').remove()">Cerrar</button>
+        <button class="bar-btn" onclick="window._copiarLista()">📋 Copiar</button>
+        ${navigator.share ? `<button class="bar-btn" style="background:var(--green-tx)" onclick="window._compartirLista()">📤 Compartir</button>` : ''}
+      </div>
+    </div>`;
+  document.getElementById('root').appendChild(ov);
+};
+
+window._copiarLista = async () => {
+  const t = document.getElementById('lp-txt')?.value;
+  if (!t) return;
+  try { await navigator.clipboard.writeText(t); alert('Copiado al portapapeles ✓'); }
+  catch { document.getElementById('lp-txt')?.select(); document.execCommand('copy'); alert('Copiado ✓'); }
+};
+
+window._compartirLista = async () => {
+  const t = document.getElementById('lp-txt')?.value;
+  if (!t || !navigator.share) return;
+  try { await navigator.share({ text: t, title: 'Lista de precios — El Rey' }); }
+  catch (e) { if (e.name !== 'AbortError') alert('No se pudo compartir: ' + e.message); }
+};
 window._setAgrupar        = v  => { agrupar = v; filtroGrupo = 'todo'; render(); };
 window._setFiltroGrupo    = i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
 window._setFiltroGrupoFull= i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
