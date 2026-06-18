@@ -208,15 +208,16 @@ const diasSinPago = id => {
   const p = ultimoPago(id);
   return p ? diasDesde(p) : (ultimoCargo(id) ? diasDesde(ultimoCargo(id)) : 0);
 };
-const nivelDeuda = (saldo, dias) => {
-  if (saldo <= 0) return 'aldia';
-  if (saldo >= 30000 || dias >= 45) return 'critico';
-  if (saldo >= 10000 || dias >= 20) return 'advertencia';
+// Nivel basado en aging: si tiene cargos 15+d → critico, 8-14d → advertencia,
+// solo 0-7d → leve (al dia).
+const nivelDeudaAging = (a) => {
+  if (a.b15_plus > 0.01) return 'critico';
+  if (a.b8_14   > 0.01) return 'advertencia';
   return 'leve';
 };
 
 // FIFO aging: aplica pagos al cargo más viejo primero.
-// Devuelve {b0_30, b31_60, b61_plus, masViejo}
+// Buckets: 0-7 / 8-14 / 15+
 function agingDe(id) {
   const movs = movimientos.filter(m => m.cliente_id === id)
     .slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -241,16 +242,16 @@ function agingDe(id) {
       if (monto > 0.01) creditoLibre += monto;
     }
   }
-  let b0_30 = 0, b31_60 = 0, b61_plus = 0;
+  let b0_7 = 0, b8_14 = 0, b15_plus = 0;
   let masViejo = null;
   for (const c of cargosPend) {
     const d = diasDesde(c.fecha);
-    if (d <= 30) b0_30 += c.monto;
-    else if (d <= 60) b31_60 += c.monto;
-    else b61_plus += c.monto;
+    if (d <= 7) b0_7 += c.monto;
+    else if (d <= 14) b8_14 += c.monto;
+    else b15_plus += c.monto;
     if (!masViejo || c.fecha < masViejo) masViejo = c.fecha;
   }
-  return { b0_30, b31_60, b61_plus, masViejo };
+  return { b0_7, b8_14, b15_plus, masViejo };
 }
 
 // ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
@@ -261,8 +262,9 @@ function render() {
   const datos = clientes.map(c => {
     const saldo = saldoDe(c.id);
     const dias  = diasSinPago(c.id);
-    const nivel = nivelDeuda(saldo, dias);
-    return { ...c, saldo, dias, nivel };
+    const aging = agingDe(c.id);
+    const nivel = nivelDeudaAging(aging);
+    return { ...c, saldo, dias, nivel, aging };
   }).filter(c => c.saldo > 0).sort((a, b) => b.saldo - a.saldo);
 
   const filtrados = datos.filter(c => {
@@ -275,10 +277,11 @@ function render() {
   const criticos      = datos.filter(c => c.nivel === 'critico').length;
   const advertencias  = datos.filter(c => c.nivel === 'advertencia').length;
   const ag = datos.reduce((acc, c) => {
-    const a = agingDe(c.id);
-    acc.b0_30 += a.b0_30; acc.b31_60 += a.b31_60; acc.b61_plus += a.b61_plus;
+    acc.b0_7    += c.aging.b0_7;
+    acc.b8_14   += c.aging.b8_14;
+    acc.b15_plus+= c.aging.b15_plus;
     return acc;
-  }, { b0_30: 0, b31_60: 0, b61_plus: 0 });
+  }, { b0_7: 0, b8_14: 0, b15_plus: 0 });
 
   el.innerHTML = `
     <div class="hdr">
@@ -308,9 +311,9 @@ function render() {
       <div class="tot-card"><div class="num amber">${advertencias}</div><div class="lbl">En atención</div></div>
     </div>
     <div class="aging-row">
-      <div class="ag-card b1"><div class="num">${ars(ag.b0_30)}</div><div class="lbl">0–30 días</div></div>
-      <div class="ag-card b2"><div class="num">${ars(ag.b31_60)}</div><div class="lbl">31–60 días</div></div>
-      <div class="ag-card b3"><div class="num">${ars(ag.b61_plus)}</div><div class="lbl">60+ días</div></div>
+      <div class="ag-card b1"><div class="num">${ars(ag.b0_7)}</div><div class="lbl">0–7 días</div></div>
+      <div class="ag-card b2"><div class="num">${ars(ag.b8_14)}</div><div class="lbl">8–14 días</div></div>
+      <div class="ag-card b3"><div class="num">${ars(ag.b15_plus)}</div><div class="lbl">15+ días</div></div>
     </div>
     <div id="deud-list" class="list"></div>`;
 
@@ -324,8 +327,9 @@ function renderDeudList() {
   const datos = clientes.map(c => {
     const saldo = saldoDe(c.id);
     const dias  = diasSinPago(c.id);
-    const nivel = nivelDeuda(saldo, dias);
-    return { ...c, saldo, dias, nivel };
+    const aging = agingDe(c.id);
+    const nivel = nivelDeudaAging(aging);
+    return { ...c, saldo, dias, nivel, aging };
   }).filter(c => c.saldo > 0).sort((a, b) => b.saldo - a.saldo);
   const filtrados = datos.filter(c => {
     if (filtro !== 'todos' && c.nivel !== filtro) return false;
@@ -361,11 +365,11 @@ function renderDeudList() {
             </span>
           </div>
           ${(() => {
-            const a = agingDe(c.id);
+            const a = c.aging || agingDe(c.id);
             const chips = [];
-            if (a.b0_30   > 0) chips.push(`<span class="ag-chip b1">${ars(a.b0_30)} 0–30d</span>`);
-            if (a.b31_60  > 0) chips.push(`<span class="ag-chip b2">${ars(a.b31_60)} 31–60d</span>`);
-            if (a.b61_plus> 0) chips.push(`<span class="ag-chip b3">${ars(a.b61_plus)} 60+d</span>`);
+            if (a.b0_7    > 0) chips.push(`<span class="ag-chip b1">${ars(a.b0_7)} 0–7d</span>`);
+            if (a.b8_14   > 0) chips.push(`<span class="ag-chip b2">${ars(a.b8_14)} 8–14d</span>`);
+            if (a.b15_plus> 0) chips.push(`<span class="ag-chip b3">${ars(a.b15_plus)} 15+d</span>`);
             return chips.length ? `<div class="aging-chips">${chips.join('')}</div>` : '';
           })()}
           ${up ? `<div class="ultimo-pago">Último pago: ${fmtF(up)}</div>` : ''}
@@ -379,7 +383,8 @@ function renderDetalle() {
   if (!c) return;
   const saldo = saldoDe(c.id);
   const dias  = diasSinPago(c.id);
-  const nivel = nivelDeuda(saldo, dias);
+  const aging = agingDe(c.id);
+  const nivel = nivelDeudaAging(aging);
   const movsCli = movimientos.filter(m => m.cliente_id === c.id)
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
@@ -395,11 +400,11 @@ function renderDetalle() {
       ${dias} días sin pago${c.telefono ? ' · ' + c.telefono : ''}
     </div>
     ${(() => {
-      const a = agingDe(c.id);
+      const a = aging;
       const chips = [];
-      if (a.b0_30   > 0) chips.push(`<span class="ag-chip b1">${ars(a.b0_30)} 0–30d</span>`);
-      if (a.b31_60  > 0) chips.push(`<span class="ag-chip b2">${ars(a.b31_60)} 31–60d</span>`);
-      if (a.b61_plus> 0) chips.push(`<span class="ag-chip b3">${ars(a.b61_plus)} 60+d</span>`);
+      if (a.b0_7    > 0) chips.push(`<span class="ag-chip b1">${ars(a.b0_7)} 0–7d</span>`);
+      if (a.b8_14   > 0) chips.push(`<span class="ag-chip b2">${ars(a.b8_14)} 8–14d</span>`);
+      if (a.b15_plus> 0) chips.push(`<span class="ag-chip b3">${ars(a.b15_plus)} 15+d</span>`);
       return chips.length ? `<div class="aging-chips" style="margin-top:10px">${chips.join('')}</div>` : '';
     })()}
 
@@ -457,9 +462,9 @@ window._exportar = () => {
       telefono: c.telefono || '',
       direccion: c.direccion || '',
       saldo: Math.round(saldo),
-      b0_30: Math.round(a.b0_30),
-      b31_60: Math.round(a.b31_60),
-      b61_plus: Math.round(a.b61_plus),
+      b0_7: Math.round(a.b0_7),
+      b8_14: Math.round(a.b8_14),
+      b15_plus: Math.round(a.b15_plus),
       mas_viejo: a.masViejo || '',
       dias_sin_pago: diasSinPago(c.id),
     };
@@ -469,9 +474,9 @@ window._exportar = () => {
     { key: 'telefono', label: 'Teléfono' },
     { key: 'direccion', label: 'Dirección' },
     { key: 'saldo', label: 'Saldo total' },
-    { key: 'b0_30', label: '0-30 días' },
-    { key: 'b31_60', label: '31-60 días' },
-    { key: 'b61_plus', label: '60+ días' },
+    { key: 'b0_7', label: '0-7 días' },
+    { key: 'b8_14', label: '8-14 días' },
+    { key: 'b15_plus', label: '15+ días' },
     { key: 'mas_viejo', label: 'Cargo más viejo' },
     { key: 'dias_sin_pago', label: 'Días sin pago' },
   ], filas);
