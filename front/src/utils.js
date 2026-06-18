@@ -45,6 +45,40 @@ export const mostrarError = (msg, el) => {
   }
 }
 
+// Exporta filas a CSV con BOM UTF-8 para que Excel lo abra bien.
+// columnas: [{key, label, format?}]  filas: [{key:value, ...}]
+export const exportCSV = (nombre, columnas, filas) => {
+  const esc = v => {
+    if (v == null) return ''
+    const s = String(v)
+    return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const sep = ';' // Excel-AR usa ; por default
+  const head = columnas.map(c => esc(c.label)).join(sep)
+  const cuerpo = filas.map(r =>
+    columnas.map(c => esc(c.format ? c.format(r[c.key], r) : r[c.key])).join(sep)
+  ).join('\n')
+  const bom = '﻿'
+  const blob = new Blob([bom + head + '\n' + cuerpo], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombre.endsWith('.csv') ? nombre : `${nombre}.csv`
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// Print-friendly: agrega @media print mínimo y dispara window.print()
+export const imprimirPagina = () => {
+  if (!document.getElementById('print-css-base')) {
+    const s = document.createElement('style')
+    s.id = 'print-css-base'
+    s.textContent = `@media print { .no-print, button, input, select { display:none !important } body { max-width:none !important; padding:0 !important } }`
+    document.head.appendChild(s)
+  }
+  window.print()
+}
+
 // Debounce simple para inputs de búsqueda
 export const debounce = (fn, ms = 250) => {
   let t

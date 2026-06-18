@@ -139,6 +139,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js';
 import { requireSession, tienePermiso } from './src/auth.js';
+import { exportCSV } from './src/utils.js';
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
 const { usuario } = await requireSession();
@@ -261,8 +262,12 @@ function render() {
       <div class="brand"><span class="crown">&#9818;</span>
         <div>El Rey<small>Recaudación</small></div>
       </div>
-      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;margin-left:auto;font-family:inherit"
-        onclick="location.href='./login_home.html'">Inicio ›</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button style="background:var(--gold-lt);border:1px solid var(--gold);color:var(--gold-dk);padding:5px 11px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="window._exportar()">⬇ CSV</button>
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+      </div>
     </div>
 
     <div class="periodo-wrap">
@@ -435,6 +440,17 @@ function renderChart(el, lista, dias) {
 }
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._exportar = () => {
+  const lista = cobrosEnPeriodo().slice().sort((a,b) => a.fechaTs.localeCompare(b.fechaTs));
+  exportCSV(`recaudacion_${desde}_${hasta}`, [
+    { key: 'fecha', label: 'Fecha' },
+    { key: 'nombreCliente', label: 'Cliente' },
+    { key: 'nombreUsuario', label: 'Cobró' },
+    { key: 'forma_pago', label: 'Forma pago' },
+    { key: 'monto', label: 'Monto', format: v => Math.round(v) },
+  ], lista);
+};
+
 window._setPeriodo = p => {
   periodo = p;
   const hoy = isoHoy();
