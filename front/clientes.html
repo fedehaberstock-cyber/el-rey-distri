@@ -57,6 +57,7 @@
   .chip{padding:6px 11px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap}
   .chip.deudor{background:var(--red-bg);color:var(--red-tx)}
   .chip.aldia{background:var(--green-bg);color:var(--green-tx)}
+  .chip.inact{background:var(--red-bg);color:var(--red-tx);margin-left:6px;font-size:11px;padding:3px 8px}
   .arr{color:var(--ink-soft);font-size:18px;margin-left:4px}
   .empty{text-align:center;padding:40px 10px;color:var(--ink-soft);font-size:15px}
 
@@ -215,14 +216,18 @@ function descripcionMov(m){
 // ── DATOS ─────────────────────────────────────────────────────────────
 async function cargarClientes(){
   cargando = true;
-  // dos queries — más simple que un join con vista
-  const [{ data: cli, error: e1 }, { data: sal, error: e2 }, { data: zon, error: e3 }] = await Promise.all([
+  const hace180 = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
+  const [{ data: cli, error: e1 }, { data: sal, error: e2 }, { data: zon, error: e3 }, { data: peds }] = await Promise.all([
     supabase.from('clientes')
       .select('id, nombre, direccion, telefono, zona_id, posicion_zona, activo')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
     supabase.from('zonas').select('id, nombre, orden, activa').order('orden'),
+    supabase.from('pedidos')
+      .select('cliente_id, fecha')
+      .neq('estado', 'anulado')
+      .gte('fecha', hace180),
   ]);
   cargando = false;
   if (e1) { mostrarError('Error cargando clientes: ' + e1.message); return; }
@@ -231,6 +236,25 @@ async function cargarClientes(){
 
   zonasList = zon || [];
   const saldoMap = Object.fromEntries((sal || []).map(s => [s.cliente_id, Number(s.saldo) || 0]));
+
+  // Inactividad: si un cliente tuvo >=2 pedidos en 180d, calcular frecuencia
+  // promedio y marcar inactivo si dias_desde_ult > 3 * frecuencia (min 30d).
+  const pedsPorCli = {};
+  for (const p of (peds || [])) {
+    if (!p.cliente_id) continue;
+    (pedsPorCli[p.cliente_id] ||= []).push(new Date(p.fecha).getTime());
+  }
+  const inactMap = {};
+  const HOY_T = Date.now();
+  for (const [cliId, fechas] of Object.entries(pedsPorCli)) {
+    fechas.sort((a,b) => a - b);
+    const diasUlt = Math.floor((HOY_T - fechas[fechas.length - 1]) / 86400000);
+    if (fechas.length < 2) { inactMap[cliId] = { diasUlt, freq: null, inactivo: false }; continue; }
+    const freq = ((fechas[fechas.length - 1] - fechas[0]) / 86400000) / (fechas.length - 1);
+    const umbral = Math.max(30, freq * 3);
+    inactMap[cliId] = { diasUlt, freq, inactivo: diasUlt > umbral };
+  }
+
   clientes = (cli || []).map(c => ({
     id: c.id,
     nombre: c.nombre,
@@ -239,6 +263,7 @@ async function cargarClientes(){
     zona_id: c.zona_id || null,
     posicion_zona: c.posicion_zona ?? 999,
     saldo: saldoMap[c.id] || 0,
+    inact: inactMap[c.id] || null,
   }));
 }
 
@@ -333,7 +358,7 @@ function renderCliList(){
     row.className = 'cli-row';
     row.innerHTML = `
       <div class="info">
-        <div class="nm">${c.nombre}</div>
+        <div class="nm">${c.nombre}${c.inact?.inactivo ? `<span class="chip inact" title="Cliente que dejó de comprar">⚠ ${c.inact.diasUlt}d sin comprar</span>` : ''}</div>
         ${c.direccion ? `<div class="addr">&#128205; ${c.direccion}</div>` : ''}
       </div>
       <span class="chip ${chipClass}">${chipTxt}</span>
