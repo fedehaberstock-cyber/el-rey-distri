@@ -900,6 +900,26 @@ async function confirmarFinal() {
       if (updates.length) await Promise.all(updates)
     }
 
+    // 5. Si veniamos de una orden de compra, marcarla como recibida.
+    if (typeof ordenIdSrc !== 'undefined' && ordenIdSrc) {
+      try {
+        await supabase.from('ordenes_compra').update({
+          estado: 'recibida',
+          fecha_recibida: new Date().toISOString(),
+          ingreso_id: ingreso.id,
+        }).eq('id', ordenIdSrc)
+        // Marcar items como recibidos completos (cantidad_recibida = cantidad)
+        const { data: oItems } = await supabase.from('orden_compra_items')
+          .select('id, cantidad').eq('orden_id', ordenIdSrc)
+        if (oItems?.length) {
+          await Promise.all(oItems.map(oi =>
+            supabase.from('orden_compra_items')
+              .update({ cantidad_recibida: oi.cantidad })
+              .eq('id', oi.id)))
+        }
+      } catch (eOrd) { console.warn('No se pudo marcar orden recibida:', eOrd) }
+    }
+
     resumenDone = {
       provNombre: provActual()?.nombre || '',
       totalUnidades: items.reduce((s, it) => s + cantTotal(it), 0),
@@ -1234,10 +1254,42 @@ window.confirmarRevision = async () => {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
+// Si viene ?orden_id=... pre-armamos el ingreso desde la orden de compra.
+let ordenIdSrc = null
+async function prefillDesdeOrden(ordenId) {
+  const [{ data: orden }, { data: oItems }] = await Promise.all([
+    supabase.from('ordenes_compra').select('id, proveedor_id, fecha_enviada, total_estimado, estado').eq('id', ordenId).single(),
+    supabase.from('orden_compra_items').select('producto_id, cantidad, costo_unit_estimado').eq('orden_id', ordenId),
+  ])
+  if (!orden) return false
+  if (orden.estado === 'recibida' || orden.estado === 'cancelada') {
+    alert('Esta orden ya fue ' + orden.estado + '.')
+    return false
+  }
+  if (orden.proveedor_id) proveedorId = orden.proveedor_id
+  aplicarCargosDefault()
+  await cargarAliases()
+  for (const oi of (oItems || [])) {
+    const p = prod(oi.producto_id)
+    if (!p) continue
+    items.push({
+      prodId: oi.producto_id,
+      bultos: oi.cantidad,
+      uPorBulto: 1,
+      costo: Number(oi.costo_unit_estimado) || Number(p.costo) || 0,
+    })
+  }
+  ordenIdSrc = ordenId
+  return true
+}
+
 document.getElementById('root').innerHTML =
   `<div style="text-align:center;padding:60px 20px;color:var(--ink-soft)">Cargando…</div>`
 try {
   await cargarDatos()
+  const params = new URLSearchParams(location.search)
+  const ordenId = params.get('orden_id')
+  if (ordenId) await prefillDesdeOrden(ordenId)
   render()
 } catch(e) {
   mostrarError('Error al cargar datos: ' + e.message)
