@@ -78,6 +78,10 @@
   .margin-tag.red{background:var(--red-bg);color:var(--red-tx)}
   .margin-tag.amber{background:var(--amber-bg);color:var(--amber-tx)}
   .margin-tag.ok{background:var(--green-bg);color:var(--green-tx)}
+  .rest-tag{font-size:12px;font-weight:700;padding:1px 7px;border-radius:6px;white-space:nowrap}
+  .rest-tag.rest-urg{background:var(--red-bg);color:var(--red-tx)}
+  .rest-tag.rest-baja{background:var(--amber-bg);color:var(--amber-tx)}
+  .rest-tag.rest-ok{background:var(--line-soft);color:var(--ink-soft)}
   .prod-card .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px}
   .meta-tag{font-size:12px;color:var(--ink-soft);font-weight:500}
   .meta-tag b{color:var(--ink);font-weight:600}
@@ -194,7 +198,7 @@ const puedeAjustar = tienePermiso('stock', 'editar');
 
 // Tabs visibles — "Capital" (info financiera) solo para quien administra stock
 const TABS = [['stock','Stock'],['sin_ingreso','Sin ingreso'],['precio','Precios'],['resumen','Resumen']];
-if (puedeAjustar) TABS.push(['capital','Capital'], ['inactivos','Inactivos']);
+if (puedeAjustar) TABS.push(['capital','Capital'], ['muerto','Muertos'], ['inactivos','Inactivos']);
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 const ars     = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
@@ -237,6 +241,7 @@ async function cargarTodo() {
     { data: ingresoItems },
     { data: provs },
     { data: velocidades },
+    { data: ventas },
   ] = await Promise.all([
     supabase.from('productos')
       .select('id, nombre, categoria, costo, precio, updated_at, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
@@ -245,11 +250,22 @@ async function cargarTodo() {
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
     supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('velocidad_venta').select('producto_id, unidades_por_dia'),
+    supabase.from('mov_stock').select('producto_id, fecha').eq('tipo', 'venta'),
   ]);
+  const { data: provProds } = await supabase.from('producto_proveedor')
+    .select('id, producto_id, proveedor_id, costo, observaciones, actualizado_en, proveedores(nombre)')
+    .eq('empresa_id', usuario.empresa_id);
+  window._provProds = provProds || [];
   proveedores = provs || [];
 
   const velMap = {};
   for (const v of (velocidades || [])) velMap[v.producto_id] = Number(v.unidades_por_dia) || 0;
+
+  const ultVentaMap = {};
+  for (const v of (ventas || [])) {
+    if (!ultVentaMap[v.producto_id] || v.fecha > ultVentaMap[v.producto_id])
+      ultVentaMap[v.producto_id] = v.fecha;
+  }
 
   if (errP) {
     document.getElementById('root').innerHTML =
@@ -280,6 +296,7 @@ async function cargarTodo() {
     stock: stockMap[p.id] ?? 0,
     velocidad: velMap[p.id] || 0,
     ultimo_ingreso: ingresoMap[p.id] || null,
+    ultima_venta: ultVentaMap[p.id] || null,
     ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
   }));
 
@@ -382,6 +399,7 @@ function render() {
   else if (tab === 'sin_ingreso') renderTabSinIngreso(el);
   else if (tab === 'precio')      renderTabPrecio(el);
   else if (tab === 'capital')     renderTabCapital(el);
+  else if (tab === 'muerto')      renderTabMuerto(el);
   else if (tab === 'inactivos')   renderTabInactivos(el);
   else                            renderTabResumen(el);
 
@@ -434,6 +452,8 @@ function renderStockList() {
     const cl = claseStock(p.stock);
     const diI = diasDesde(p.ultimo_ingreso);
     const alertaI = diI >= DIAS_ALERTA;
+    const dRest = p.velocidad > 0 && p.stock > 0 ? Math.floor(p.stock / p.velocidad) : null;
+    const dRestClass = dRest === null ? '' : dRest <= 3 ? 'rest-urg' : dRest <= 7 ? 'rest-baja' : 'rest-ok';
     return `<div class="prod-card" onclick="window._irDetalle('${p.id}')">
       <div class="top">
         <span class="nm">${p.nombre}</span>
@@ -446,6 +466,8 @@ function renderStockList() {
         <span class="meta-tag">${p.prov}</span>
         <span class="meta-tag">·</span>
         <span class="meta-tag">Costo <b>${ars(p.costo)}</b></span>
+        ${dRest !== null ? `<span class="meta-tag">·</span>
+        <span class="rest-tag ${dRestClass}">${dRest}d restan</span>` : ''}
         ${puedeAjustar ? `<span class="meta-tag">·</span>
         <span class="margin-tag ${claseMargen(margenPct(p))}">${margenPct(p).toFixed(0)}% mg</span>` : ''}
       </div>
@@ -458,6 +480,91 @@ function renderStockList() {
     </div>`;
   }).join('');
 }
+
+// ── PROVEEDORES ALTERNATIVOS ───────────────────────────────────────────────
+function renderProvAlt(p) {
+  const lista = (window._provProds || []).filter(x => x.producto_id === p.id);
+  // marcar el preferido (productos.proveedor_id)
+  const conPref = lista.map(x => ({ ...x, esPref: x.proveedor_id === p.proveedor_id }));
+  const minCosto = lista.length ? Math.min(...lista.map(x => Number(x.costo))) : null;
+  return `
+    <div class="sec-lbl" style="margin-top:18px">Proveedores y precios</div>
+    <div style="margin:0 18px 8px">
+      ${conPref.length ? conPref.map(x => {
+        const esMin = Number(x.costo) === minCosto && conPref.length > 1;
+        return `<div style="background:var(--card);border:1px solid ${x.esPref?'var(--gold)':'var(--line)'};border-radius:12px;padding:10px 12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div style="font-weight:600;flex:1;min-width:0">
+              ${x.proveedores?.nombre || '?'}
+              ${x.esPref ? '<span style="font-size:11px;background:var(--gold-lt);color:var(--gold-dk);padding:2px 7px;border-radius:999px;margin-left:6px;font-weight:700">PREFERIDO</span>' : ''}
+              ${esMin && !x.esPref ? '<span style="font-size:11px;background:var(--green-bg);color:var(--green-tx);padding:2px 7px;border-radius:999px;margin-left:6px;font-weight:700">MEJOR PRECIO</span>' : ''}
+            </div>
+            <div style="font-weight:700;white-space:nowrap">${ars(Number(x.costo))}</div>
+          </div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:4px">Actualizado ${fmtFecha(x.actualizado_en)}${x.observaciones?` · ${x.observaciones}`:''}</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            ${!x.esPref ? `<button onclick="window._provAltPref('${x.id}','${x.proveedor_id}',${Number(x.costo)})" style="font-size:12px;padding:5px 10px;border:1px solid var(--gold);background:var(--gold-lt);color:var(--gold-dk);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit">Hacer preferido</button>` : ''}
+            <button onclick="window._provAltEdit('${x.id}')" style="font-size:12px;padding:5px 10px;border:1px solid var(--line);background:var(--card);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit">Editar costo</button>
+            ${!x.esPref ? `<button onclick="window._provAltDel('${x.id}')" style="font-size:12px;padding:5px 10px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit">Eliminar</button>` : ''}
+          </div>
+        </div>`;
+      }).join('') : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px">Sin proveedores alternativos cargados.</div>`}
+      <button onclick="window._provAltNuevo('${p.id}')"
+        style="width:100%;padding:10px;border:1px dashed var(--gold);background:var(--gold-lt);color:var(--gold-dk);border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">
+        ＋ Agregar proveedor alternativo
+      </button>
+    </div>`;
+}
+
+window._provAltNuevo = async (prodId) => {
+  const disponibles = proveedores.filter(pv =>
+    !(window._provProds || []).some(x => x.producto_id === prodId && x.proveedor_id === pv.id));
+  if (!disponibles.length) { alert('No quedan proveedores para agregar.'); return; }
+  const opciones = disponibles.map((pv, i) => `${i+1}. ${pv.nombre}`).join('\n');
+  const sel = prompt(`Elegí proveedor (1-${disponibles.length}):\n\n${opciones}`);
+  const idx = parseInt(sel) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= disponibles.length) return;
+  const costoStr = prompt(`Costo de "${disponibles[idx].nombre}":`);
+  const costo = parseFloat(costoStr);
+  if (!(costo >= 0)) { alert('Costo inválido.'); return; }
+  const { error } = await supabase.from('producto_proveedor').insert({
+    empresa_id: usuario.empresa_id,
+    producto_id: prodId,
+    proveedor_id: disponibles[idx].id,
+    costo,
+  });
+  if (error) { alert('Error: ' + error.message); return; }
+  await cargarTodo(); render();
+};
+
+window._provAltEdit = async (ppId) => {
+  const x = (window._provProds || []).find(z => z.id === ppId);
+  if (!x) return;
+  const costoStr = prompt(`Nuevo costo para "${x.proveedores?.nombre}":`, x.costo);
+  const costo = parseFloat(costoStr);
+  if (!(costo >= 0)) return;
+  const { error } = await supabase.from('producto_proveedor')
+    .update({ costo, actualizado_en: new Date().toISOString().slice(0,10) })
+    .eq('id', ppId);
+  if (error) { alert('Error: ' + error.message); return; }
+  await cargarTodo(); render();
+};
+
+window._provAltDel = async (ppId) => {
+  if (!confirm('¿Eliminar este proveedor alternativo?')) return;
+  const { error } = await supabase.from('producto_proveedor').delete().eq('id', ppId);
+  if (error) { alert('Error: ' + error.message); return; }
+  await cargarTodo(); render();
+};
+
+window._provAltPref = async (ppId, provId, costo) => {
+  if (!confirm('¿Hacer este proveedor el preferido del producto? Se actualiza también el costo.')) return;
+  const { error } = await supabase.from('productos')
+    .update({ proveedor_id: provId, costo })
+    .eq('id', prodSelId);
+  if (error) { alert('Error: ' + error.message); return; }
+  await cargarTodo(); render();
+};
 
 // ── DETALLE ────────────────────────────────────────────────────────────────
 function renderDetalle() {
@@ -487,6 +594,7 @@ function renderDetalle() {
         ${puedeAjustar ? `<div class="row">Margen: <b style="color:${margenPct(p)<20?'var(--red-tx)':margenPct(p)<25?'var(--amber-tx)':'var(--green-tx)'}">${margenPct(p).toFixed(0)}%</b> · Valor en stock: <b>${ars(p.stock*p.costo)}</b></div>` : ''}
         <div class="row">Último ingreso: <b>${fmtFecha(p.ultimo_ingreso)}</b></div>
       </div>
+      ${puedeAjustar ? renderProvAlt(p) : ''}
       <div class="sec-lbl">Movimientos recientes</div>
       <div class="movs">
         ${movs.length ? movs.map(m => {
@@ -801,6 +909,51 @@ function renderTabCapital(el) {
         productos con stock que no rotan — lo primero a ofertar o liquidar.
       </div>`}
   `;
+}
+
+// ── TAB MUERTO ─────────────────────────────────────────────────────────────
+// Productos con stock > 0 y sin venta en >= 60 días.
+function renderTabMuerto(el) {
+  const muertos = productos
+    .filter(p => p.stock > 0)
+    .map(p => ({ ...p, diasSinVenta: p.ultima_venta ? diasDesde(p.ultima_venta) : 9999 }))
+    .filter(p => p.diasSinVenta >= 60)
+    .sort((a, b) => (b.stock * b.costo) - (a.stock * a.costo));
+
+  const capital = muertos.reduce((s, p) => s + p.stock * p.costo, 0);
+
+  if (!muertos.length) {
+    el.innerHTML += `<div class="empty" style="padding-top:60px">Sin productos muertos. Todo el stock rotó en los últimos 60 días.</div>`;
+    return;
+  }
+  el.innerHTML += `
+    <div style="padding:12px 18px 4px">
+      <div style="background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-size:20px;font-weight:700;color:var(--amber-tx);line-height:1">${ars(capital)}</div>
+        <div style="font-size:12px;color:var(--amber-tx);font-weight:600;margin-top:2px">
+          Capital inmovilizado en ${muertos.length} producto${muertos.length===1?'':'s'} sin venta hace 60+ días
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      ${muertos.map(p => `
+        <div class="prod-card" onclick="window._irDetalle('${p.id}')">
+          <div class="top">
+            <span class="nm">${p.nombre}</span>
+            <span class="stock-badge ok">${p.stock}</span>
+            <span class="arr">›</span>
+          </div>
+          <div class="meta">
+            <span class="meta-tag">${p.cat}</span>
+            <span class="meta-tag">·</span>
+            <span class="meta-tag">${p.prov}</span>
+            <span class="meta-tag">·</span>
+            <span class="meta-tag">Capital <b>${ars(p.stock * p.costo)}</b></span>
+            <span class="meta-tag">·</span>
+            <span class="rest-tag rest-baja">${p.diasSinVenta>=365?'365+':p.diasSinVenta}d sin vender</span>
+          </div>
+        </div>`).join('')}
+    </div>`;
 }
 
 // ── TAB INACTIVOS ──────────────────────────────────────────────────────────
