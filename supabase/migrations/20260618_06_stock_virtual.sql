@@ -20,8 +20,10 @@ create or replace view public.stock_virtual as
   ) p_p on p_p.producto_id = p.id
   where p.activo = true;
 
--- Reemplazar sugerencia_compra para que use stock_virtual (no stock_actual)
-create or replace view public.sugerencia_compra as
+-- Reemplazar sugerencia_compra para que use stock_virtual (no stock_actual).
+-- Drop primero porque CREATE OR REPLACE VIEW no permite reordenar columnas.
+drop view if exists public.sugerencia_compra;
+create view public.sugerencia_compra as
   select
     p.id as producto_id,
     p.empresa_id,
