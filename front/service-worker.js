@@ -2,8 +2,8 @@
 // Estrategia: shell precacheado + network-first para páginas +
 //             cache-first para librerías CDN + network-only para Supabase API.
 
-const CACHE_SHELL   = 'elrey-shell-v51';
-const CACHE_CDN     = 'elrey-cdn-v51';
+const CACHE_SHELL   = 'elrey-shell-v52';
+const CACHE_CDN     = 'elrey-cdn-v52';
 const OFFLINE_PAGE  = './offline.html';
 
 const SHELL_FILES = [
@@ -32,6 +32,11 @@ self.addEventListener('install', event => {
       .then(cache => cache.addAll(SHELL_FILES))
       .then(() => self.skipWaiting())
   );
+});
+
+// ── MENSAJE: SKIP_WAITING desde el cliente ────────────────────────────────
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 // ── ACTIVATE ──────────────────────────────────────────────────────────────
