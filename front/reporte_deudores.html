@@ -145,7 +145,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js';
 import { requireSession, tienePermiso } from './src/auth.js';
-import { exportCSV } from './src/utils.js';
+import { exportCSV } from './src/utils.js?v=2';
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
 const { usuario } = await requireSession();

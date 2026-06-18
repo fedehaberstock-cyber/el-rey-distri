@@ -162,7 +162,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession, tienePermiso } from './src/auth.js'
-import { ars, imprimirPagina } from './src/utils.js'
+import { ars, imprimirPagina } from './src/utils.js?v=2'
 
 const { usuario } = await requireSession()
 if (!tienePermiso('catalogo', 'vista')) { location.href = './login_home.html'; throw new Error('sin permiso') }

@@ -210,7 +210,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession, tienePermiso } from './src/auth.js'
-import { ars, fechaCorta, mostrarError } from './src/utils.js'
+import { ars, fechaCorta, mostrarError } from './src/utils.js?v=2'
 
 const { usuario } = await requireSession()
 if (!tienePermiso('hoja_ruta')) { location.href = './login_home.html'; throw new Error('sin permiso') }

@@ -130,7 +130,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession } from './src/auth.js'
-import { ars, mostrarError } from './src/utils.js'
+import { ars, mostrarError } from './src/utils.js?v=2'
 
 const { usuario } = await requireSession()
 if (usuario.rol !== 'admin') {
