@@ -5,75 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="./src/logger.js"></script>
 <title>El Rey · Mis números</title>
+<link rel="stylesheet" href="./src/theme.css">
 <style>
-  :root{
-    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
-    --line:#E4DECF;  --line-soft:#EEEADD;
-    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
-    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
-    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
-    --red-bg:#F6E5E2;  --red-tx:#A8392B;
-    --card:#FFFFFF;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    font-size:15px;line-height:1.4}
-  body{max-width:520px;margin:0 auto;padding-bottom:30px}
+  /* específicos de esta pantalla */
+  body{ max-width:520px; padding-bottom:30px; font-size:15px }
+  .hdr{ justify-content:space-between }
+  .back{ background:none; border:none; font-size:13px; color:var(--gold); font-weight:600; cursor:pointer; font-family:inherit }
 
-  .hdr{display:flex;align-items:center;justify-content:space-between;
-    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
-    position:sticky;top:0;z-index:20}
-  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
-  .crown{color:var(--gold);font-size:20px}
-  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
-    letter-spacing:.06em;text-transform:uppercase}
-  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+  .tabs{ position:sticky; top:57px; z-index:19; border-bottom:1px solid var(--line) }
+  .tab{ border-bottom-width:2px; margin-bottom:-1px }
 
-  .tabs{display:flex;border-bottom:1px solid var(--line);background:var(--paper);
-    position:sticky;top:57px;z-index:19}
-  .tab{flex:1;padding:11px 6px;text-align:center;font-size:13px;font-weight:600;
-    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
-  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .periodo{ padding:14px 18px; border-bottom:1px solid var(--line-soft);
+    display:flex; gap:6px; align-items:center; font-size:13px }
+  .periodo button{ padding:6px 12px; border:1px solid var(--line); background:#fff;
+    border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+    color:var(--ink-soft) }
+  .periodo button.active{ background:var(--gold); color:#fff; border-color:var(--gold) }
 
-  .periodo{padding:14px 18px;border-bottom:1px solid var(--line-soft);
-    display:flex;gap:6px;align-items:center;font-size:13px}
-  .periodo button{padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:999px;
-    font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink-soft)}
-  .periodo button.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+  section{ padding:14px 18px }
+  .kpi-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px }
+  .kpi.dst{ background:var(--gold-lt); border-color:var(--gold) }
+  .kpi .nro{ font-size:24px; font-weight:700; color:var(--ink); line-height:1.1 }
+  .kpi.dst .nro{ color:var(--gold-dk) }
+  .kpi .desc{ font-size:12px; color:var(--ink-soft); margin-top:4px;
+    text-transform:uppercase; letter-spacing:.04em }
 
-  section{padding:14px 18px}
-  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
-  .kpi.dst{background:var(--gold-lt);border-color:var(--gold)}
-  .kpi .nro{font-size:24px;font-weight:700;color:var(--ink);line-height:1.1}
-  .kpi.dst .nro{color:var(--gold-dk)}
-  .kpi .desc{font-size:12px;color:var(--ink-soft);margin-top:4px;
-    text-transform:uppercase;letter-spacing:.04em}
+  .sec-title{ font-size:13px; font-weight:700; margin:14px 0 8px; padding:0 }
 
-  .sec-title{font-size:13px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--ink-soft);margin:14px 0 8px}
+  .bar-row{ display:flex; align-items:center; gap:10px; padding:8px 0;
+    border-bottom:1px solid var(--line-soft); font-size:14px }
+  .bar-row:last-child{ border-bottom:none }
+  .bar-row .nm{ flex:1; min-width:0; font-weight:600; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis }
+  .bar-row .bar-wrap{ flex:2; height:8px; background:var(--line-soft);
+    border-radius:4px; overflow:hidden }
+  .bar-row .bar-fill{ height:100%; background:var(--gold) }
+  .bar-row .val{ flex-shrink:0; font-size:13px; font-weight:600;
+    text-align:right; min-width:70px }
 
-  .bar-row{display:flex;align-items:center;gap:10px;padding:8px 0;
-    border-bottom:1px solid var(--line-soft);font-size:14px}
-  .bar-row:last-child{border-bottom:none}
-  .bar-row .nm{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bar-row .bar-wrap{flex:2;height:8px;background:var(--line-soft);border-radius:4px;overflow:hidden}
-  .bar-row .bar-fill{height:100%;background:var(--gold)}
-  .bar-row .val{flex-shrink:0;font-size:13px;font-weight:600;text-align:right;min-width:70px}
+  .ranking-row{ display:flex; align-items:center; gap:10px; padding:10px 0;
+    border-bottom:1px solid var(--line-soft) }
+  .ranking-row .pos{ width:28px; height:28px; border-radius:8px;
+    background:var(--gold-lt); color:var(--gold-dk); font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-size:14px }
+  .ranking-row .nm{ flex:1; font-weight:600 }
+  .ranking-row .val{ font-weight:700 }
+  .ranking-row.me{ background:var(--gold-lt); margin:0 -8px; padding-left:8px;
+    padding-right:8px; border-radius:8px }
 
-  .ranking-row{display:flex;align-items:center;gap:10px;padding:10px 0;
-    border-bottom:1px solid var(--line-soft)}
-  .ranking-row .pos{width:28px;height:28px;border-radius:8px;background:var(--gold-lt);
-    color:var(--gold-dk);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
-  .ranking-row .nm{flex:1;font-weight:600}
-  .ranking-row .val{font-weight:700}
-  .ranking-row.me{background:var(--gold-lt);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
-
-  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft);font-size:14px}
-  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
-  .err{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
-    border-radius:12px;color:var(--red-tx)}
+  .err{ margin:18px; padding:14px; background:var(--red-bg);
+    border:1px solid var(--red-tx); border-radius:12px; color:var(--red-tx) }
 </style>
 </head>
 <body>
@@ -95,7 +76,9 @@ let tab = 'kpi'        // 'kpi' | 'cats' | 'ranking'
 let usuarioId = usuario.id
 let preventistasList = []
 let pedidos = []
+let pedidosPrev = []
 let visitas = []
+let visitasPrev = []
 let itemsPedidos = []  // pedido_items con join al producto
 let rankingMes = []    // [{usuario_id, nombre, total, pedidos}]
 let cargando = true
@@ -113,6 +96,25 @@ function rangoFechas() {
     desde = new Date(hoy.getFullYear(), 0, 1)
   }
   return { desde: desde.toISOString(), hasta: hoy.toISOString() }
+}
+
+// Periodo anterior de igual duracion
+function rangoFechasPrev() {
+  const { desde, hasta } = rangoFechas()
+  const d1 = new Date(desde), d2 = new Date(hasta)
+  const dur = d2 - d1
+  const prevHasta = new Date(d1.getTime() - 1)
+  const prevDesde = new Date(prevHasta.getTime() - dur)
+  return { desde: prevDesde.toISOString(), hasta: prevHasta.toISOString() }
+}
+
+function delta(actual, anterior) {
+  if (anterior === 0 && actual === 0) return ''
+  if (anterior === 0) return `<span class="delta up">nuevo</span>`
+  const pct = (actual - anterior) / Math.abs(anterior) * 100
+  const dir = Math.abs(pct) < 0.5 ? 'flat' : (pct > 0 ? 'up' : 'down')
+  const sig = pct > 0 ? '+' : ''
+  return `<span class="delta ${dir}">${sig}${pct.toFixed(0)}% vs ant.</span>`
 }
 
 async function cargar() {
@@ -154,6 +156,26 @@ async function cargar() {
   if (e2) console.warn('visitas:', e2.message)
   visitas = vis || []
 
+  // Periodo anterior (para deltas) — solo lo minimo necesario
+  const { desde: pDesde, hasta: pHasta } = rangoFechasPrev()
+  const [{ data: pedsP }, { data: visP }] = await Promise.all([
+    supabase.from('pedidos')
+      .select(`id, fecha, cliente_id, descuento,
+        pedido_items(cantidad, precio_unit, descuento)`)
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('usuario_id', usuarioId)
+      .neq('estado', 'anulado')
+      .gte('fecha', pDesde).lte('fecha', pHasta),
+    supabase.from('visitas_clientes')
+      .select('cliente_id, resultado')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('usuario_id', usuarioId)
+      .gte('fecha', pDesde.split('T')[0])
+      .lte('fecha', pHasta.split('T')[0]),
+  ])
+  pedidosPrev = pedsP || []
+  visitasPrev = visP || []
+
   // ranking de preventistas — solo admin lo ve completo;
   // el preventista ve solo "tu posición de N" sin nombres
   if (esAdmin) {
@@ -188,23 +210,19 @@ async function cargar() {
   cargando = false; render()
 }
 
-function calcularKPIs() {
-  const totalMonto = pedidos.reduce((s, p) => {
+function calcularKPIs(peds = pedidos, vis = visitas) {
+  const totalMonto = peds.reduce((s, p) => {
     const sub = (p.pedido_items || []).reduce((ss, it) =>
       ss + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
     return s + sub * (1 - Number(p.descuento||0)/100)
   }, 0)
-  const cantPedidos = pedidos.length
+  const cantPedidos = peds.length
   const ticketProm = cantPedidos ? totalMonto / cantPedidos : 0
   const comisionEstim = totalMonto * 0.05
 
-  // Conversión por clientes únicos: si un cliente tuvo al menos 1 pedido en el
-  // período cuenta como conversión; si solo tuvo visitas sin_pedido, cuenta como
-  // intento fallido. Evita inflar el denominador con visitas repetidas al mismo
-  // cliente y respeta el caso "vino dos veces y compró la segunda".
-  const clientesConPedido = new Set(pedidos.map(p => p.cliente_id).filter(Boolean))
+  const clientesConPedido = new Set(peds.map(p => p.cliente_id).filter(Boolean))
   const clientesSinPedido = new Set(
-    visitas
+    vis
       .filter(v => v.resultado === 'sin_pedido' && !clientesConPedido.has(v.cliente_id))
       .map(v => v.cliente_id)
   )
@@ -306,32 +324,39 @@ function renderBody() {
   const el = document.getElementById('tab-body'); if (!el) return
   if (tab === 'kpi') {
     const k = calcularKPIs()
+    const kp = calcularKPIs(pedidosPrev, visitasPrev)
     el.innerHTML = `
       <section>
         <div class="kpi-grid">
           <div class="kpi dst">
             <div class="nro">${ars(k.totalMonto)}</div>
             <div class="desc">Ventas del período</div>
+            ${delta(k.totalMonto, kp.totalMonto)}
           </div>
           <div class="kpi dst">
             <div class="nro">${ars(k.comisionEstim)}</div>
             <div class="desc">Comisión estimada (5%)</div>
+            ${delta(k.comisionEstim, kp.comisionEstim)}
           </div>
           <div class="kpi">
             <div class="nro">${k.cantPedidos}</div>
             <div class="desc">Pedidos tomados</div>
+            ${delta(k.cantPedidos, kp.cantPedidos)}
           </div>
           <div class="kpi">
             <div class="nro">${ars(k.ticketProm)}</div>
             <div class="desc">Ticket promedio</div>
+            ${delta(k.ticketProm, kp.ticketProm)}
           </div>
           ${k.conversion !== null ? `<div class="kpi">
             <div class="nro">${k.conversion.toFixed(0)}%</div>
             <div class="desc">% conversión</div>
+            ${kp.conversion !== null ? delta(k.conversion, kp.conversion) : ''}
           </div>` : ''}
           ${k.cantVisitasSinPedido ? `<div class="kpi">
             <div class="nro">${k.cantVisitasSinPedido}</div>
             <div class="desc">Visitas sin pedido</div>
+            ${delta(k.cantVisitasSinPedido, kp.cantVisitasSinPedido)}
           </div>` : ''}
         </div>
         ${k.conversion === null ? `<div style="background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:10px;padding:10px;font-size:12px;color:var(--amber-tx)">

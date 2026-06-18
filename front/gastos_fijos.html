@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Gastos fijos</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:100px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .add-btn{background:none;border:none;color:var(--gold);font-size:28px;line-height:1;cursor:pointer;padding:0}
+
+  .resumen{padding:14px 18px;border-bottom:1px solid var(--line-soft);background:var(--card)}
+  .resumen .num{font-size:22px;font-weight:700;color:var(--gold)}
+  .resumen .lbl{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+
+  .list{padding:12px 18px}
+  .gf-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px}
+  .gf-card:active{filter:brightness(.98)}
+  .gf-icon{width:40px;height:40px;border-radius:10px;background:var(--gold-lt);
+    display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .gf-info{flex:1;min-width:0}
+  .gf-info .nm{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gf-info .sub{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .gf-monto{font-size:15px;font-weight:700;color:var(--red-tx);white-space:nowrap}
+  .gf-arr{color:var(--ink-soft);font-size:18px;margin-left:6px}
+  .inactive{opacity:.45}
+
+  .empty{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:24px 20px 32px;width:100%;max-height:90vh;overflow-y:auto}
+  .panel .handle{width:36px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 18px}
+  .panel h3{font-size:18px;font-weight:700;margin-bottom:18px}
+  .fl{display:block;font-size:12px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .fl:first-of-type{margin-top:0}
+  .field{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .panel-btns{display:flex;gap:10px;margin-top:20px}
+  .bar-btn{flex:2;padding:15px;border:none;border-radius:14px;background:var(--gold);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .cancel{flex:1;padding:15px;border:1px solid var(--line);border-radius:14px;
+    background:var(--card);font-size:15px;font-weight:600;cursor:pointer;color:var(--ink);font-family:inherit}
+  .del-btn{width:100%;padding:13px;border:1px solid var(--red-tx);border-radius:12px;
+    background:var(--red-bg);color:var(--red-tx);font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:10px}
+  .err-msg{color:var(--red-tx);font-size:13px;margin-top:8px}
+  .help{font-size:12px;color:var(--ink-soft);margin-top:6px;line-height:1.4}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js';
+import { requireSession } from './src/auth.js';
+
+const { usuario } = await requireSession();
+if (usuario.rol !== 'admin') { location.href = './login_home.html'; }
+
+const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+const hoyIso = () => new Date().toISOString().slice(0,10);
+
+let gastos = [];
+let panelId = null;
+let form = { concepto: '', monto_mensual: '', vigente_desde: hoyIso(), vigente_hasta: '', activo: true };
+let errMsg = '';
+let saving = false;
+
+async function cargar() {
+  const { data, error } = await supabase
+    .from('gastos_fijos')
+    .select('id, concepto, monto_mensual, vigente_desde, vigente_hasta, activo')
+    .eq('empresa_id', usuario.empresa_id)
+    .order('activo', { ascending: false })
+    .order('monto_mensual', { ascending: false });
+  if (error) {
+    document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`; return;
+  }
+  gastos = data || [];
+  render();
+}
+
+function totalMensualActivo() {
+  const h = hoyIso();
+  return gastos
+    .filter(g => g.activo && g.vigente_desde <= h && (!g.vigente_hasta || g.vigente_hasta >= h))
+    .reduce((s, g) => s + Number(g.monto_mensual || 0), 0);
+}
+
+function render() {
+  const el = document.getElementById('root');
+  const total = totalMensualActivo();
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Gastos fijos</small></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+        <button class="add-btn" onclick="window._nuevo()" title="Nuevo gasto">＋</button>
+      </div>
+    </div>
+    <div class="resumen">
+      <div class="num">${ars(total)}</div>
+      <div class="lbl">Total mensual activo</div>
+      <div class="help">Se prorratea por días corridos en el reporte de ganancia.</div>
+    </div>
+    <div id="gf-list" class="list"></div>`;
+  renderList();
+  if (panelId !== null) renderPanel(el);
+}
+
+function fmtFecha(s) { if (!s) return ''; const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`; }
+
+function renderList() {
+  const cont = document.getElementById('gf-list');
+  if (!cont) return;
+  if (!gastos.length) { cont.innerHTML = `<div class="empty">Sin gastos fijos cargados.</div>`; return; }
+  cont.innerHTML = gastos.map(g => {
+    const vig = g.vigente_hasta
+      ? `${fmtFecha(g.vigente_desde)} → ${fmtFecha(g.vigente_hasta)}`
+      : `Desde ${fmtFecha(g.vigente_desde)}`;
+    return `<div class="gf-card ${g.activo ? '' : 'inactive'}" onclick="window._editar('${g.id}')">
+      <div class="gf-icon">💸</div>
+      <div class="gf-info">
+        <div class="nm">${g.concepto}</div>
+        <div class="sub">${vig}${g.activo ? '' : ' · Inactivo'}</div>
+      </div>
+      <div class="gf-monto">${ars(g.monto_mensual)}/mes</div>
+      <div class="gf-arr">›</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPanel(el) {
+  const esNuevo = panelId === 'nuevo';
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) window._cerrar(); };
+  ov.innerHTML = `
+    <div class="panel">
+      <div class="handle"></div>
+      <h3>${esNuevo ? 'Nuevo gasto fijo' : 'Editar gasto fijo'}</h3>
+
+      <label class="fl">Concepto</label>
+      <input class="field" type="text" value="${form.concepto}"
+        placeholder="Ej: Alquiler, Sueldos, Combustible" oninput="window._setForm('concepto', this.value)">
+
+      <label class="fl">Monto mensual</label>
+      <input class="field" type="number" inputmode="numeric" value="${form.monto_mensual}"
+        placeholder="0" oninput="window._setForm('monto_mensual', this.value)">
+
+      <div class="row2">
+        <div>
+          <label class="fl">Vigente desde</label>
+          <input class="field" type="date" value="${form.vigente_desde}"
+            oninput="window._setForm('vigente_desde', this.value)">
+        </div>
+        <div>
+          <label class="fl">Vigente hasta (opcional)</label>
+          <input class="field" type="date" value="${form.vigente_hasta}"
+            oninput="window._setForm('vigente_hasta', this.value)">
+        </div>
+      </div>
+      <div class="help">Si "vigente hasta" queda vacío el gasto se considera permanente.</div>
+
+      ${!esNuevo ? `
+        <label class="fl">Estado</label>
+        <select class="field" onchange="window._setForm('activo', this.value === 'true')">
+          <option value="true"  ${form.activo ? 'selected' : ''}>Activo</option>
+          <option value="false" ${!form.activo ? 'selected' : ''}>Inactivo</option>
+        </select>` : ''}
+
+      ${errMsg ? `<div class="err-msg">${errMsg}</div>` : ''}
+
+      <div class="panel-btns">
+        <button class="cancel" onclick="window._cerrar()">Cancelar</button>
+        <button class="bar-btn" onclick="window._guardar()" ${saving ? 'disabled' : ''}>
+          ${saving ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+      ${!esNuevo ? `<button class="del-btn" onclick="window._eliminar()">Eliminar gasto fijo</button>` : ''}
+    </div>`;
+  el.appendChild(ov);
+}
+
+async function guardar() {
+  if (!form.concepto.trim()) { errMsg = 'El concepto es obligatorio.'; render(); return; }
+  const monto = parseFloat(form.monto_mensual);
+  if (!(monto >= 0)) { errMsg = 'Monto inválido.'; render(); return; }
+  if (!form.vigente_desde) { errMsg = 'Fecha de vigencia requerida.'; render(); return; }
+  if (form.vigente_hasta && form.vigente_hasta < form.vigente_desde) {
+    errMsg = 'La fecha "hasta" no puede ser anterior a "desde".'; render(); return;
+  }
+  saving = true; errMsg = ''; render();
+
+  const payload = {
+    concepto: form.concepto.trim(),
+    monto_mensual: monto,
+    vigente_desde: form.vigente_desde,
+    vigente_hasta: form.vigente_hasta || null,
+    activo: form.activo,
+  };
+
+  let error;
+  if (panelId === 'nuevo') {
+    ({ error } = await supabase.from('gastos_fijos')
+      .insert({ ...payload, empresa_id: usuario.empresa_id }));
+  } else {
+    ({ error } = await supabase.from('gastos_fijos')
+      .update(payload).eq('id', panelId));
+  }
+
+  saving = false;
+  if (error) { errMsg = error.message; render(); return; }
+  panelId = null;
+  await cargar();
+}
+
+async function eliminar() {
+  if (panelId === 'nuevo') return;
+  if (!confirm('¿Eliminar este gasto fijo?')) return;
+  await supabase.from('gastos_fijos').delete().eq('id', panelId);
+  panelId = null;
+  await cargar();
+}
+
+window._nuevo = () => {
+  form = { concepto: '', monto_mensual: '', vigente_desde: hoyIso(), vigente_hasta: '', activo: true };
+  errMsg = ''; panelId = 'nuevo'; render();
+};
+window._editar = id => {
+  const g = gastos.find(x => x.id === id);
+  if (!g) return;
+  form = {
+    concepto: g.concepto,
+    monto_mensual: g.monto_mensual,
+    vigente_desde: g.vigente_desde,
+    vigente_hasta: g.vigente_hasta || '',
+    activo: g.activo,
+  };
+  errMsg = ''; panelId = id; render();
+};
+window._cerrar = () => { panelId = null; render(); };
+window._setForm = (k, v) => { form[k] = v; };
+window._guardar = () => guardar();
+window._eliminar = () => eliminar();
+
+await cargar();
+</script>
+</body>
+</html>

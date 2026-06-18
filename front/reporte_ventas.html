@@ -55,6 +55,10 @@
   .kpi .num.gold{color:var(--gold)}
   .kpi .num.green{color:var(--green-tx)}
   .kpi .lbl{font-size:12px;color:var(--ink-soft);font-weight:500;margin-top:4px}
+  .kpi .delta{font-size:11px;font-weight:700;margin-top:4px;display:inline-block}
+  .kpi .delta.up{color:var(--green-tx)}
+  .kpi .delta.down{color:var(--red-tx)}
+  .kpi .delta.flat{color:var(--ink-soft)}
   .kpi.wide{grid-column:span 2;display:flex;justify-content:space-between;align-items:center}
   .kpi.wide .num{font-size:28px}
 
@@ -125,6 +129,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js';
 import { requireSession, tienePermiso } from './src/auth.js';
+import { exportCSV, imprimirPagina } from './src/utils.js';
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
 const { usuario } = await requireSession();
@@ -159,17 +164,18 @@ let hasta = isoHoy();
 let tab = 'resumen';
 let todosPedidos = [];  // cache full dataset
 let gastosCache  = []; // [{ fecha, total_gastos }]
+let gastosFijosCache = []; // [{ monto_mensual, vigente_desde, vigente_hasta, activo }]
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
 async function cargarPedidos() {
   // load last 6 months; filter client-side for speed
   const hace180 = isoOffset(-180);
-  const [{ data, error }, { data: gas }] = await Promise.all([
+  const [{ data, error }, { data: gas }, { data: gfij }] = await Promise.all([
     supabase.from('pedidos')
       .select(`
         id, fecha, estado, descuento,
         usuarios!pedidos_usuario_id_fkey(nombre),
-        pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, costo_unit_snapshot, productos(nombre, costo))
+        pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, costo_unit_snapshot, productos(nombre, costo, proveedores(nombre)))
       `)
       .eq('empresa_id', usuario.empresa_id)
       .in('estado', ['confirmado', 'entregado'])
@@ -179,6 +185,10 @@ async function cargarPedidos() {
       .select('fecha, total_gastos')
       .eq('empresa_id', usuario.empresa_id)
       .gte('fecha', hace180.slice(0,10)),
+    supabase.from('gastos_fijos')
+      .select('monto_mensual, vigente_desde, vigente_hasta, activo')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('activo', true),
   ]);
 
   if (error) {
@@ -188,7 +198,29 @@ async function cargarPedidos() {
   }
   todosPedidos = data || [];
   gastosCache  = gas || [];
+  gastosFijosCache = gfij || [];
   render();
+}
+
+// Prorrateo de gastos fijos por dias corridos en [d1, d2].
+// Para cada gasto: dias_intersec / 30 * monto_mensual.
+function prorrateoGastosFijos(d1, d2) {
+  if (!gastosFijosCache.length) return 0;
+  const t1 = new Date(d1 + 'T00:00:00').getTime();
+  const t2 = new Date(d2 + 'T00:00:00').getTime();
+  let total = 0;
+  for (const g of gastosFijosCache) {
+    const gd = new Date(g.vigente_desde + 'T00:00:00').getTime();
+    const gh = g.vigente_hasta
+      ? new Date(g.vigente_hasta + 'T00:00:00').getTime()
+      : Infinity;
+    const a = Math.max(t1, gd);
+    const b = Math.min(t2, gh);
+    if (a > b) continue;
+    const dias = Math.round((b - a) / 86400000) + 1;
+    total += Number(g.monto_mensual) * dias / 30;
+  }
+  return total;
 }
 
 function totalPedido(p) {
@@ -205,6 +237,38 @@ function pedidosFiltrados() {
   });
 }
 
+// Periodo anterior de igual longitud (en dias corridos)
+function rangoAnterior() {
+  const d1 = new Date(desde + 'T00:00:00');
+  const d2 = new Date(hasta + 'T00:00:00');
+  const dias = Math.round((d2 - d1) / 86400000) + 1;
+  const a2 = new Date(d1); a2.setDate(a2.getDate() - 1);
+  const a1 = new Date(a2); a1.setDate(a1.getDate() - (dias - 1));
+  return { desde: a1.toISOString().slice(0,10), hasta: a2.toISOString().slice(0,10) };
+}
+function pedidosFiltradosPrev() {
+  const { desde: d1, hasta: d2 } = rangoAnterior();
+  return todosPedidos.filter(p => {
+    const d = (p.fecha || '').slice(0, 10);
+    return d >= d1 && d <= d2;
+  });
+}
+function gastosPrev() {
+  const { desde: d1, hasta: d2 } = rangoAnterior();
+  return gastosCache.filter(g => g.fecha >= d1 && g.fecha <= d2)
+    .reduce((s, g) => s + (Number(g.total_gastos) || 0), 0);
+}
+
+// Devuelve {pct, dir, html} comparando actual vs anterior
+function delta(actual, anterior) {
+  if (anterior === 0 && actual === 0) return { html: '' };
+  if (anterior === 0) return { html: `<span class="delta up">nuevo</span>` };
+  const pct = (actual - anterior) / Math.abs(anterior) * 100;
+  const dir = Math.abs(pct) < 0.5 ? 'flat' : (pct > 0 ? 'up' : 'down');
+  const sig = pct > 0 ? '+' : '';
+  return { html: `<span class="delta ${dir}">${sig}${pct.toFixed(0)}% vs anterior</span>` };
+}
+
 // ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
 function render() {
   const el = document.getElementById('root');
@@ -218,8 +282,12 @@ function render() {
       <div class="brand"><span class="crown">&#9818;</span>
         <div>El Rey<small>Ventas</small></div>
       </div>
-      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;margin-left:auto;font-family:inherit"
-        onclick="location.href='./login_home.html'">Inicio ›</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button style="background:var(--gold-lt);border:1px solid var(--gold);color:var(--gold-dk);padding:5px 11px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="window._exportar()" title="Exportar CSV">⬇ CSV</button>
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+      </div>
     </div>
 
     <div class="periodo-wrap">
@@ -239,24 +307,94 @@ function render() {
     </div>
 
     <div class="tabs">
-      ${[['resumen','Resumen'],['productos','Productos'],['preventistas','Preventistas'],['ganancia','Ganancia']].map(([id, lbl]) =>
+      ${[['resumen','Resumen'],['productos','Productos'],['proveedores','Proveedores'],['preventistas','Preventistas'],['ganancia','Ganancia']].map(([id, lbl]) =>
         `<div class="tab ${tab === id ? 'active' : ''}" onclick="window._setTab('${id}')">${lbl}</div>`
       ).join('')}
     </div>
 
     <div id="content"></div>`;
 
-  if (tab === 'resumen')         renderResumen(pf, totalVentas, cantPedidos, ticket);
-  else if (tab === 'productos')  renderProductos(pf);
-  else if (tab === 'ganancia')   renderGanancia(pf, totalVentas);
-  else                           renderPreventistas(pf, totalVentas);
+  const pfPrev = pedidosFiltradosPrev();
+  const ventasPrev = pfPrev.reduce((s, p) => s + totalPedido(p), 0);
+  const pedidosPrev = pfPrev.length;
+  const ticketPrev = pedidosPrev ? Math.round(ventasPrev / pedidosPrev) : 0;
+  const prev = { pfPrev, ventasPrev, pedidosPrev, ticketPrev };
+
+  if (tab === 'resumen')          renderResumen(pf, totalVentas, cantPedidos, ticket, prev);
+  else if (tab === 'productos')   renderProductos(pf);
+  else if (tab === 'proveedores') renderProveedoresTab(pf, totalVentas);
+  else if (tab === 'ganancia')    renderGanancia(pf, totalVentas, prev);
+  else                            renderPreventistas(pf, totalVentas);
+}
+
+// ── TAB PROVEEDORES ────────────────────────────────────────────────────────
+function renderProveedoresTab(pf, totalVentas) {
+  const box = document.getElementById('content');
+  const mapa = {};
+  pf.forEach(ped => {
+    const descGral = 1 - (ped.descuento || 0) / 100;
+    (ped.pedido_items || []).forEach(it => {
+      const prov = it.productos?.proveedores?.nombre || 'Sin proveedor';
+      const costoUnit = it.costo_unit_snapshot != null
+        ? Number(it.costo_unit_snapshot)
+        : Number(it.productos?.costo || 0);
+      const ingreso = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+      const costo   = it.cantidad * costoUnit;
+      if (!mapa[prov]) mapa[prov] = { prov, ingreso: 0, costo: 0, u: 0, pedidos: new Set() };
+      mapa[prov].ingreso += ingreso;
+      mapa[prov].costo   += costo;
+      mapa[prov].u       += it.cantidad;
+      mapa[prov].pedidos.add(ped.id);
+    });
+  });
+  const lista = Object.values(mapa).map(x => ({
+    ...x,
+    ganancia: x.ingreso - x.costo,
+    margen:   x.ingreso > 0 ? (x.ingreso - x.costo) / x.ingreso * 100 : 0,
+    share:    totalVentas > 0 ? x.ingreso / totalVentas * 100 : 0,
+    cantPed:  x.pedidos.size,
+  })).sort((a, b) => b.ingreso - a.ingreso);
+
+  if (!lista.length) { box.innerHTML = `<div class="empty">Sin ventas en el período.</div>`; return; }
+  const maxIng = lista[0].ingreso || 1;
+  box.innerHTML = `
+    <div class="section-lbl">Ranking por ventas</div>
+    ${lista.map((p, i) => `
+      <div class="rank-item">
+        <div class="top">
+          <span class="num-badge ${i === 0 ? 'top1' : ''}">${i + 1}</span>
+          <span class="nm">${p.prov}</span>
+          <span class="val">${ars(p.ingreso)}</span>
+        </div>
+        <div class="sub">${p.u} u · ${p.cantPed} pedidos · ${p.share.toFixed(0)}% · margen ${p.margen.toFixed(0)}% · ganancia ${ars(p.ganancia)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.ingreso / maxIng * 100)}%"></div></div>
+      </div>`).join('')}`;
 }
 
 // ── TAB GANANCIA ───────────────────────────────────────────────────────────
-function renderGanancia(pf, totalVentas) {
+function renderGanancia(pf, totalVentas, prev) {
   const box = document.getElementById('content');
 
   // Costo de lo vendido: snapshot si existe (preciso), sino costo actual (aprox)
+  const calcCosto = (pedidos) => {
+    let costo = 0;
+    pedidos.forEach(ped => {
+      (ped.pedido_items || []).forEach(it => {
+        const costoUnit = it.costo_unit_snapshot != null
+          ? Number(it.costo_unit_snapshot)
+          : Number(it.productos?.costo || 0);
+        costo += it.cantidad * costoUnit;
+      });
+    });
+    return costo;
+  };
+  const costoPrev = calcCosto(prev?.pfPrev || []);
+  const r = rangoAnterior();
+  const fijosPrev = prorrateoGastosFijos(r.desde, r.hasta);
+  const gastosPrevTotal = gastosPrev() + fijosPrev;
+  const gananciaBrutaPrev = (prev?.ventasPrev || 0) - costoPrev;
+  const gananciaNetaPrev = gananciaBrutaPrev - gastosPrevTotal;
+
   let costoTotal = 0;
   let sinSnapshot = 0;
   pf.forEach(ped => {
@@ -272,9 +410,11 @@ function renderGanancia(pf, totalVentas) {
     });
   });
 
-  const totalGastos = gastosCache
+  const gastosHojas = gastosCache
     .filter(g => g.fecha >= desde && g.fecha <= hasta)
     .reduce((s, g) => s + (Number(g.total_gastos) || 0), 0);
+  const gastosFijosTotal = prorrateoGastosFijos(desde, hasta);
+  const totalGastos = gastosHojas + gastosFijosTotal;
 
   const gananciaBruta = totalVentas - costoTotal;
   const margenPct = totalVentas > 0 ? gananciaBruta / totalVentas * 100 : 0;
@@ -307,17 +447,22 @@ function renderGanancia(pf, totalVentas) {
     .filter(p => p.ingreso > 0 && (p.ganancia / p.ingreso * 100) < 20)
     .slice(0, 10);
 
+  const dNeta = delta(gananciaNeta, gananciaNetaPrev);
+  const dBruta = delta(gananciaBruta, gananciaBrutaPrev);
+  const dVentas = delta(totalVentas, prev?.ventasPrev || 0);
   box.innerHTML = `
     <div class="kpis">
       <div class="kpi wide">
         <div>
           <div class="num green">${ars(gananciaNeta)}</div>
           <div class="lbl">Ganancia neta (después de gastos)</div>
+          ${dNeta.html}
         </div>
       </div>
       <div class="kpi">
         <div class="num gold">${ars(gananciaBruta)}</div>
         <div class="lbl">Ganancia bruta</div>
+        ${dBruta.html}
       </div>
       <div class="kpi">
         <div class="num">${margenPct.toFixed(1)}%</div>
@@ -326,16 +471,24 @@ function renderGanancia(pf, totalVentas) {
       <div class="kpi">
         <div class="num">${ars(totalVentas)}</div>
         <div class="lbl">Ventas</div>
+        ${dVentas.html}
       </div>
       <div class="kpi">
         <div class="num" style="color:var(--red-tx)">−${ars(costoTotal)}</div>
         <div class="lbl">Costo de lo vendido</div>
       </div>
-      ${totalGastos > 0 ? `
+      ${gastosHojas > 0 ? `
         <div class="kpi wide">
           <div>
-            <div class="num" style="color:var(--red-tx)">−${ars(totalGastos)}</div>
+            <div class="num" style="color:var(--red-tx)">−${ars(gastosHojas)}</div>
             <div class="lbl">Gastos del período (hojas cerradas)</div>
+          </div>
+        </div>` : ''}
+      ${gastosFijosTotal > 0 ? `
+        <div class="kpi wide">
+          <div>
+            <div class="num" style="color:var(--red-tx)">−${ars(gastosFijosTotal)}</div>
+            <div class="lbl">Gastos fijos prorrateados</div>
           </div>
         </div>` : ''}
     </div>
@@ -371,23 +524,29 @@ function renderGanancia(pf, totalVentas) {
 }
 
 // ── TAB RESUMEN ────────────────────────────────────────────────────────────
-function renderResumen(pf, totalVentas, cantPedidos, ticket) {
+function renderResumen(pf, totalVentas, cantPedidos, ticket, prev) {
   const box = document.getElementById('content');
+  const dV = delta(totalVentas, prev.ventasPrev);
+  const dP = delta(cantPedidos, prev.pedidosPrev);
+  const dT = delta(ticket, prev.ticketPrev);
   box.innerHTML = `
     <div class="kpis">
       <div class="kpi wide">
         <div>
           <div class="num gold">${ars(totalVentas)}</div>
           <div class="lbl">Total vendido</div>
+          ${dV.html}
         </div>
       </div>
       <div class="kpi">
         <div class="num">${cantPedidos}</div>
         <div class="lbl">Pedidos</div>
+        ${dP.html}
       </div>
       <div class="kpi">
         <div class="num green">${ars(ticket)}</div>
         <div class="lbl">Ticket promedio</div>
+        ${dT.html}
       </div>
     </div>
     <div class="chart-wrap">
@@ -518,6 +677,95 @@ function renderPreventistas(pf, totalVentas) {
 }
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._exportar = () => {
+  const pf = pedidosFiltrados();
+  const nombre = `ventas_${desde}_${hasta}`;
+  if (tab === 'productos' || tab === 'resumen') {
+    const mapa = {};
+    pf.forEach(ped => {
+      const descGral = 1 - (ped.descuento || 0) / 100;
+      (ped.pedido_items || []).forEach(it => {
+        const nom = it.productos?.nombre || '(sin nombre)';
+        const monto = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+        if (!mapa[nom]) mapa[nom] = { producto: nom, unidades: 0, monto: 0 };
+        mapa[nom].unidades += it.cantidad;
+        mapa[nom].monto    += monto;
+      });
+    });
+    const filas = Object.values(mapa).sort((a,b) => b.monto - a.monto);
+    exportCSV(nombre, [
+      { key: 'producto', label: 'Producto' },
+      { key: 'unidades', label: 'Unidades' },
+      { key: 'monto', label: 'Monto', format: v => Math.round(v) },
+    ], filas);
+  } else if (tab === 'proveedores') {
+    const mapa = {};
+    pf.forEach(ped => {
+      const descGral = 1 - (ped.descuento || 0) / 100;
+      (ped.pedido_items || []).forEach(it => {
+        const prov = it.productos?.proveedores?.nombre || 'Sin proveedor';
+        const ingreso = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+        const cu = it.costo_unit_snapshot != null ? Number(it.costo_unit_snapshot) : Number(it.productos?.costo || 0);
+        const costo = it.cantidad * cu;
+        if (!mapa[prov]) mapa[prov] = { proveedor: prov, unidades: 0, ingreso: 0, costo: 0 };
+        mapa[prov].unidades += it.cantidad;
+        mapa[prov].ingreso  += ingreso;
+        mapa[prov].costo    += costo;
+      });
+    });
+    const filas = Object.values(mapa).map(r => ({ ...r, ganancia: r.ingreso - r.costo,
+      margen: r.ingreso > 0 ? (r.ingreso - r.costo) / r.ingreso * 100 : 0
+    })).sort((a,b) => b.ingreso - a.ingreso);
+    exportCSV(nombre + '_proveedores', [
+      { key: 'proveedor', label: 'Proveedor' },
+      { key: 'unidades', label: 'Unidades' },
+      { key: 'ingreso', label: 'Ingreso', format: v => Math.round(v) },
+      { key: 'costo', label: 'Costo', format: v => Math.round(v) },
+      { key: 'ganancia', label: 'Ganancia', format: v => Math.round(v) },
+      { key: 'margen', label: 'Margen %', format: v => v.toFixed(1) },
+    ], filas);
+  } else if (tab === 'preventistas') {
+    const mapa = {};
+    pf.forEach(ped => {
+      const nom = ped.usuarios?.nombre || '(sin)';
+      const t = totalPedido(ped);
+      if (!mapa[nom]) mapa[nom] = { preventista: nom, pedidos: 0, monto: 0 };
+      mapa[nom].pedidos += 1;
+      mapa[nom].monto   += t;
+    });
+    exportCSV(nombre + '_preventistas', [
+      { key: 'preventista', label: 'Preventista' },
+      { key: 'pedidos', label: 'Pedidos' },
+      { key: 'monto', label: 'Monto', format: v => Math.round(v) },
+    ], Object.values(mapa).sort((a,b) => b.monto - a.monto));
+  } else {
+    // ganancia → por producto
+    const mapa = {};
+    pf.forEach(ped => {
+      const descGral = 1 - (ped.descuento || 0) / 100;
+      (ped.pedido_items || []).forEach(it => {
+        const nom = it.productos?.nombre || '(sin nombre)';
+        const ingreso = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+        const cu = it.costo_unit_snapshot != null ? Number(it.costo_unit_snapshot) : Number(it.productos?.costo || 0);
+        const costo = it.cantidad * cu;
+        if (!mapa[nom]) mapa[nom] = { producto: nom, unidades: 0, ingreso: 0, costo: 0 };
+        mapa[nom].unidades += it.cantidad;
+        mapa[nom].ingreso  += ingreso;
+        mapa[nom].costo    += costo;
+      });
+    });
+    const filas = Object.values(mapa).map(r => ({ ...r, ganancia: r.ingreso - r.costo }))
+      .sort((a,b) => b.ganancia - a.ganancia);
+    exportCSV(nombre + '_ganancia', [
+      { key: 'producto', label: 'Producto' },
+      { key: 'unidades', label: 'Unidades' },
+      { key: 'ingreso', label: 'Ingreso', format: v => Math.round(v) },
+      { key: 'costo', label: 'Costo', format: v => Math.round(v) },
+      { key: 'ganancia', label: 'Ganancia', format: v => Math.round(v) },
+    ], filas);
+  }
+};
+
 window._setPeriodo = (p) => {
   periodo = p;
   const hoy = isoHoy();

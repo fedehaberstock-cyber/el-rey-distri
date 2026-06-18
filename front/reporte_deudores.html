@@ -50,6 +50,23 @@
   .tot-card .num.red{color:var(--red-tx)}
   .tot-card .num.amber{color:var(--amber-tx)}
   .tot-card .lbl{font-size:11px;color:var(--ink-soft);font-weight:500;margin-top:3px}
+  .aging-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:4px 18px 0}
+  .ag-card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;text-align:center}
+  .ag-card.b1{border-color:var(--green-tx)}
+  .ag-card.b2{border-color:var(--amber-tx)}
+  .ag-card.b3{border-color:var(--red-tx)}
+  .ag-card .num{font-size:15px;font-weight:700;line-height:1.1}
+  .ag-card.b1 .num{color:var(--green-tx)}
+  .ag-card.b2 .num{color:var(--amber-tx)}
+  .ag-card.b3 .num{color:var(--red-tx)}
+  .ag-card .lbl{font-size:10px;color:var(--ink-soft);font-weight:600;margin-top:3px;
+    text-transform:uppercase;letter-spacing:.04em}
+  .aging-chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+  .ag-chip{font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px}
+  .ag-chip.b1{background:var(--green-bg);color:var(--green-tx)}
+  .ag-chip.b2{background:var(--amber-bg);color:var(--amber-tx)}
+  .ag-chip.b3{background:var(--red-bg);color:var(--red-tx)}
 
   .list{padding:12px 18px}
   .cli-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
@@ -128,6 +145,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js';
 import { requireSession, tienePermiso } from './src/auth.js';
+import { exportCSV } from './src/utils.js';
 
 // ── AUTH + PERMISOS ────────────────────────────────────────────────────────
 const { usuario } = await requireSession();
@@ -197,6 +215,44 @@ const nivelDeuda = (saldo, dias) => {
   return 'leve';
 };
 
+// FIFO aging: aplica pagos al cargo más viejo primero.
+// Devuelve {b0_30, b31_60, b61_plus, masViejo}
+function agingDe(id) {
+  const movs = movimientos.filter(m => m.cliente_id === id)
+    .slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const cargosPend = [];
+  let creditoLibre = 0;
+  for (const m of movs) {
+    if (m.tipo === 'cargo') {
+      let pendiente = Number(m.monto);
+      if (creditoLibre > 0) {
+        const usar = Math.min(creditoLibre, pendiente);
+        pendiente -= usar; creditoLibre -= usar;
+      }
+      if (pendiente > 0.01) cargosPend.push({ fecha: m.fecha, monto: pendiente });
+    } else if (m.tipo === 'pago') {
+      let monto = -Number(m.monto);
+      while (monto > 0.01 && cargosPend.length) {
+        const c = cargosPend[0];
+        const usar = Math.min(c.monto, monto);
+        c.monto -= usar; monto -= usar;
+        if (c.monto <= 0.01) cargosPend.shift();
+      }
+      if (monto > 0.01) creditoLibre += monto;
+    }
+  }
+  let b0_30 = 0, b31_60 = 0, b61_plus = 0;
+  let masViejo = null;
+  for (const c of cargosPend) {
+    const d = diasDesde(c.fecha);
+    if (d <= 30) b0_30 += c.monto;
+    else if (d <= 60) b31_60 += c.monto;
+    else b61_plus += c.monto;
+    if (!masViejo || c.fecha < masViejo) masViejo = c.fecha;
+  }
+  return { b0_30, b31_60, b61_plus, masViejo };
+}
+
 // ── RENDER PRINCIPAL ───────────────────────────────────────────────────────
 function render() {
   const el = document.getElementById('root');
@@ -218,14 +274,23 @@ function render() {
   const totalDeuda    = datos.reduce((s, c) => s + c.saldo, 0);
   const criticos      = datos.filter(c => c.nivel === 'critico').length;
   const advertencias  = datos.filter(c => c.nivel === 'advertencia').length;
+  const ag = datos.reduce((acc, c) => {
+    const a = agingDe(c.id);
+    acc.b0_30 += a.b0_30; acc.b31_60 += a.b31_60; acc.b61_plus += a.b61_plus;
+    return acc;
+  }, { b0_30: 0, b31_60: 0, b61_plus: 0 });
 
   el.innerHTML = `
     <div class="hdr">
       <div class="brand"><span class="crown">&#9818;</span>
         <div>El Rey<small>Deudores</small></div>
       </div>
-      <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;margin-left:auto;font-family:inherit"
-        onclick="location.href='./login_home.html'">Inicio ›</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button style="background:var(--gold-lt);border:1px solid var(--gold);color:var(--gold-dk);padding:5px 11px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="window._exportar()">⬇ CSV</button>
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+      </div>
     </div>
     <div class="filters">
       <input class="search-input" placeholder="Buscar cliente…" value="${busqueda}"
@@ -241,6 +306,11 @@ function render() {
       <div class="tot-card"><div class="num red">${ars(totalDeuda)}</div><div class="lbl">Total en deuda</div></div>
       <div class="tot-card"><div class="num red">${criticos}</div><div class="lbl">Críticos</div></div>
       <div class="tot-card"><div class="num amber">${advertencias}</div><div class="lbl">En atención</div></div>
+    </div>
+    <div class="aging-row">
+      <div class="ag-card b1"><div class="num">${ars(ag.b0_30)}</div><div class="lbl">0–30 días</div></div>
+      <div class="ag-card b2"><div class="num">${ars(ag.b31_60)}</div><div class="lbl">31–60 días</div></div>
+      <div class="ag-card b3"><div class="num">${ars(ag.b61_plus)}</div><div class="lbl">60+ días</div></div>
     </div>
     <div id="deud-list" class="list"></div>`;
 
@@ -290,6 +360,14 @@ function renderDeudList() {
               ${c.dias} días sin pago
             </span>
           </div>
+          ${(() => {
+            const a = agingDe(c.id);
+            const chips = [];
+            if (a.b0_30   > 0) chips.push(`<span class="ag-chip b1">${ars(a.b0_30)} 0–30d</span>`);
+            if (a.b31_60  > 0) chips.push(`<span class="ag-chip b2">${ars(a.b31_60)} 31–60d</span>`);
+            if (a.b61_plus> 0) chips.push(`<span class="ag-chip b3">${ars(a.b61_plus)} 60+d</span>`);
+            return chips.length ? `<div class="aging-chips">${chips.join('')}</div>` : '';
+          })()}
           ${up ? `<div class="ultimo-pago">Último pago: ${fmtF(up)}</div>` : ''}
         </div>`;
       }).join('');
@@ -316,6 +394,14 @@ function renderDetalle() {
     <div style="font-size:14px;color:var(--ink-soft);margin-top:4px">
       ${dias} días sin pago${c.telefono ? ' · ' + c.telefono : ''}
     </div>
+    ${(() => {
+      const a = agingDe(c.id);
+      const chips = [];
+      if (a.b0_30   > 0) chips.push(`<span class="ag-chip b1">${ars(a.b0_30)} 0–30d</span>`);
+      if (a.b31_60  > 0) chips.push(`<span class="ag-chip b2">${ars(a.b31_60)} 31–60d</span>`);
+      if (a.b61_plus> 0) chips.push(`<span class="ag-chip b3">${ars(a.b61_plus)} 60+d</span>`);
+      return chips.length ? `<div class="aging-chips" style="margin-top:10px">${chips.join('')}</div>` : '';
+    })()}
 
     ${vistaDetalle === 'movs' ? `
       <div class="sec-lbl">Movimientos</div>
@@ -361,6 +447,35 @@ function rerenderDetalle() {
 }
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
+window._exportar = () => {
+  const filas = clientes.map(c => {
+    const saldo = saldoDe(c.id);
+    if (saldo <= 0) return null;
+    const a = agingDe(c.id);
+    return {
+      cliente: c.nombre,
+      telefono: c.telefono || '',
+      direccion: c.direccion || '',
+      saldo: Math.round(saldo),
+      b0_30: Math.round(a.b0_30),
+      b31_60: Math.round(a.b31_60),
+      b61_plus: Math.round(a.b61_plus),
+      mas_viejo: a.masViejo || '',
+      dias_sin_pago: diasSinPago(c.id),
+    };
+  }).filter(Boolean).sort((a,b) => b.saldo - a.saldo);
+  exportCSV(`deudores_${isoHoy()}`, [
+    { key: 'cliente', label: 'Cliente' },
+    { key: 'telefono', label: 'Teléfono' },
+    { key: 'direccion', label: 'Dirección' },
+    { key: 'saldo', label: 'Saldo total' },
+    { key: 'b0_30', label: '0-30 días' },
+    { key: 'b31_60', label: '31-60 días' },
+    { key: 'b61_plus', label: '60+ días' },
+    { key: 'mas_viejo', label: 'Cargo más viejo' },
+    { key: 'dias_sin_pago', label: 'Días sin pago' },
+  ], filas);
+};
 window._setBusqueda   = v => { busqueda = v; renderDeudList(); };
 window._setFiltro     = v => { filtro = v; render(); };
 window._abrirDetalle  = id => { detalle = id; vistaDetalle = 'movs'; cobroMonto = ''; render(); };

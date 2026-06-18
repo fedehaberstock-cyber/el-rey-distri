@@ -281,7 +281,7 @@ async function renderHomeAdmin(){
 
   // Resumen de hoy: pedidos de hoy + deudores
   const hoy = new Date().toISOString().slice(0, 10);
-  const [pedResp, deuResp, comResp] = await Promise.all([
+  const [pedResp, deuResp, comResp, pendHojaResp, quiebresResp, topDeuResp] = await Promise.all([
     supabase.from('pedidos')
       .select('id, pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto)')
       .eq('empresa_id', u.empresa_id)
@@ -294,6 +294,23 @@ async function renderHomeAdmin(){
     supabase.from('sugerencia_compra')
       .select('producto_id', { count: 'exact', head: true })
       .eq('empresa_id', u.empresa_id),
+    supabase.from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', u.empresa_id)
+      .eq('estado', 'confirmado')
+      .eq('fecha_reparto', hoy)
+      .is('hoja_ruta_id', null),
+    supabase.from('sugerencia_compra')
+      .select('nombre, dias_restantes')
+      .eq('empresa_id', u.empresa_id)
+      .lte('dias_restantes', 3)
+      .order('dias_restantes', { ascending: true })
+      .limit(3),
+    supabase.from('saldo_actual')
+      .select('cliente_id, saldo, clientes(nombre)')
+      .gt('saldo', 0)
+      .order('saldo', { ascending: false })
+      .limit(1),
   ]);
   window._compraBadge = (comResp && comResp.count) ? comResp.count : null;
 
@@ -304,7 +321,46 @@ async function renderHomeAdmin(){
   const arsHoy = new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(totalHoy);
   const deudores = (deuResp.data || []).length;
 
+  // Tu día en 3 cosas
+  const pendHoja = pendHojaResp?.count || 0;
+  const quiebres = quiebresResp.data || [];
+  const topDeu = (topDeuResp.data || [])[0];
+  const arsFmt = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+
+  const items3 = [
+    pendHoja > 0 ? {
+      icon: '🚚', tit: `${pendHoja} pedido${pendHoja>1?'s':''} sin hoja de ruta`,
+      sub: 'Para repartir hoy', href: './hoja_ruta.html', clase: 'amber',
+    } : null,
+    topDeu ? {
+      icon: '💸', tit: `Llamar a ${topDeu.clientes?.nombre || 'deudor'}`,
+      sub: `Debe ${arsFmt(topDeu.saldo)}`, href: './reporte_deudores.html', clase: 'red',
+    } : null,
+    quiebres.length ? {
+      icon: '⚠', tit: `${quiebres.length} producto${quiebres.length>1?'s':''} por quebrarse`,
+      sub: quiebres.map(q => `${q.nombre} (${q.dias_restantes}d)`).slice(0,2).join(' · '),
+      href: './compras.html', clase: 'red',
+    } : null,
+  ].filter(Boolean);
+
+  const tu3 = items3.length ? `
+    <div class="sec-title">Tu día en ${items3.length} cosa${items3.length>1?'s':''}</div>
+    <div class="grid single" style="margin-bottom:18px">
+      ${items3.map(it => `
+        <div class="action-card ${it.clase}" onclick="location.href='${it.href}'">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="icon">${it.icon}</div>
+            <div style="flex:1">
+              <div class="ac-title">${it.tit}</div>
+              <div class="ac-desc">${it.sub}</div>
+            </div>
+            <div style="color:var(--ink-soft);font-size:18px">›</div>
+          </div>
+        </div>`).join('')}
+    </div>` : '';
+
   box.innerHTML = `
+    ${tu3}
     <div class="sec-title">Resumen de hoy</div>
     <div class="quick-stats">
       <div class="qs"><div class="num gold">${arsHoy}</div><div class="lbl">Vendido hoy</div></div>
@@ -361,6 +417,9 @@ async function renderHomeAdmin(){
     tile('proveedores', `<div class="action-card" onclick="location.href='./proveedores.html'">
       <div class="icon">🏭</div><div class="ac-title">Proveedores</div>
       <div class="ac-desc">Cargos y condiciones</div></div>`),
+    (u.rol === 'admin' ? `<div class="action-card" onclick="location.href='./gastos_fijos.html'">
+      <div class="icon">💸</div><div class="ac-title">Gastos fijos</div>
+      <div class="ac-desc">Alquiler, sueldos, servicios</div></div>` : ''),
     tile('zonas', `<div class="action-card" onclick="location.href='./zonas.html'">
       <div class="icon">🗺️</div><div class="ac-title">Zonas</div>
       <div class="ac-desc">Orden de reparto</div></div>`),
