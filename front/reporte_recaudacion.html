@@ -157,6 +157,14 @@ const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argen
 function isoHoy() { return _fmtArg(new Date()); }
 function isoOffset(days) { return _fmtArg(new Date(Date.now() + days * 86400000)); }
 function inicioMes() { const t = isoHoy(); return t.slice(0,8) + '01'; }
+// Semana = sabado a viernes
+function inicioSemana() {
+  const [y, m, d] = isoHoy().split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  const diff = (dt.getUTCDay() - 6 + 7) % 7;
+  dt.setUTCDate(dt.getUTCDate() - diff);
+  return dt.toISOString().slice(0, 10);
+}
 function inicioMesAnterior() {
   const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
   return d.toISOString().slice(0, 10);
@@ -456,7 +464,7 @@ window._setPeriodo = p => {
   periodo = p;
   const hoy = isoHoy();
   if (p === 'hoy')     { desde = hoy;               hasta = hoy; }
-  if (p === 'semana')  { desde = isoOffset(-6);      hasta = hoy; }
+  if (p === 'semana')  { desde = inicioSemana();     hasta = hoy; }
   if (p === 'mes')     { desde = inicioMes();        hasta = hoy; }
   if (p === 'mes_ant') { desde = inicioMesAnterior(); hasta = finMesAnterior(); }
   diasExpandidos = {};

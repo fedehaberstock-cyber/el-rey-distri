@@ -287,7 +287,7 @@ function render() {
 
     <div class="periodo-wrap">
       <div class="periodo-chips">
-        ${[['hoy','Hoy'],['semana','Semana'],['mes','Este mes'],['rango','Rango libre']].map(([id, lbl]) =>
+        ${[['hoy','Hoy'],['semana','Esta semana'],['mes','Este mes'],['rango','Rango libre']].map(([id, lbl]) =>
           `<div class="pchip ${periodo === id ? 'active' : ''}" onclick="window._setPeriodo('${id}')">${lbl}</div>`
         ).join('')}
       </div>
@@ -761,12 +761,23 @@ window._exportar = () => {
   }
 };
 
+// Semana = sábado a viernes. Devuelve el sábado mas reciente <= hoy.
+function inicioSemana() {
+  const t = isoHoy();
+  const [y, m, d] = t.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  const dow = dt.getUTCDay();           // 0=dom..6=sab
+  const diff = (dow - 6 + 7) % 7;       // dias desde el ultimo sabado
+  dt.setUTCDate(dt.getUTCDate() - diff);
+  return dt.toISOString().slice(0, 10);
+}
+
 window._setPeriodo = (p) => {
   periodo = p;
   const hoy = isoHoy();
-  if (p === 'hoy')    { desde = hoy;         hasta = hoy; }
-  if (p === 'semana') { desde = isoOffset(-6); hasta = hoy; }
-  if (p === 'mes')    { desde = inicioMes();  hasta = hoy; }
+  if (p === 'hoy')    { desde = hoy;          hasta = hoy; }
+  if (p === 'semana') { desde = inicioSemana(); hasta = hoy; }
+  if (p === 'mes')    { desde = inicioMes();   hasta = hoy; }
   render();
 };
 window._setDesde = v => { desde = v; render(); };

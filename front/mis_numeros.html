@@ -89,7 +89,12 @@ function rangoFechas() {
   if (periodo === 'dia') {
     desde = new Date(hoy); desde.setHours(0, 0, 0, 0)
   } else if (periodo === 'sem') {
-    desde = new Date(hoy); desde.setDate(desde.getDate() - 7)
+    // Esta semana: sabado a viernes (sabado mas reciente <= hoy)
+    desde = new Date(hoy)
+    const dow = desde.getDay()
+    const diff = (dow - 6 + 7) % 7
+    desde.setDate(desde.getDate() - diff)
+    desde.setHours(0, 0, 0, 0)
   } else if (periodo === 'mes') {
     desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
   } else {
