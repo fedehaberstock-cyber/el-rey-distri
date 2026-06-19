@@ -180,6 +180,7 @@ let catalogoProds = []        // para "+ agregar producto" — productos activos
 let tab = 'sugeridos'         // 'sugeridos' | 'pendientes' | 'historial'
 let vista = 'agrupado'        // 'agrupado' | 'urgentes'
 let busqueda = ''
+let filtroProv = null  // null = todos, sino proveedor_id
 let horizonte = HORIZONTE_DEFAULT  // null | 7 | 14 | 30 | 45
 let borrador = cargarBorrador()
 let agregadosManual = []      // [{producto_id, proveedor_id, nombre, categoria, costo, unidad_compra}]
@@ -580,20 +581,9 @@ function renderSugeridos() {
   const comprometido = comprometidoEnPendientes()
   const hayBorrador = Object.keys(borrador.cantidades).length + Object.keys(borrador.excluidos).length + Object.keys(borrador.reasignados).length > 0
 
-  let cuerpo = ''
-  if (!allItems.length) {
-    cuerpo = `<div class="empty">🎉 Nada para comprar.<br><small>Todos los productos están por encima del umbral de reorden.</small></div>`
-  } else if (vista === 'urgentes') {
-    const items = filtroBusqueda(aplanarUrgentes())
-    cuerpo = items.length
-      ? `<div class="prov-card"><div class="prov-hdr"><div class="top"><div class="nm">Solo urgentes (≤ 7 días)</div></div></div>${items.map(it => renderItem(it)).join('')}</div>`
-      : `<div class="empty">Sin urgentes en este momento.</div>`
-  } else {
-    const grupos = porProveedor()
-      .map(g => ({ ...g, items: filtroBusqueda(g.items) }))
-      .filter(g => g.items.length)
-    cuerpo = grupos.map(g => renderGrupo(g)).join('')
-  }
+  // Proveedores únicos para chips de filtro (orden alfabético)
+  const provsConItems = porProveedor()
+  const provChips = provsConItems.map(g => ({ id: g.proveedor_id, nombre: g.nombre, count: g.items.length }))
 
   box.innerHTML = `
     <section>
@@ -612,14 +602,24 @@ function renderSugeridos() {
         ${[[null,'Default'],[7,'7d'],[14,'14d'],[30,'30d'],[45,'45d']].map(([v,l]) =>
           `<div class="chip ${horizonte===v?'active':''}" onclick="window._setHorizonte(${v===null?'null':v})">${l}</div>`).join('')}
       </div>
-      <input class="search-input" placeholder="Buscar producto…" value="${busqueda}" oninput="window._setBusq(this.value)">
+      <input class="search-input" id="busq-prod" placeholder="Buscar producto…" value="${busqueda}" oninput="window._setBusq(this.value)">
       <div class="filters">
         <div class="chip ${vista==='agrupado'?'active':''}" onclick="window._setVista('agrupado')">Por proveedor</div>
         <div class="chip ${vista==='urgentes'?'active':''}" onclick="window._setVista('urgentes')">Solo urgentes</div>
       </div>
+      ${provChips.length > 1 ? `
+        <div class="lbl" style="margin-top:6px">Filtrar por proveedor</div>
+        <div class="filters" style="overflow-x:auto;flex-wrap:nowrap">
+          <div class="chip ${filtroProv===null?'active':''}" onclick="window._setFiltroProv(null)">Todos (${allItems.length})</div>
+          ${provChips.map(p => `<div class="chip ${filtroProv===p.id?'active':''}" onclick="window._setFiltroProv('${p.id}')">${p.nombre} (${p.count})</div>`).join('')}
+        </div>` : ''}
     </section>
-    ${cuerpo}`
+    <div id="lista-compras"></div>`
 
+  renderListaSugeridos()
+
+  // sticky bar (se vuelve a colocar si no existe)
+  document.querySelector('.sticky-bar')?.remove()
   if (cantConDatos > 0) {
     const bar = document.createElement('div')
     bar.className = 'sticky-bar'
@@ -628,6 +628,32 @@ function renderSugeridos() {
       <button onclick="window._enviarTodo()">📤 Enviar todo</button>`
     document.body.appendChild(bar)
   }
+}
+
+// Solo re-renderiza la lista (manteniendo el input de busqueda con su foco)
+function renderListaSugeridos() {
+  const lista = document.getElementById('lista-compras')
+  if (!lista) return
+  const allItems = todosLosItems()
+  if (!allItems.length) {
+    lista.innerHTML = `<div class="empty">🎉 Nada para comprar.<br><small>Todos los productos están por encima del umbral de reorden.</small></div>`
+    return
+  }
+  if (vista === 'urgentes') {
+    const items = filtroBusqueda(aplanarUrgentes()).filter(it =>
+      !filtroProv || (it.reasignado_a || it.proveedor_id || 'sin') === filtroProv)
+    lista.innerHTML = items.length
+      ? `<div class="prov-card"><div class="prov-hdr"><div class="top"><div class="nm">Solo urgentes (≤ 7 días)</div></div></div>${items.map(it => renderItem(it)).join('')}</div>`
+      : `<div class="empty">Sin urgentes que coincidan.</div>`
+    return
+  }
+  const grupos = porProveedor()
+    .filter(g => !filtroProv || g.proveedor_id === filtroProv)
+    .map(g => ({ ...g, items: filtroBusqueda(g.items) }))
+    .filter(g => g.items.length)
+  lista.innerHTML = grupos.length
+    ? grupos.map(g => renderGrupo(g)).join('')
+    : `<div class="empty">Sin resultados.</div>`
 }
 
 function renderGrupo(g) {
@@ -788,7 +814,8 @@ function renderPanelNotas() {
 window._setTab = v => { tab = v; render() }
 window._setVista = v => { vista = v; render() }
 window._setHorizonte = v => { horizonte = v; render() }
-window._setBusq = v => { busqueda = v; render() }
+window._setBusq = v => { busqueda = v; renderListaSugeridos() }
+window._setFiltroProv = v => { filtroProv = v; renderSugeridos() }
 window._descartarBorrador = () => {
   if (!confirm('¿Descartar el borrador?')) return
   limpiarBorrador(); cargar()
