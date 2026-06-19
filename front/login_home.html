@@ -424,6 +424,9 @@ async function renderHomeAdmin(){
     tile('ventas_totales', `<div class="action-card" onclick="location.href='./historial_hojas.html'">
       <div class="icon">📅</div><div class="ac-title">Historial de hojas</div>
       <div class="ac-desc">Hojas pasadas y boletas</div></div>`),
+    tile('ventas_totales', `<div class="action-card" onclick="location.href='./boletas_auditoria.html'">
+      <div class="icon">🕵</div><div class="ac-title">Auditoría boletas</div>
+      <div class="ac-desc">Ediciones con justificativo</div></div>`),
   ].filter(Boolean).join('');
 
   const cfgTiles = [

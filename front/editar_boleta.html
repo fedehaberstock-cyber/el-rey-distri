@@ -373,11 +373,19 @@ window._pickAdd = (id, esBulto) => {
 window._volver = () => { history.back() }
 window._guardar = async () => {
   if (guardando || !items.length) return
+  const justificativo = prompt('¿Por qué editás esta boleta?\n(Queda registrado en la auditoría, mínimo 3 caracteres)')
+  if (justificativo === null) return  // cancel
+  const justifTrim = (justificativo || '').trim()
+  if (justifTrim.length < 3) {
+    alert('El justificativo es obligatorio (mínimo 3 caracteres).')
+    return
+  }
   guardando = true; render()
   const payload = {
     boleta_id: boletaId,
     cliente_id: clienteId,
     descuento, fecha_reparto: fechaReparto,
+    justificativo: justifTrim,
     items: items.map(it => ({
       producto_id: it.producto_id,
       cantidad: it.cantidad,

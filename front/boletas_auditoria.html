@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Auditoría de boletas</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:720px;margin:0 auto;padding-bottom:40px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  .filters{padding:12px 18px;display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--paper);border-bottom:1px solid var(--line-soft)}
+  .filters input,.filters select{padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;background:var(--card)}
+  .search-input{grid-column:1/-1;padding:10px 12px 10px 36px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%235B665F' stroke-width='2'><circle cx='6.5' cy='6.5' r='4'/><path d='M11 11l-2.5-2.5'/></svg>");
+    background-repeat:no-repeat;background-position:12px center}
+
+  .list{padding:12px 18px}
+  .au-card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px;cursor:pointer}
+  .au-card:active{background:var(--line-soft)}
+  .au-card .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+  .au-card .cli{font-size:15px;font-weight:700}
+  .au-card .delta{font-size:14px;font-weight:700}
+  .au-card .delta.up{color:var(--red-tx)}
+  .au-card .delta.down{color:var(--green-tx)}
+  .au-card .delta.flat{color:var(--ink-soft)}
+  .au-card .meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .au-card .just{font-size:13px;background:var(--gold-lt);color:var(--gold-dk);
+    padding:6px 9px;border-radius:8px;margin-top:8px;font-weight:500;line-height:1.4}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft);font-size:14px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:720px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:22px 18px 26px;width:100%;max-height:90vh;overflow-y:auto}
+  .panel h3{font-size:18px;font-weight:700;margin-bottom:6px}
+  .panel .meta{font-size:12px;color:var(--ink-soft);margin-bottom:14px}
+  .panel .just-big{background:var(--gold-lt);color:var(--gold-dk);padding:10px 12px;
+    border-radius:10px;font-size:14px;margin-bottom:14px;line-height:1.5}
+  .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .diff-col{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .diff-col.before{background:#FAF6EC}
+  .diff-col.after{background:#F0F6F1}
+  .diff-col .lbl-mini{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.05em;margin-bottom:6px}
+  .diff-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+  .diff-row .k{color:var(--ink-soft)}
+  .diff-row .v{font-weight:600}
+  .sec-lbl{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);
+    letter-spacing:.05em;margin:14px 0 6px}
+  .itm-line{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line-soft);font-size:12px;gap:8px}
+  .itm-line:last-child{border-bottom:none}
+  .itm-line .nm{flex:1;min-width:0}
+  .itm-line .vv{font-weight:600;white-space:nowrap}
+  .added{background:#E7F0E8;color:var(--green-tx);padding:2px 6px;border-radius:5px;font-size:10px;font-weight:700;margin-right:4px}
+  .removed{background:#F6E5E2;color:var(--red-tx);padding:2px 6px;border-radius:5px;font-size:10px;font-weight:700;margin-right:4px}
+  .changed{background:#FDF2DC;color:var(--amber-tx);padding:2px 6px;border-radius:5px;font-size:10px;font-weight:700;margin-right:4px}
+
+  .cancel-btn{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-weight:600;cursor:pointer;font-family:inherit;margin-top:14px;font-size:14px}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+import { ars } from './src/utils.js?v=2'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('ventas_totales')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+let auditoria = []  // [{id, boleta_id, editado_en, justificativo, editor_nombre, snapshot_antes, snapshot_despues}]
+let busqueda = ''
+let filtroEditor = ''
+let filtroDesde = ''
+let detalle = null
+
+async function cargar() {
+  const { data, error } = await supabase
+    .from('boletas_audit')
+    .select(`id, boleta_id, editado_en, justificativo, snapshot_antes, snapshot_despues,
+      usuarios:editor_usuario_id(nombre)`)
+    .eq('empresa_id', usuario.empresa_id)
+    .order('editado_en', { ascending: false })
+    .limit(500)
+  if (error) {
+    document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`
+    return
+  }
+  auditoria = (data || []).map(a => ({ ...a, editor_nombre: a.usuarios?.nombre || '—' }))
+  render()
+}
+
+function filtrados() {
+  const q = busqueda.toLowerCase().trim()
+  return auditoria.filter(a => {
+    if (filtroEditor && a.editor_nombre !== filtroEditor) return false
+    if (filtroDesde && a.editado_en < filtroDesde + 'T00:00:00') return false
+    if (!q) return true
+    const cli = (a.snapshot_antes?.cliente_nombre || a.snapshot_despues?.cliente_nombre || '').toLowerCase()
+    const just = (a.justificativo || '').toLowerCase()
+    return cli.includes(q) || just.includes(q)
+  })
+}
+
+function deltaTotal(a) {
+  const ant = Number(a.snapshot_antes?.total || 0)
+  const des = Number(a.snapshot_despues?.total || 0)
+  return des - ant
+}
+
+function fmtFecha(s) {
+  return new Date(s).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+}
+
+function render() {
+  const el = document.getElementById('root')
+  const editores = [...new Set(auditoria.map(a => a.editor_nombre))].sort()
+  const lista = filtrados()
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Auditoría de boletas</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    <div class="filters">
+      <input class="search-input" placeholder="Buscar por cliente o justificativo…" value="${busqueda}" oninput="window._setBusq(this.value)">
+      <select onchange="window._setEditor(this.value)">
+        <option value="">Todos los editores</option>
+        ${editores.map(e => `<option value="${e}" ${filtroEditor===e?'selected':''}>${e}</option>`).join('')}
+      </select>
+      <input type="date" value="${filtroDesde}" onchange="window._setDesde(this.value)" title="Desde">
+    </div>
+    <div class="list">
+      ${!lista.length ? `<div class="empty">${auditoria.length ? 'Sin resultados con esos filtros.' : 'Aún no hay ediciones registradas.'}</div>` :
+        lista.map(a => {
+          const d = deltaTotal(a)
+          const cli = a.snapshot_despues?.cliente_nombre || a.snapshot_antes?.cliente_nombre || '—'
+          const dir = Math.abs(d) < 1 ? 'flat' : (d > 0 ? 'up' : 'down')
+          const sig = d > 0 ? '+' : (d < 0 ? '−' : '')
+          return `<div class="au-card" onclick="window._verDetalle('${a.id}')">
+            <div class="top">
+              <div class="cli">${cli}</div>
+              <div class="delta ${dir}">${sig}${ars(Math.abs(d))}</div>
+            </div>
+            <div class="meta">${fmtFecha(a.editado_en)} · ${a.editor_nombre}</div>
+            <div class="just">📝 ${a.justificativo}</div>
+          </div>`
+        }).join('')}
+    </div>`
+  if (detalle) renderDetalle()
+}
+
+function diffItems(antes, despues) {
+  const mapA = {}, mapD = {}
+  for (const it of (antes?.items || [])) mapA[it.producto_id] = it
+  for (const it of (despues?.items || [])) mapD[it.producto_id] = it
+  const all = new Set([...Object.keys(mapA), ...Object.keys(mapD)])
+  const filas = []
+  for (const pid of all) {
+    const a = mapA[pid], d = mapD[pid]
+    if (a && !d) filas.push({ tipo: 'removed', nombre: a.producto_nombre, antes: a, despues: null })
+    else if (!a && d) filas.push({ tipo: 'added', nombre: d.producto_nombre, antes: null, despues: d })
+    else if (a && d && (a.cantidad !== d.cantidad || Number(a.precio_unit) !== Number(d.precio_unit) || Number(a.descuento || 0) !== Number(d.descuento || 0))) {
+      filas.push({ tipo: 'changed', nombre: d.producto_nombre, antes: a, despues: d })
+    }
+  }
+  return filas.sort((x,y) => (x.nombre||'').localeCompare(y.nombre||''))
+}
+
+function renderDetalle() {
+  const a = auditoria.find(x => x.id === detalle)
+  if (!a) return
+  const sa = a.snapshot_antes || {}
+  const sd = a.snapshot_despues || {}
+  const cambios = diffItems(sa, sd)
+
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = e => { if (e.target === ov) window._cerrar() }
+  ov.innerHTML = `<div class="panel">
+    <h3>${sd.cliente_nombre || sa.cliente_nombre || '—'}</h3>
+    <div class="meta">${fmtFecha(a.editado_en)} · ${a.editor_nombre}</div>
+    <div class="just-big">📝 ${a.justificativo}</div>
+
+    <div class="sec-lbl">Resumen</div>
+    <div class="diff-grid">
+      <div class="diff-col before">
+        <div class="lbl-mini">Antes</div>
+        <div class="diff-row"><span class="k">Descuento</span><span class="v">${Number(sa.descuento||0)}%</span></div>
+        <div class="diff-row"><span class="k">Total</span><span class="v">${ars(Number(sa.total||0))}</span></div>
+        <div class="diff-row"><span class="k">Saldo ant.</span><span class="v">${ars(Number(sa.saldo_anterior||0))}</span></div>
+        <div class="diff-row"><span class="k">Total a cobrar</span><span class="v">${ars(Number(sa.total_a_cobrar||0))}</span></div>
+        <div class="diff-row"><span class="k">Items</span><span class="v">${(sa.items||[]).length}</span></div>
+      </div>
+      <div class="diff-col after">
+        <div class="lbl-mini">Después</div>
+        <div class="diff-row"><span class="k">Descuento</span><span class="v">${Number(sd.descuento||0)}%</span></div>
+        <div class="diff-row"><span class="k">Total</span><span class="v">${ars(Number(sd.total||0))}</span></div>
+        <div class="diff-row"><span class="k">Saldo ant.</span><span class="v">${ars(Number(sd.saldo_anterior||0))}</span></div>
+        <div class="diff-row"><span class="k">Total a cobrar</span><span class="v">${ars(Number(sd.total_a_cobrar||0))}</span></div>
+        <div class="diff-row"><span class="k">Items</span><span class="v">${(sd.items||[]).length}</span></div>
+      </div>
+    </div>
+
+    ${cambios.length ? `<div class="sec-lbl">Items cambiados</div>
+      ${cambios.map(c => {
+        if (c.tipo === 'added')
+          return `<div class="itm-line"><span class="nm"><span class="added">AGREGADO</span>${c.nombre}</span><span class="vv">${c.despues.cantidad}u × ${ars(Number(c.despues.precio_unit))}</span></div>`
+        if (c.tipo === 'removed')
+          return `<div class="itm-line"><span class="nm"><span class="removed">QUITADO</span>${c.nombre}</span><span class="vv">${c.antes.cantidad}u × ${ars(Number(c.antes.precio_unit))}</span></div>`
+        return `<div class="itm-line"><span class="nm"><span class="changed">CAMBIO</span>${c.nombre}</span>
+          <span class="vv">${c.antes.cantidad}u → ${c.despues.cantidad}u · ${ars(Number(c.antes.precio_unit))} → ${ars(Number(c.despues.precio_unit))}</span></div>`
+      }).join('')}` : '<div style="color:var(--ink-soft);font-size:13px;margin-top:8px">Los items no cambiaron (solo descuento u observaciones).</div>'}
+
+    <button class="cancel-btn" onclick="window._verBoleta('${a.boleta_id}')">Ver boleta actual</button>
+    <button class="cancel-btn" onclick="window._cerrar()">Cerrar</button>
+  </div>`
+  document.getElementById('root').appendChild(ov)
+}
+
+window._setBusq = v => { busqueda = v; const lst = document.querySelector('.list'); if (lst) render() }
+window._setEditor = v => { filtroEditor = v; render() }
+window._setDesde = v => { filtroDesde = v; render() }
+window._verDetalle = id => { detalle = id; render() }
+window._cerrar = () => { detalle = null; render() }
+window._verBoleta = id => { location.href = `./boleta.html?id=${id}` }
+
+await cargar()
+</script>
+</body>
+</html>
