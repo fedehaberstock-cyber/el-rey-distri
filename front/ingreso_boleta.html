@@ -348,7 +348,7 @@ async function cargarAliases() {
 // ── ESTADO ────────────────────────────────────────────────────────────
 let proveedorId = ''
 let numBoleta = ''
-let fecha = new Date().toISOString().slice(0,10)
+let fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date())
 let items = []   // {prodId, bultos, uPorBulto, costo}
 let totalDeclarado = ''
 let cargos = [
@@ -962,7 +962,7 @@ function renderDone() {
 
 async function reset() {
   numBoleta = ''; items = []; totalDeclarado = ''; confirmado = false
-  fecha = new Date().toISOString().slice(0,10)
+  fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date())
   iaPendientes = []
   revisionAbierta = false
   revisionItems = []

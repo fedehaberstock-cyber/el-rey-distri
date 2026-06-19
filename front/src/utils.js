@@ -10,6 +10,23 @@ const ARS_FMT = new Intl.NumberFormat('es-AR', {
 
 export const ars = (n) => ARS_FMT.format(Number(n) || 0)
 
+// Fecha de hoy en Argentina (Córdoba, UTC-3) como YYYY-MM-DD.
+// Importante: NO usar new Date().toISOString().slice(0,10) porque
+// a las 21hs UTC ya es el día siguiente y se rompen los filtros de "hoy".
+export const hoyArg = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Argentina/Cordoba'
+}).format(new Date())
+
+export const isoArg = (d) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Argentina/Cordoba'
+}).format(d instanceof Date ? d : new Date(d))
+
+// YYYY-MM-DD en Argentina con offset de días (positivo o negativo)
+export const isoArgOffset = (dias) => {
+  const d = new Date(Date.now() + dias * 86400000)
+  return isoArg(d)
+}
+
 export const fechaCorta = (d) => {
   const x = d instanceof Date ? d : new Date(d)
   return x.toLocaleDateString('es-AR')

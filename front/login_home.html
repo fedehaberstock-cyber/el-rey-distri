@@ -280,7 +280,7 @@ async function renderHomeAdmin(){
   const u = usuarioActual;
 
   // Resumen de hoy: pedidos de hoy + deudores
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date());
   const esAdminReal = u.rol === 'admin';
 
   // Queries base (siempre)
@@ -499,7 +499,7 @@ async function renderHomePreventista(){
     </div>
     ${acciones}`;
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date());
   const { data: peds } = await supabase.from('pedidos')
     .select('id, fecha, clientes(nombre), pedido_items(cantidad, precio_unit, descuento)')
     .eq('empresa_id', u.empresa_id)

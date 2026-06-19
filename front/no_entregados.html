@@ -139,8 +139,9 @@ if (usuario.rol !== 'admin') {
   throw new Error('no autorizado')
 }
 
-const HOY = new Date().toISOString().slice(0,10)
-const MANANA = new Date(Date.now() + 86400000).toISOString().slice(0,10)
+const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(d)
+const HOY = _fmtArg(new Date())
+const MANANA = _fmtArg(new Date(Date.now() + 86400000))
 
 let pedidos = []
 let estados = {}

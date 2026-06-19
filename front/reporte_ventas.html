@@ -145,15 +145,10 @@ function formatFecha(s) {
   return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`;
 }
 
-function isoHoy() { return new Date().toISOString().slice(0, 10); }
-function isoOffset(days) {
-  const d = new Date(); d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-function inicioMes() {
-  const d = new Date(); d.setDate(1);
-  return d.toISOString().slice(0, 10);
-}
+const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(d);
+function isoHoy() { return _fmtArg(new Date()); }
+function isoOffset(days) { return _fmtArg(new Date(Date.now() + days * 86400000)); }
+function inicioMes() { return isoHoy().slice(0,8) + '01'; }
 
 const COLORES_PREV = ['#A9760E', '#2A4E9A', '#2C6B3F', '#A8392B', '#5E3A98', '#1A7A6E'];
 

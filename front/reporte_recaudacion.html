@@ -153,9 +153,10 @@ const verTodo = usuario.rol === 'admin' || tienePermiso('recaudacion', 'admin');
 const ars  = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
 const arsK = n => n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n / 1000) + 'k' : '$' + n;
 
-function isoHoy() { return new Date().toISOString().slice(0, 10); }
-function isoOffset(days) { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); }
-function inicioMes() { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); }
+const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(d);
+function isoHoy() { return _fmtArg(new Date()); }
+function isoOffset(days) { return _fmtArg(new Date(Date.now() + days * 86400000)); }
+function inicioMes() { const t = isoHoy(); return t.slice(0,8) + '01'; }
 function inicioMesAnterior() {
   const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
   return d.toISOString().slice(0, 10);

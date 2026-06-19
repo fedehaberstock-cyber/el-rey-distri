@@ -89,7 +89,7 @@ const { usuario } = await requireSession();
 if (usuario.rol !== 'admin') { location.href = './login_home.html'; }
 
 const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
-const hoyIso = () => new Date().toISOString().slice(0,10);
+const hoyIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date());
 
 let gastos = [];
 let panelId = null;
