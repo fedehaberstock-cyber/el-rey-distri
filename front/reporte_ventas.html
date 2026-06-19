@@ -160,15 +160,16 @@ let tab = 'resumen';
 let todosPedidos = [];  // cache full dataset
 let gastosCache  = []; // [{ fecha, total_gastos }]
 let gastosFijosCache = []; // [{ monto_mensual, vigente_desde, vigente_hasta, activo }]
+let comisionesCache = []; // [{ id, nombre, comision_tipo, comision_valor }]
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
 async function cargarPedidos() {
   // load last 6 months; filter client-side for speed
   const hace180 = isoOffset(-180);
-  const [{ data, error }, { data: gas }, { data: gfij }] = await Promise.all([
+  const [{ data, error }, { data: gas }, { data: gfij }, { data: us }] = await Promise.all([
     supabase.from('pedidos')
       .select(`
-        id, fecha, estado, descuento,
+        id, fecha, estado, descuento, usuario_id,
         usuarios!pedidos_usuario_id_fkey(nombre),
         pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, costo_unit_snapshot, productos(nombre, costo, proveedores(nombre)))
       `)
@@ -184,6 +185,9 @@ async function cargarPedidos() {
       .select('monto_mensual, vigente_desde, vigente_hasta, activo')
       .eq('empresa_id', usuario.empresa_id)
       .eq('activo', true),
+    supabase.from('usuarios')
+      .select('id, nombre, comision_tipo, comision_valor')
+      .eq('empresa_id', usuario.empresa_id),
   ]);
 
   if (error) {
@@ -194,7 +198,39 @@ async function cargarPedidos() {
   todosPedidos = data || [];
   gastosCache  = gas || [];
   gastosFijosCache = gfij || [];
+  comisionesCache = us || [];
   render();
+}
+
+// Calcula la comision total del periodo + desglose por preventista.
+// Para 'porcentaje': sobre las ventas del usuario en el rango (con desc generales aplicados).
+// Para 'fijo': prorratea por dias corridos del rango sobre 30.
+function calcularComisiones(pf, d1, d2) {
+  const ventasPorUsuario = {};
+  pf.forEach(p => {
+    if (!p.usuario_id) return;
+    const sub = (p.pedido_items || []).reduce((s, it) =>
+      s + it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100), 0);
+    const tot = sub * (1 - (p.descuento || 0) / 100);
+    ventasPorUsuario[p.usuario_id] = (ventasPorUsuario[p.usuario_id] || 0) + tot;
+  });
+  const diasRango = (new Date(d2 + 'T00:00:00') - new Date(d1 + 'T00:00:00')) / 86400000 + 1;
+  const desglose = [];
+  let total = 0;
+  for (const u of comisionesCache) {
+    const ventas = ventasPorUsuario[u.id] || 0;
+    let monto = 0;
+    if (u.comision_tipo === 'porcentaje' && ventas > 0) {
+      monto = ventas * Number(u.comision_valor || 0) / 100;
+    } else if (u.comision_tipo === 'fijo' && Number(u.comision_valor) > 0) {
+      monto = Number(u.comision_valor) * diasRango / 30;
+    }
+    if (monto > 0) {
+      desglose.push({ nombre: u.nombre, tipo: u.comision_tipo, valor: u.comision_valor, ventas, monto });
+      total += monto;
+    }
+  }
+  return { total, desglose };
 }
 
 // Prorrateo de gastos fijos por dias corridos en [d1, d2].
@@ -386,7 +422,8 @@ function renderGanancia(pf, totalVentas, prev) {
   const costoPrev = calcCosto(prev?.pfPrev || []);
   const r = rangoAnterior();
   const fijosPrev = prorrateoGastosFijos(r.desde, r.hasta);
-  const gastosPrevTotal = gastosPrev() + fijosPrev;
+  const comPrev = calcularComisiones(prev?.pfPrev || [], r.desde, r.hasta);
+  const gastosPrevTotal = gastosPrev() + fijosPrev + comPrev.total;
   const gananciaBrutaPrev = (prev?.ventasPrev || 0) - costoPrev;
   const gananciaNetaPrev = gananciaBrutaPrev - gastosPrevTotal;
 
@@ -409,7 +446,8 @@ function renderGanancia(pf, totalVentas, prev) {
     .filter(g => g.fecha >= desde && g.fecha <= hasta)
     .reduce((s, g) => s + (Number(g.total_gastos) || 0), 0);
   const gastosFijosTotal = prorrateoGastosFijos(desde, hasta);
-  const totalGastos = gastosHojas + gastosFijosTotal;
+  const com = calcularComisiones(pf, desde, hasta);
+  const totalGastos = gastosHojas + gastosFijosTotal + com.total;
 
   const gananciaBruta = totalVentas - costoTotal;
   const margenPct = totalVentas > 0 ? gananciaBruta / totalVentas * 100 : 0;
@@ -484,6 +522,16 @@ function renderGanancia(pf, totalVentas, prev) {
           <div>
             <div class="num" style="color:var(--red-tx)">−${ars(gastosFijosTotal)}</div>
             <div class="lbl">Gastos fijos prorrateados</div>
+          </div>
+        </div>` : ''}
+      ${com.total > 0 ? `
+        <div class="kpi wide">
+          <div>
+            <div class="num" style="color:var(--red-tx)">−${ars(com.total)}</div>
+            <div class="lbl">Comisiones de preventistas</div>
+            <div style="margin-top:6px;font-size:12px;color:var(--ink-soft);font-weight:500;line-height:1.5">
+              ${com.desglose.map(d => `${d.nombre}: ${ars(d.monto)} <span style="opacity:.7">(${d.tipo === 'porcentaje' ? d.valor + '% s/ ' + ars(d.ventas) : ars(d.valor) + '/mes'})</span>`).join('<br>')}
+            </div>
           </div>
         </div>` : ''}
     </div>

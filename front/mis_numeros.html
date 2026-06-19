@@ -77,6 +77,7 @@ let usuarioId = usuario.id
 let preventistasList = []
 let pedidos = []
 let pedidosPrev = []
+let comisionConfig = { tipo: 'porcentaje', valor: 5 }  // default si no se setea
 let visitas = []
 let visitasPrev = []
 let itemsPedidos = []  // pedido_items con join al producto
@@ -135,6 +136,15 @@ async function cargar() {
       .eq('activo', true)
       .order('nombre')
     preventistasList = prevs || []
+  }
+
+  // comision config del usuario seleccionado
+  const { data: cfg } = await supabase.from('usuarios')
+    .select('comision_tipo, comision_valor')
+    .eq('id', usuarioId).single()
+  comisionConfig = {
+    tipo: cfg?.comision_tipo || 'ninguno',
+    valor: Number(cfg?.comision_valor) || 0,
   }
 
   // pedidos del usuario seleccionado en el rango
@@ -223,7 +233,16 @@ function calcularKPIs(peds = pedidos, vis = visitas) {
   }, 0)
   const cantPedidos = peds.length
   const ticketProm = cantPedidos ? totalMonto / cantPedidos : 0
-  const comisionEstim = totalMonto * 0.05
+  // Comision segun config del usuario
+  let comisionEstim = 0
+  if (comisionConfig.tipo === 'porcentaje') {
+    comisionEstim = totalMonto * Number(comisionConfig.valor || 0) / 100
+  } else if (comisionConfig.tipo === 'fijo') {
+    // prorrateo por dias del periodo / 30
+    const { desde, hasta } = rangoFechas()
+    const dias = Math.max(1, (new Date(hasta) - new Date(desde)) / 86400000)
+    comisionEstim = Number(comisionConfig.valor || 0) * dias / 30
+  }
 
   const clientesConPedido = new Set(peds.map(p => p.cliente_id).filter(Boolean))
   const clientesSinPedido = new Set(
@@ -340,7 +359,7 @@ function renderBody() {
           </div>
           <div class="kpi dst">
             <div class="nro">${ars(k.comisionEstim)}</div>
-            <div class="desc">Comisión estimada (5%)</div>
+            <div class="desc">Comisión estimada${comisionConfig.tipo==='porcentaje'?` (${comisionConfig.valor}%)`:comisionConfig.tipo==='fijo'?` (fijo)`:''}</div>
             ${delta(k.comisionEstim, kp.comisionEstim)}
           </div>
           <div class="kpi">

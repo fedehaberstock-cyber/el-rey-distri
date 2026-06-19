@@ -436,6 +436,9 @@ async function renderHomeAdmin(){
     (u.rol === 'admin' ? `<div class="action-card" onclick="location.href='./gastos_fijos.html'">
       <div class="icon">💸</div><div class="ac-title">Gastos fijos</div>
       <div class="ac-desc">Alquiler, sueldos, servicios</div></div>` : ''),
+    (u.rol === 'admin' ? `<div class="action-card" onclick="location.href='./comisiones.html'">
+      <div class="icon">💼</div><div class="ac-title">Comisiones</div>
+      <div class="ac-desc">% o fijo por preventista</div></div>` : ''),
     tile('zonas', `<div class="action-card" onclick="location.href='./zonas.html'">
       <div class="icon">🗺️</div><div class="ac-title">Zonas</div>
       <div class="ac-desc">Orden de reparto</div></div>`),
