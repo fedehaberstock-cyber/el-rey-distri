@@ -428,7 +428,7 @@ function renderDetalle(){
     <div class="sec-lbl">Movimientos</div>
     <div class="movs">
       ${movsCli.length ? movsCli.map(m=>{
-        const editable = esAdminUsr() && (m.tipo === 'pago' || (m.tipo === 'cargo' && m.referencia_tipo === 'ajuste_manual'));
+        const editable = tienePermiso('clientes', 'admin') && (m.tipo === 'pago' || (m.tipo === 'cargo' && m.referencia_tipo === 'ajuste_manual'));
         return `
         <div class="mov">
           <div class="left">
@@ -442,14 +442,16 @@ function renderDetalle(){
     </div>`;
   el.appendChild(body);
 
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  bar.innerHTML = `
-    <div style="display:flex;gap:8px;width:100%">
-      <button class="bar-btn" style="flex:1" onclick="abrirCobro('pago')">+ Cobro</button>
-      <button class="bar-btn" style="flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line)" onclick="abrirCobro('cargo')">+ Deuda</button>
-    </div>`;
-  el.appendChild(bar);
+  if (tienePermiso('clientes', 'admin')) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = `
+      <div style="display:flex;gap:8px;width:100%">
+        <button class="bar-btn" style="flex:1" onclick="abrirCobro('pago')">+ Cobro</button>
+        <button class="bar-btn" style="flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line)" onclick="abrirCobro('cargo')">+ Deuda</button>
+      </div>`;
+    el.appendChild(bar);
+  }
 }
 
 // ── PANEL COBRO ───────────────────────────────────────────────────────

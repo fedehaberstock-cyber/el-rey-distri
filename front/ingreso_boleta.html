@@ -359,6 +359,7 @@ let cargos = [
 ]
 let panelOpen = false
 let panelProd = { busq:'', selId:'', bultos:'', uPorBulto:'', costo:'' }
+let busquedaProd = ''
 let confirmado = false
 let resumenDone = {}
 
@@ -470,7 +471,10 @@ function render() {
         </div>` : ''}
       <div id="ia-pend-box"></div>
       <div id="items-box"></div>
-      <button class="add-prod" onclick="abrirPanel()">+ Agregar producto</button>
+      <div class="lbl" style="margin-top:14px">Agregar producto</div>
+      <input class="field" id="busq-prod" placeholder="Buscar por nombre…" value="${busquedaProd}"
+        oninput="window.setBusquedaProd(this.value)" autocomplete="off">
+      <div id="prod-results"></div>
     </section>
     <div class="divider"></div>
     <section>
@@ -507,6 +511,7 @@ function render() {
     <div id="verify-box"></div>`
 
   renderItems()
+  renderProdResults()
   renderPendientes()
   renderVerify()
   renderBar()
@@ -591,7 +596,43 @@ function renderBar() {
   </button>`
 }
 
-// ── PANEL ─────────────────────────────────────────────────────────────
+// ── BUSCADOR INLINE DE PRODUCTOS (mismo patron que pedido_preventista) ──
+function renderProdResults() {
+  const box = document.getElementById('prod-results')
+  if (!box) return
+  const q = busquedaProd.trim().toLowerCase()
+  if (!q) { box.innerHTML = ''; return }
+  const lista = productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 25)
+  if (!lista.length) {
+    box.innerHTML = `<div class="results"><div class="r" style="color:var(--ink-soft)">Sin resultados</div></div>`
+    return
+  }
+  box.innerHTML = `<div class="results">${lista.map(p => `
+    <div class="r"
+      onpointerdown="event.preventDefault();this.dataset.sy=event.clientY"
+      onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.addProdInline('${p.id}')">
+      <span>${p.nombre}</span>
+      ${p.u_bulto > 1 ? `<span class="ub">${p.u_bulto} u/bulto</span>` : ''}
+    </div>`).join('')}</div>`
+}
+
+window.setBusquedaProd = (v) => { busquedaProd = v; renderProdResults() }
+window.addProdInline = (id) => {
+  const p = prod(id); if (!p) return
+  const esBulto = p.u_bulto > 1
+  items.push({
+    prodId: id,
+    bultos: 1,
+    uPorBulto: esBulto ? p.u_bulto : 1,
+    costo: Number(p.costo) || 0,
+  })
+  busquedaProd = ''
+  render()
+  // re-foco al buscador para seguir agregando rapido
+  setTimeout(() => document.getElementById('busq-prod')?.focus(), 50)
+}
+
+// ── PANEL (legacy, queda disponible pero ya no se invoca desde el bot�n) ──
 function abrirPanel() {
   panelProd = { busq:'', selId:'', bultos:'', uPorBulto:'', costo:'' }
   panelOpen = true; render()
