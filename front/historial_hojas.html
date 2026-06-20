@@ -82,7 +82,11 @@ let abierta = null  // id de hoja expandida
 async function cargar() {
   const { data: hojasData, error: e1 } = await supabase
     .from('hojas_ruta')
-    .select('id, fecha, estado, total_efectivo, total_transf, total_cuenta, total_gastos, efectivo_entregado, faltante, observaciones')
+    .select(`id, fecha, estado, total_efectivo, total_transf, total_cuenta, total_gastos,
+             efectivo_entregado, faltante, observaciones,
+             usuario_id, cerrada_por_usuario_id,
+             asignado:usuario_id(nombre),
+             cerrador:cerrada_por_usuario_id(nombre)`)
     .eq('empresa_id', usuario.empresa_id)
     .order('fecha', { ascending: false })
     .limit(60)
@@ -145,8 +149,11 @@ function render() {
           const total = h.pedidos.reduce((s,p)=>s+p.total,0)
           const exp = abierta === h.id
           const totGastos = Number(h.total_gastos) || 0
+          const totEf = Number(h.total_efectivo) || 0
           const falt = Number(h.faltante) || 0
+          const cerradorNombre = h.cerrador?.nombre || (h.estado === 'cerrada' ? (h.asignado?.nombre || '—') : null)
           const badges = []
+          if (h.estado === 'cerrada') badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--green-bg);color:var(--green-tx);font-weight:600">💵 efectivo ${ars(totEf)}</span>`)
           if (totGastos > 0) badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600">💸 ${ars(totGastos)}</span>`)
           if (falt > 0.5)    badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--red-bg);color:var(--red-tx);font-weight:600">⚠ faltan ${ars(falt)}</span>`)
           if (falt < -0.5)   badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--green-bg);color:var(--green-tx);font-weight:600">+ sobra ${ars(-falt)}</span>`)
@@ -155,7 +162,7 @@ function render() {
               <div class="hoja-top" onclick="window._toggle('${h.id}')">
                 <div style="flex:1;min-width:0">
                   <div class="hoja-fecha">${fmtFecha(h.fecha)}</div>
-                  <div class="hoja-sub">${h.pedidos.length} pedidos · ${ars(total)}</div>
+                  <div class="hoja-sub">${h.pedidos.length} pedidos · ${ars(total)}${cerradorNombre ? ` · cerró ${cerradorNombre}` : ''}</div>
                   ${badges.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${badges.join('')}</div>` : ''}
                 </div>
                 <span class="hoja-estado ${h.estado}">${h.estado}</span>
