@@ -25,7 +25,11 @@ declare
   v_gap jsonb;
   v_novedades jsonb;
 begin
-  if v_emp is null then raise exception 'empresa no resuelta'; end if;
+  -- Si no hay sesion (ej. SQL Editor) derivamos la empresa del cliente
+  if v_emp is null then
+    select empresa_id into v_emp from clientes where id = p_cliente_id;
+  end if;
+  if v_emp is null then raise exception 'empresa no resuelta — cliente inexistente o sin empresa'; end if;
 
   -- Denominador para penetracion: clientes con >=1 pedido en ultimos 90d
   select count(distinct cliente_id) into v_total_activos
