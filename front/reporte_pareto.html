@@ -38,6 +38,20 @@
   .row-item .right{text-align:right;flex-shrink:0}
   .row-item .monto{font-size:14px;font-weight:700;color:var(--gold-dk)}
   .row-item .pcts{font-size:11px;color:var(--ink-soft);margin-top:1px}
+  .row-item.clickable{cursor:pointer}
+  .row-item .caret{margin-left:6px;color:var(--ink-soft);font-size:11px}
+  .detalle-prod{background:var(--card);border:1px solid var(--line);border-top:none;
+    border-radius:0 0 10px 10px;margin:-7px 0 6px;padding:8px 12px 10px}
+  .detalle-prod .lbl-mini{font-size:10px;font-weight:700;text-transform:uppercase;
+    color:var(--ink-soft);letter-spacing:.05em;margin-bottom:6px}
+  .det-prod-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;
+    padding:4px 0;border-bottom:1px solid var(--line-soft)}
+  .det-prod-row:last-child{border-bottom:none}
+  .det-prod-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .det-prod-row .pct{color:var(--ink-soft);min-width:50px;text-align:right}
+  .det-prod-row .vv{font-weight:700;min-width:80px;text-align:right;color:var(--gold-dk)}
+  .det-prod-row.r80 .vv{color:var(--green-tx)}
+  .det-prod-row.r90 .vv{color:var(--amber-tx)}
   .pos-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
     border-radius:6px;background:var(--gold-lt);color:var(--gold-dk);font-weight:700;font-size:12px;
     margin-right:8px;vertical-align:middle}
@@ -73,6 +87,7 @@ const isoOffset = (days) => _fmtArg(new Date(Date.now() + days * 86400000))
 let pedidos = []      // pedidos del rango con items + categoria + subcategoria
 let categorias = []   // lista de categorias presentes
 let agrupar = 'sub'   // 'sub' | 'cat' | 'prod'
+let expandido = null  // key (nombre) del grupo expandido
 let desde = isoOffset(-90)
 let hasta = isoHoy()
 let excluidas = new Set()  // categorias excluidas
@@ -116,10 +131,13 @@ function calcular() {
                  : cat
       const monto = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descG
       const u = it.cantidad
-      if (!agg[key]) agg[key] = { nombre: key, categoria: cat, monto: 0, unidades: 0, prods: new Set() }
+      if (!agg[key]) agg[key] = { nombre: key, categoria: cat, monto: 0, unidades: 0, prods: new Set(), prodDetail: {} }
       agg[key].monto += monto
       agg[key].unidades += u
       agg[key].prods.add(nomProd)
+      if (!agg[key].prodDetail[nomProd]) agg[key].prodDetail[nomProd] = { nombre: nomProd, monto: 0, unidades: 0 }
+      agg[key].prodDetail[nomProd].monto += monto
+      agg[key].prodDetail[nomProd].unidades += u
       total += monto
     }
   }
@@ -190,12 +208,15 @@ function render() {
         const marker = (i === idx80) ? '<div class="marker green"><span>──── 80% acumulado ────</span></div>'
                      : (i === idx90 && idx90 !== idx80) ? '<div class="marker amber"><span>──── 90% acumulado ────</span></div>'
                      : ''
+        const puedeExp = agrupar !== 'prod' && l.prodsCount > 1
+        const esExp = expandido === l.nombre
+        const onClick = puedeExp ? `onclick="window._toggleExp(${JSON.stringify(l.nombre).replace(/"/g,'&quot;')})"` : ''
         return `${marker}
-          <div class="row-item ${cls}" style="--pct:${l.pct.toFixed(1)}%">
+          <div class="row-item ${cls} ${puedeExp?'clickable':''}" style="--pct:${l.pct.toFixed(1)}%" ${onClick}>
             <div class="bar-bg"></div>
             <div class="content">
               <div class="left">
-                <div class="nm"><span class="pos-badge ${cls}">${i+1}</span>${l.nombre}</div>
+                <div class="nm"><span class="pos-badge ${cls}">${i+1}</span>${l.nombre}${puedeExp?`<span class="caret">${esExp?'▲':'▼'}</span>`:''}</div>
                 <div class="meta">${l.categoria}${(agrupar!=='prod' && l.prodsCount)?` · ${l.prodsCount} prod`:''} · ${l.unidades} u</div>
               </div>
               <div class="right">
@@ -203,16 +224,38 @@ function render() {
                 <div class="pcts">${l.pct.toFixed(1)}% · acum ${l.acum.toFixed(1)}%</div>
               </div>
             </div>
-          </div>`
+          </div>
+          ${esExp ? renderDetalleProd(l) : ''}`
       }).join('') : `<div class="empty">Sin datos en el período.</div>`}
     </section>`
 }
 
-window._setDesde = v => { desde = v; cargar() }
-window._setHasta = v => { hasta = v; cargar() }
-window._setAgrupar = v => { agrupar = v; render() }
+function renderDetalleProd(grupo) {
+  const prods = Object.values(grupo.prodDetail || {})
+    .map(p => ({ ...p, pct: grupo.monto > 0 ? p.monto / grupo.monto * 100 : 0 }))
+    .sort((a, b) => b.monto - a.monto)
+  let acc = 0
+  for (const p of prods) { acc += p.pct; p.acum = acc }
+  return `<div class="detalle-prod">
+    <div class="lbl-mini">Productos en ${grupo.nombre} — ${prods.length} SKU</div>
+    ${prods.map(p => {
+      const cls = p.acum <= 80 ? 'r80' : p.acum <= 90 ? 'r90' : ''
+      return `<div class="det-prod-row ${cls}">
+        <span class="nm">${p.nombre}</span>
+        <span class="pct">${p.pct.toFixed(1)}%</span>
+        <span class="vv">${ars(p.monto)} · ${p.unidades}u</span>
+      </div>`
+    }).join('')}
+  </div>`
+}
+
+window._toggleExp = (nombre) => { expandido = expandido === nombre ? null : nombre; render() }
+window._setDesde = v => { desde = v; expandido = null; cargar() }
+window._setHasta = v => { hasta = v; expandido = null; cargar() }
+window._setAgrupar = v => { agrupar = v; expandido = null; render() }
 window._toggleCat = c => {
   if (excluidas.has(c)) excluidas.delete(c); else excluidas.add(c)
+  expandido = null
   render()
 }
 window._exportar = () => {
