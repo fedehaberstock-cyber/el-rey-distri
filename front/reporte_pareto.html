@@ -72,7 +72,7 @@ const isoOffset = (days) => _fmtArg(new Date(Date.now() + days * 86400000))
 
 let pedidos = []      // pedidos del rango con items + categoria + subcategoria
 let categorias = []   // lista de categorias presentes
-let agrupar = 'sub'   // 'sub' | 'cat'
+let agrupar = 'sub'   // 'sub' | 'cat' | 'prod'
 let desde = isoOffset(-90)
 let hasta = isoHoy()
 let excluidas = new Set()  // categorias excluidas
@@ -109,7 +109,9 @@ function calcular() {
       const cat = it.productos?.categoria || 'Sin categoría'
       if (excluidas.has(cat)) continue
       const subOrig = (it.productos?.subcategoria || '').trim()
-      const key = agrupar === 'sub' && subOrig ? subOrig
+      const nomProd = it.productos?.nombre || '(sin nombre)'
+      const key = agrupar === 'prod' ? nomProd
+                 : agrupar === 'sub' && subOrig ? subOrig
                  : agrupar === 'sub' ? `(sin subcat: ${cat})`
                  : cat
       const monto = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descG
@@ -117,7 +119,7 @@ function calcular() {
       if (!agg[key]) agg[key] = { nombre: key, categoria: cat, monto: 0, unidades: 0, prods: new Set() }
       agg[key].monto += monto
       agg[key].unidades += u
-      agg[key].prods.add(it.productos?.nombre)
+      agg[key].prods.add(nomProd)
       total += monto
     }
   }
@@ -163,6 +165,7 @@ function render() {
       <div class="group">
         <div class="chip ${agrupar==='sub'?'active':''}" onclick="window._setAgrupar('sub')">Por subcategoría</div>
         <div class="chip ${agrupar==='cat'?'active':''}" onclick="window._setAgrupar('cat')">Por categoría</div>
+        <div class="chip ${agrupar==='prod'?'active':''}" onclick="window._setAgrupar('prod')">Por producto</div>
       </div>
       ${categorias.length ? `
         <div class="lbl">Excluir categorías</div>
@@ -174,7 +177,7 @@ function render() {
         <div class="total">${ars(total)}</div>
         <div class="sub">Total facturado en el período · ${pedidos.length} pedidos</div>
         <div class="conteos">
-          <div><b>${cantTop80}</b> ${agrupar==='sub'?'subcategorías':'categorías'} = 80%</div>
+          <div><b>${cantTop80}</b> ${agrupar==='sub'?'subcategorías':agrupar==='prod'?'productos':'categorías'} = 80%</div>
           <div><b>${cantTop90}</b> = 90%</div>
           <div><b>${lista.length}</b> en total</div>
         </div>
@@ -193,7 +196,7 @@ function render() {
             <div class="content">
               <div class="left">
                 <div class="nm"><span class="pos-badge ${cls}">${i+1}</span>${l.nombre}</div>
-                <div class="meta">${l.categoria}${l.prodsCount?` · ${l.prodsCount} prod`:''} · ${l.unidades} u</div>
+                <div class="meta">${l.categoria}${(agrupar!=='prod' && l.prodsCount)?` · ${l.prodsCount} prod`:''} · ${l.unidades} u</div>
               </div>
               <div class="right">
                 <div class="monto">${ars(l.monto)}</div>
@@ -226,7 +229,7 @@ window._exportar = () => {
   }))
   exportCSV(`pareto_${desde}_${hasta}`, [
     { key: 'pos',        label: '#' },
-    { key: 'nombre',     label: agrupar === 'sub' ? 'Subcategoría' : 'Categoría' },
+    { key: 'nombre',     label: agrupar === 'sub' ? 'Subcategoría' : agrupar === 'prod' ? 'Producto' : 'Categoría' },
     { key: 'categoria',  label: 'Categoría madre' },
     { key: 'productos',  label: '# productos' },
     { key: 'unidades',   label: 'Unidades' },
