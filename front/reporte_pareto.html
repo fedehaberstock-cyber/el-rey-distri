@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Pareto 80/20</title>
+<link rel="stylesheet" href="./src/theme.css">
+<style>
+  body{max-width:720px;padding-bottom:60px}
+  section{padding:14px 18px}
+  .filters-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .filters-row input,.filters-row select{padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;background:var(--card)}
+  .group{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .group .chip{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    cursor:pointer;white-space:nowrap}
+  .group .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  .resumen{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px;margin-bottom:14px}
+  .resumen .total{font-size:24px;font-weight:700;color:var(--gold-dk)}
+  .resumen .sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .resumen .conteos{display:flex;gap:14px;margin-top:10px;font-size:13px}
+  .resumen .conteos b{color:var(--ink)}
+
+  .row-item{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;margin-bottom:6px;position:relative;overflow:hidden}
+  .row-item.r80{border-color:var(--green-tx)}
+  .row-item.r90{border-color:var(--amber-tx)}
+  .row-item .bar-bg{position:absolute;inset:0;background:linear-gradient(to right,var(--gold-lt) var(--pct,0%),transparent 0);z-index:0;opacity:.5}
+  .row-item.r80 .bar-bg{background:linear-gradient(to right,var(--green-bg) var(--pct,0%),transparent 0)}
+  .row-item.r90 .bar-bg{background:linear-gradient(to right,var(--amber-bg) var(--pct,0%),transparent 0)}
+  .row-item .content{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .row-item .left{flex:1;min-width:0}
+  .row-item .nm{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row-item .meta{font-size:11px;color:var(--ink-soft);margin-top:2px}
+  .row-item .right{text-align:right;flex-shrink:0}
+  .row-item .monto{font-size:14px;font-weight:700;color:var(--gold-dk)}
+  .row-item .pcts{font-size:11px;color:var(--ink-soft);margin-top:1px}
+  .pos-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+    border-radius:6px;background:var(--gold-lt);color:var(--gold-dk);font-weight:700;font-size:12px;
+    margin-right:8px;vertical-align:middle}
+  .pos-badge.r80{background:var(--green-bg);color:var(--green-tx)}
+  .pos-badge.r90{background:var(--amber-bg);color:var(--amber-tx)}
+
+  .marker{position:relative;text-align:center;padding:8px 0;
+    font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.05em;text-transform:uppercase}
+  .marker::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:var(--line);z-index:0}
+  .marker span{position:relative;background:var(--paper);padding:0 12px;z-index:1}
+  .marker.green span{color:var(--green-tx)}
+  .marker.amber span{color:var(--amber-tx)}
+
+  .csv-btn{padding:7px 12px;background:var(--gold-lt);border:1px solid var(--gold);color:var(--gold-dk);
+    border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+import { ars, exportCSV } from './src/utils.js?v=2'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('ventas_totales')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(d)
+const isoHoy = () => _fmtArg(new Date())
+const isoOffset = (days) => _fmtArg(new Date(Date.now() + days * 86400000))
+
+let pedidos = []      // pedidos del rango con items + categoria + subcategoria
+let categorias = []   // lista de categorias presentes
+let agrupar = 'sub'   // 'sub' | 'cat'
+let desde = isoOffset(-90)
+let hasta = isoHoy()
+let excluidas = new Set()  // categorias excluidas
+
+async function cargar() {
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select(`id, fecha, descuento, estado,
+      pedido_items(cantidad, precio_unit, descuento,
+        productos(nombre, categoria, subcategoria))`)
+    .eq('empresa_id', usuario.empresa_id)
+    .in('estado', ['confirmado','entregado'])
+    .gte('fecha', desde)
+    .lte('fecha', hasta + 'T23:59:59')
+  if (error) {
+    document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`
+    return
+  }
+  pedidos = data || []
+  const cats = new Set()
+  for (const p of pedidos)
+    for (const it of (p.pedido_items || []))
+      if (it.productos?.categoria) cats.add(it.productos.categoria)
+  categorias = [...cats].sort()
+  render()
+}
+
+function calcular() {
+  const agg = {}  // key (sub o cat) -> { nombre, categoria, monto, clientes, prods, unidades }
+  let total = 0
+  for (const p of pedidos) {
+    const descG = 1 - (p.descuento || 0) / 100
+    for (const it of (p.pedido_items || [])) {
+      const cat = it.productos?.categoria || 'Sin categoría'
+      if (excluidas.has(cat)) continue
+      const subOrig = (it.productos?.subcategoria || '').trim()
+      const key = agrupar === 'sub' && subOrig ? subOrig
+                 : agrupar === 'sub' ? `(sin subcat: ${cat})`
+                 : cat
+      const monto = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descG
+      const u = it.cantidad
+      if (!agg[key]) agg[key] = { nombre: key, categoria: cat, monto: 0, unidades: 0, prods: new Set() }
+      agg[key].monto += monto
+      agg[key].unidades += u
+      agg[key].prods.add(it.productos?.nombre)
+      total += monto
+    }
+  }
+  const lista = Object.values(agg)
+    .map(a => ({ ...a, pct: total > 0 ? a.monto / total * 100 : 0, prodsCount: a.prods.size }))
+    .sort((a, b) => b.monto - a.monto)
+  let acc = 0
+  for (const l of lista) { acc += l.pct; l.acum = acc }
+  return { lista, total }
+}
+
+function render() {
+  const el = document.getElementById('root')
+  const { lista, total } = calcular()
+  const idx80 = lista.findIndex(l => l.acum >= 80)
+  const idx90 = lista.findIndex(l => l.acum >= 90)
+  const cantTop80 = idx80 >= 0 ? idx80 + 1 : lista.length
+  const cantTop90 = idx90 >= 0 ? idx90 + 1 : lista.length
+
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Pareto 80/20</small></div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="csv-btn" onclick="window._exportar()">⬇ CSV</button>
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+      </div>
+    </div>
+
+    <section>
+      <div class="filters-row">
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;font-weight:600;margin-bottom:3px">Desde</div>
+          <input type="date" value="${desde}" onchange="window._setDesde(this.value)" style="width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;font-weight:600;margin-bottom:3px">Hasta</div>
+          <input type="date" value="${hasta}" onchange="window._setHasta(this.value)" style="width:100%">
+        </div>
+      </div>
+      <div class="group">
+        <div class="chip ${agrupar==='sub'?'active':''}" onclick="window._setAgrupar('sub')">Por subcategoría</div>
+        <div class="chip ${agrupar==='cat'?'active':''}" onclick="window._setAgrupar('cat')">Por categoría</div>
+      </div>
+      ${categorias.length ? `
+        <div class="lbl">Excluir categorías</div>
+        <div class="group">
+          ${categorias.map(c => `<div class="chip ${excluidas.has(c)?'active':''}" onclick="window._toggleCat('${c.replace(/'/g, "\\'")}')">${c}</div>`).join('')}
+        </div>` : ''}
+
+      <div class="resumen">
+        <div class="total">${ars(total)}</div>
+        <div class="sub">Total facturado en el período · ${pedidos.length} pedidos</div>
+        <div class="conteos">
+          <div><b>${cantTop80}</b> ${agrupar==='sub'?'subcategorías':'categorías'} = 80%</div>
+          <div><b>${cantTop90}</b> = 90%</div>
+          <div><b>${lista.length}</b> en total</div>
+        </div>
+      </div>
+    </section>
+
+    <section style="padding-top:0">
+      ${lista.length ? lista.map((l, i) => {
+        const cls = l.acum <= 80 ? 'r80' : l.acum <= 90 ? 'r90' : ''
+        const marker = (i === idx80) ? '<div class="marker green"><span>──── 80% acumulado ────</span></div>'
+                     : (i === idx90 && idx90 !== idx80) ? '<div class="marker amber"><span>──── 90% acumulado ────</span></div>'
+                     : ''
+        return `${marker}
+          <div class="row-item ${cls}" style="--pct:${l.pct.toFixed(1)}%">
+            <div class="bar-bg"></div>
+            <div class="content">
+              <div class="left">
+                <div class="nm"><span class="pos-badge ${cls}">${i+1}</span>${l.nombre}</div>
+                <div class="meta">${l.categoria}${l.prodsCount?` · ${l.prodsCount} prod`:''} · ${l.unidades} u</div>
+              </div>
+              <div class="right">
+                <div class="monto">${ars(l.monto)}</div>
+                <div class="pcts">${l.pct.toFixed(1)}% · acum ${l.acum.toFixed(1)}%</div>
+              </div>
+            </div>
+          </div>`
+      }).join('') : `<div class="empty">Sin datos en el período.</div>`}
+    </section>`
+}
+
+window._setDesde = v => { desde = v; cargar() }
+window._setHasta = v => { hasta = v; cargar() }
+window._setAgrupar = v => { agrupar = v; render() }
+window._toggleCat = c => {
+  if (excluidas.has(c)) excluidas.delete(c); else excluidas.add(c)
+  render()
+}
+window._exportar = () => {
+  const { lista, total } = calcular()
+  const filas = lista.map((l, i) => ({
+    pos: i + 1,
+    nombre: l.nombre,
+    categoria: l.categoria,
+    productos: l.prodsCount,
+    unidades: l.unidades,
+    monto: Math.round(l.monto),
+    pct: l.pct.toFixed(2),
+    acumulado: l.acum.toFixed(2),
+  }))
+  exportCSV(`pareto_${desde}_${hasta}`, [
+    { key: 'pos',        label: '#' },
+    { key: 'nombre',     label: agrupar === 'sub' ? 'Subcategoría' : 'Categoría' },
+    { key: 'categoria',  label: 'Categoría madre' },
+    { key: 'productos',  label: '# productos' },
+    { key: 'unidades',   label: 'Unidades' },
+    { key: 'monto',      label: 'Monto' },
+    { key: 'pct',        label: '%' },
+    { key: 'acumulado',  label: '% acumulado' },
+  ], filas)
+}
+
+await cargar()
+</script>
+</body>
+</html>

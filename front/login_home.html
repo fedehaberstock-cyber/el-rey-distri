@@ -427,6 +427,9 @@ async function renderHomeAdmin(){
     tile('ventas_totales', `<div class="action-card" onclick="location.href='./boletas_auditoria.html'">
       <div class="icon">🕵</div><div class="ac-title">Auditoría boletas</div>
       <div class="ac-desc">Ediciones con justificativo</div></div>`),
+    tile('ventas_totales', `<div class="action-card" onclick="location.href='./reporte_pareto.html'">
+      <div class="icon">📊</div><div class="ac-title">Pareto 80/20</div>
+      <div class="ac-desc">Qué subcategorías mueven la venta</div></div>`),
   ].filter(Boolean).join('');
 
   const cfgTiles = [

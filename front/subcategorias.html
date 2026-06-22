@@ -83,6 +83,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession, tienePermiso } from './src/auth.js'
+import { exportCSV } from './src/utils.js?v=2'
 
 const { usuario } = await requireSession()
 if (!tienePermiso('catalogo', 'editar')) { location.href = './login_home.html'; throw new Error('sin permiso') }
@@ -165,7 +166,10 @@ function render() {
       <div class="brand"><span class="crown">&#9818;</span>
         <div>El Rey<small>Subcategorías</small></div>
       </div>
-      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button class="btn-ghost" style="padding:6px 11px;font-size:12px" onclick="window._exportar()" title="Exportar todos los productos a CSV">⬇ CSV</button>
+        <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+      </div>
     </div>
 
     <section>
@@ -271,6 +275,17 @@ window._toggleAll = (v) => {
 }
 window._aplicar = () => aplicar()
 window._quitar = () => quitarSubcat([...seleccionados])
+window._exportar = () => {
+  const filas = productos.slice().sort((a, b) =>
+    (a.categoria || '').localeCompare(b.categoria || '') ||
+    (a.nombre || '').localeCompare(b.nombre || ''))
+  exportCSV('productos_subcategorias', [
+    { key: 'id',           label: 'id' },
+    { key: 'nombre',       label: 'nombre' },
+    { key: 'categoria',    label: 'categoria' },
+    { key: 'subcategoria', label: 'subcategoria' },
+  ], filas)
+}
 
 await cargar()
 </script>
