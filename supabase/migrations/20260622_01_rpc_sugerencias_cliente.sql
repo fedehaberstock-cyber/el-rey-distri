@@ -19,8 +19,8 @@ declare
   v_hace_180 date := (current_date - 180);
   v_hace_30 date := (current_date - 30);
   v_hace_7  date := (current_date - 7);
-  v_umbral_pen_sub      numeric := 0.5;  -- 50% para subcategorias
-  v_umbral_pen_producto numeric := 0.3;  -- 30% para productos sin subcategoria
+  v_umbral_pen_sub      numeric := 0.25; -- 25% para subcategorias
+  v_umbral_pen_producto numeric := 0.15; -- 15% para productos sin subcategoria
   v_min_compras int := 3;                -- min veces para ser "lo de siempre"
   v_top_siempre int := 30;              -- max items en lo_de_siempre
   v_top_gap int := 10;                  -- max subcategorias en gap
