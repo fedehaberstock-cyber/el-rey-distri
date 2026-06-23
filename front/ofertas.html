@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Ofertas</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:80px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .add-btn{background:none;border:none;color:var(--gold);font-size:28px;line-height:1;cursor:pointer;padding:0}
+
+  .help{padding:12px 18px;font-size:12px;color:var(--ink-soft);line-height:1.4}
+
+  .list{padding:6px 18px}
+  .of-card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px}
+  .of-card:active{filter:brightness(.98)}
+  .of-card.inactive{opacity:.5}
+  .of-card.vencida{border-color:var(--red-tx);background:var(--red-bg)}
+  .of-card.proxima{border-color:var(--amber-tx)}
+  .of-icon{width:38px;height:38px;border-radius:10px;background:var(--gold-lt);
+    display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .of-info{flex:1;min-width:0}
+  .of-info .nm{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .of-info .desc{font-size:13px;color:var(--ink);margin-top:1px;line-height:1.3}
+  .of-info .sub{font-size:11px;color:var(--ink-soft);margin-top:3px}
+  .of-arr{color:var(--ink-soft);font-size:18px}
+  .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.04em;margin-left:6px}
+  .badge.vencida{background:var(--red-bg);color:var(--red-tx)}
+  .badge.proxima{background:var(--amber-bg);color:var(--amber-tx)}
+  .badge.activa{background:var(--green-bg);color:var(--green-tx)}
+  .badge.inactiva{background:var(--line-soft);color:var(--ink-soft)}
+
+  .empty{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft);font-size:15px}
+  .err-box{margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);
+    border-radius:12px;color:var(--red-tx);font-size:14px}
+
+  .overlay{position:fixed;inset:0;background:rgba(28,43,39,.4);z-index:30;
+    display:flex;align-items:flex-end;max-width:480px;margin:0 auto}
+  .panel{background:var(--paper);border-radius:22px 22px 0 0;
+    padding:22px 18px 28px;width:100%;max-height:92vh;overflow-y:auto}
+  .panel .handle{width:36px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 16px}
+  .panel h3{font-size:17px;font-weight:700;margin-bottom:16px}
+  .fl{display:block;font-size:11px;font-weight:600;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;margin-top:14px}
+  .fl:first-of-type{margin-top:0}
+  .field{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .help-small{font-size:11px;color:var(--ink-soft);margin-top:5px;line-height:1.4}
+
+  .results{margin-top:6px;border:1px solid var(--line);border-radius:10px;max-height:200px;overflow-y:auto}
+  .results .r{padding:10px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:14px}
+  .results .r:last-child{border-bottom:none}
+  .results .r:active{background:var(--line-soft)}
+  .sel-prod{background:var(--gold-lt);border:1px solid var(--gold);padding:9px 11px;
+    border-radius:9px;font-size:14px;font-weight:600;margin-top:6px;display:flex;justify-content:space-between;align-items:center}
+  .sel-prod button{background:none;border:none;color:var(--gold-dk);font-size:18px;cursor:pointer}
+
+  .panel-btns{display:flex;gap:10px;margin-top:20px}
+  .bar-btn{flex:2;padding:14px;border:none;border-radius:12px;background:var(--gold);
+    color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:active{background:var(--gold-dk)}
+  .bar-btn:disabled{opacity:.4;cursor:not-allowed}
+  .cancel{flex:1;padding:14px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:14px;font-weight:600;cursor:pointer;color:var(--ink);font-family:inherit}
+  .del-btn{width:100%;padding:12px;border:1px solid var(--red-tx);border-radius:12px;
+    background:var(--red-bg);color:var(--red-tx);font-size:14px;font-weight:600;
+    cursor:pointer;font-family:inherit;margin-top:10px}
+  .err-msg{color:var(--red-tx);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession } from './src/auth.js'
+import { ars } from './src/utils.js?v=2'
+
+const { usuario } = await requireSession()
+if (usuario.rol !== 'admin') { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+const hoyIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date())
+const diasA = s => { if (!s) return null; const t = new Date(s + 'T00:00:00').getTime() - new Date(hoyIso() + 'T00:00:00').getTime(); return Math.round(t / 86400000) }
+
+let ofertas = []
+let productos = []
+let panelId = null
+let form = { producto_id: null, producto_nombre: '', descripcion: '', precio_oferta: '', vigente_desde: hoyIso(), vigente_hasta: '', prioridad: 0, activa: true }
+let busqProd = ''
+let errMsg = ''
+let saving = false
+
+async function cargar() {
+  const [ofRes, prodRes] = await Promise.all([
+    supabase.from('ofertas')
+      .select(`id, producto_id, descripcion, precio_oferta, vigente_desde, vigente_hasta, prioridad, activa,
+               productos(nombre, precio)`)
+      .eq('empresa_id', usuario.empresa_id)
+      .order('activa', { ascending: false })
+      .order('prioridad', { ascending: false })
+      .order('vigente_hasta', { ascending: true, nullsFirst: false }),
+    supabase.from('productos')
+      .select('id, nombre, precio, activo')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ])
+  if (ofRes.error) {
+    document.getElementById('root').innerHTML = `<div class="err-box">Error: ${ofRes.error.message}</div>`
+    return
+  }
+  ofertas = ofRes.data || []
+  productos = prodRes.data || []
+  render()
+}
+
+function estadoOferta(o) {
+  if (!o.activa) return { txt: 'Inactiva', cls: 'inactiva', cardCls: 'inactive' }
+  const d = diasA(o.vigente_hasta)
+  if (d === null) return { txt: 'Activa', cls: 'activa', cardCls: '' }
+  if (d < 0) return { txt: 'Vencida', cls: 'vencida', cardCls: 'vencida' }
+  if (d <= 3) return { txt: `vence en ${d}d`, cls: 'proxima', cardCls: 'proxima' }
+  return { txt: 'Activa', cls: 'activa', cardCls: '' }
+}
+
+function render() {
+  const el = document.getElementById('root')
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Ofertas</small></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <button style="background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit"
+          onclick="location.href='./login_home.html'">Inicio ›</button>
+        <button class="add-btn" onclick="window._nuevo()">＋</button>
+      </div>
+    </div>
+    <div class="help">
+      Las ofertas activas y vigentes aparecen como sugerencia al cargar pedido de
+      cualquier cliente. Tocá una para editar.
+    </div>
+    <div class="list">
+      ${!ofertas.length ? `<div class="empty">Sin ofertas cargadas.<br><small>Tocá ＋ para crear la primera.</small></div>`
+        : ofertas.map(o => {
+            const est = estadoOferta(o)
+            const pNorm = Number(o.productos?.precio || 0)
+            const pOf = Number(o.precio_oferta || 0)
+            const desc = pNorm > 0 && pOf > 0 && pOf < pNorm ? Math.round((1 - pOf / pNorm) * 100) : null
+            return `<div class="of-card ${est.cardCls}" onclick="window._editar('${o.id}')">
+              <div class="of-icon">🔥</div>
+              <div class="of-info">
+                <div class="nm">${o.productos?.nombre || '(sin producto)'}</div>
+                <div class="desc">${o.descripcion}${desc ? ` <span style="color:var(--green-tx);font-weight:700">−${desc}%</span>` : ''}</div>
+                <div class="sub">${o.vigente_desde}${o.vigente_hasta ? ' → ' + o.vigente_hasta : ' · sin vencimiento'}<span class="badge ${est.cls}">${est.txt}</span></div>
+              </div>
+              <div class="of-arr">›</div>
+            </div>`
+          }).join('')}
+    </div>`
+  if (panelId !== null) renderPanel()
+}
+
+function renderPanel() {
+  const esNuevo = panelId === 'nuevo'
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = e => { if (e.target === ov) window._cerrar() }
+  const q = busqProd.trim().toLowerCase()
+  const lista = !form.producto_id && q.length > 1
+    ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 12)
+    : []
+  ov.innerHTML = `
+    <div class="panel">
+      <div class="handle"></div>
+      <h3>${esNuevo ? 'Nueva oferta' : 'Editar oferta'}</h3>
+
+      <label class="fl">Producto</label>
+      ${form.producto_id ? `
+        <div class="sel-prod">
+          <span>${form.producto_nombre}</span>
+          ${esNuevo ? `<button onclick="window._limpiarProd()">✕</button>` : ''}
+        </div>` : `
+        <input class="field" placeholder="Buscar producto…" value="${busqProd}"
+          oninput="window._setBusqProd(this.value)" autofocus>
+        ${lista.length ? `<div class="results">${lista.map(p =>
+          `<div class="r" onclick="window._selProd('${p.id}','${(p.nombre || '').replace(/'/g, '&apos;')}')">${p.nombre} · ${ars(p.precio)}</div>`
+        ).join('')}</div>` : ''}`}
+
+      <label class="fl">Descripción</label>
+      <input class="field" type="text" value="${form.descripcion}" placeholder="Ej: −15%, llevá 2 pagá 1, $X especial"
+        oninput="window._setForm('descripcion', this.value)">
+      <div class="help-small">Lo que va a leer el preventista. Tipo "−15% hasta el viernes" o "Pack 6 a $X".</div>
+
+      <label class="fl">Precio en oferta (opcional)</label>
+      <input class="field" type="number" min="0" step="0.01" value="${form.precio_oferta}"
+        placeholder="Dejar vacío si no aplica" inputmode="numeric"
+        oninput="window._setForm('precio_oferta', this.value)">
+
+      <div class="row2">
+        <div>
+          <label class="fl">Desde</label>
+          <input class="field" type="date" value="${form.vigente_desde}"
+            oninput="window._setForm('vigente_desde', this.value)">
+        </div>
+        <div>
+          <label class="fl">Hasta (opcional)</label>
+          <input class="field" type="date" value="${form.vigente_hasta}"
+            oninput="window._setForm('vigente_hasta', this.value)">
+        </div>
+      </div>
+
+      <label class="fl">Prioridad</label>
+      <input class="field" type="number" value="${form.prioridad}"
+        placeholder="0" inputmode="numeric"
+        oninput="window._setForm('prioridad', this.value)">
+      <div class="help-small">Mayor número = aparece primero al preventista.</div>
+
+      ${!esNuevo ? `
+        <label class="fl">Estado</label>
+        <select class="field" onchange="window._setForm('activa', this.value === 'true')">
+          <option value="true"  ${form.activa ? 'selected' : ''}>Activa</option>
+          <option value="false" ${!form.activa ? 'selected' : ''}>Inactiva</option>
+        </select>` : ''}
+
+      ${errMsg ? `<div class="err-msg">${errMsg}</div>` : ''}
+
+      <div class="panel-btns">
+        <button class="cancel" onclick="window._cerrar()">Cancelar</button>
+        <button class="bar-btn" onclick="window._guardar()" ${saving ? 'disabled' : ''}>
+          ${saving ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+      ${!esNuevo ? `<button class="del-btn" onclick="window._eliminar()">Eliminar oferta</button>` : ''}
+    </div>`
+  document.getElementById('root').appendChild(ov)
+}
+
+async function guardar() {
+  if (!form.producto_id) { errMsg = 'Elegí un producto.'; render(); return }
+  if (!form.descripcion.trim()) { errMsg = 'Escribí una descripción.'; render(); return }
+  if (!form.vigente_desde) { errMsg = 'Fecha desde requerida.'; render(); return }
+  if (form.vigente_hasta && form.vigente_hasta < form.vigente_desde) {
+    errMsg = 'La fecha "hasta" no puede ser anterior a "desde".'; render(); return
+  }
+  saving = true; errMsg = ''; render()
+  const payload = {
+    producto_id: form.producto_id,
+    descripcion: form.descripcion.trim(),
+    precio_oferta: form.precio_oferta === '' ? null : parseFloat(form.precio_oferta),
+    vigente_desde: form.vigente_desde,
+    vigente_hasta: form.vigente_hasta || null,
+    prioridad: parseInt(form.prioridad) || 0,
+    activa: form.activa,
+  }
+  let error
+  if (panelId === 'nuevo') {
+    ({ error } = await supabase.from('ofertas').insert({ ...payload, empresa_id: usuario.empresa_id }))
+  } else {
+    ({ error } = await supabase.from('ofertas').update(payload).eq('id', panelId))
+  }
+  saving = false
+  if (error) { errMsg = error.message; render(); return }
+  panelId = null
+  await cargar()
+}
+
+async function eliminar() {
+  if (panelId === 'nuevo') return
+  if (!confirm('¿Eliminar esta oferta?')) return
+  await supabase.from('ofertas').delete().eq('id', panelId)
+  panelId = null
+  await cargar()
+}
+
+window._nuevo = () => {
+  form = { producto_id: null, producto_nombre: '', descripcion: '', precio_oferta: '', vigente_desde: hoyIso(), vigente_hasta: '', prioridad: 0, activa: true }
+  busqProd = ''; errMsg = ''; panelId = 'nuevo'; render()
+}
+window._editar = id => {
+  const o = ofertas.find(x => x.id === id); if (!o) return
+  form = {
+    producto_id: o.producto_id,
+    producto_nombre: o.productos?.nombre || '(sin producto)',
+    descripcion: o.descripcion,
+    precio_oferta: o.precio_oferta != null ? o.precio_oferta : '',
+    vigente_desde: o.vigente_desde,
+    vigente_hasta: o.vigente_hasta || '',
+    prioridad: o.prioridad,
+    activa: o.activa,
+  }
+  errMsg = ''; panelId = id; render()
+}
+window._cerrar = () => { panelId = null; render() }
+window._setForm = (k, v) => { form[k] = v }
+window._setBusqProd = v => { busqProd = v; render() }
+window._selProd = (id, nombre) => { form.producto_id = id; form.producto_nombre = nombre; busqProd = ''; render() }
+window._limpiarProd = () => { form.producto_id = null; form.producto_nombre = ''; render() }
+window._guardar = () => guardar()
+window._eliminar = () => eliminar()
+
+await cargar()
+</script>
+</body>
+</html>
