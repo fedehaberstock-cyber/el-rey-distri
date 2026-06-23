@@ -85,9 +85,15 @@ begin
        limit v_top_siempre
     ) t;
 
-  -- ── 2. Gap de subcategorias ────────────────────────────────────────────
+  -- ── 2. Gap por "clave" = subcategoria (si tiene) o nombre del producto ─
+  --
+  -- Productos sin subcategoria se tratan como su propia mini-clave, asi
+  -- los SKU aislados que venden bien tambien aparecen como sugerencia.
+  -- "Ya compra" = el cliente compro algo de esa clave en los ultimos 30 dias.
   with penetracion as (
-    select pr.subcategoria,
+    select coalesce(nullif(btrim(pr.subcategoria),''), pr.nombre) as clave,
+           max(case when pr.subcategoria is null or btrim(pr.subcategoria) = ''
+                    then 'producto' else 'subcategoria' end) as tipo,
            count(distinct p.cliente_id) as clientes_que_compran
       from pedidos p
       join pedido_items pi on pi.pedido_id = p.id
@@ -95,36 +101,35 @@ begin
      where p.empresa_id = v_emp
        and p.estado != 'anulado'
        and p.fecha::date >= v_hace_90
-       and pr.subcategoria is not null
-       and pr.subcategoria <> ''
-     group by pr.subcategoria
+       and pr.activo = true
+     group by coalesce(nullif(btrim(pr.subcategoria),''), pr.nombre)
   ),
   compradas_por_cli as (
-    select distinct pr.subcategoria
+    select distinct coalesce(nullif(btrim(pr.subcategoria),''), pr.nombre) as clave
       from pedidos p
       join pedido_items pi on pi.pedido_id = p.id
       join productos pr on pr.id = pi.producto_id
      where p.empresa_id = v_emp
        and p.cliente_id = p_cliente_id
        and p.estado != 'anulado'
-       and p.fecha::date >= v_hace_180
-       and pr.subcategoria is not null
-       and pr.subcategoria <> ''
+       and p.fecha::date >= v_hace_30
   ),
   gaps as (
-    select pen.subcategoria,
+    select pen.clave,
+           pen.tipo,
            pen.clientes_que_compran,
            round(pen.clientes_que_compran::numeric / v_total_activos * 100, 1) as penetracion_pct
       from penetracion pen
      where pen.clientes_que_compran::numeric / v_total_activos >= v_umbral_penetracion
        and not exists (
-         select 1 from compradas_por_cli c where c.subcategoria = pen.subcategoria
+         select 1 from compradas_por_cli c where c.clave = pen.clave
        )
      order by clientes_que_compran desc
      limit v_top_gap
   )
   select coalesce(jsonb_agg(jsonb_build_object(
-    'subcategoria',     g.subcategoria,
+    'clave',            g.clave,
+    'tipo',             g.tipo,
     'penetracion_pct',  g.penetracion_pct,
     'clientes',         g.clientes_que_compran,
     'productos', (
@@ -141,7 +146,7 @@ begin
           left join stock_actual s on s.producto_id = pr.id
          where pr.empresa_id = v_emp
            and pr.activo = true
-           and pr.subcategoria = g.subcategoria
+           and coalesce(nullif(btrim(pr.subcategoria),''), pr.nombre) = g.clave
            and coalesce(s.stock, 0) > 0
          order by coalesce(s.stock, 0) desc, pr.nombre
          limit v_top_prods_gap
@@ -189,7 +194,7 @@ begin
     'denominador_clientes_activos', v_total_activos,
     'umbral_penetracion',          v_umbral_penetracion,
     'lo_de_siempre',               v_lo_de_siempre,
-    'gap_subcategorias',           v_gap,
+    'gap_sugeridos',               v_gap,
     'novedades',                   v_novedades,
     'ofertas',                     '[]'::jsonb,
     'generado_en',                 now()
