@@ -18,8 +18,10 @@ declare
   v_hace_90 date := (current_date - 90);
   v_hace_180 date := (current_date - 180);
   v_hace_30 date := (current_date - 30);
-  v_umbral_penetracion numeric := 0.5;  -- 50% de los clientes activos
-  v_min_compras int := 3;               -- min veces para ser "lo de siempre"
+  v_hace_7  date := (current_date - 7);
+  v_umbral_pen_sub      numeric := 0.5;  -- 50% para subcategorias
+  v_umbral_pen_producto numeric := 0.3;  -- 30% para productos sin subcategoria
+  v_min_compras int := 3;                -- min veces para ser "lo de siempre"
   v_top_siempre int := 30;              -- max items en lo_de_siempre
   v_top_gap int := 10;                  -- max subcategorias en gap
   v_top_prods_gap int := 5;             -- max productos por subcat en gap
@@ -120,7 +122,10 @@ begin
            pen.clientes_que_compran,
            round(pen.clientes_que_compran::numeric / v_total_activos * 100, 1) as penetracion_pct
       from penetracion pen
-     where pen.clientes_que_compran::numeric / v_total_activos >= v_umbral_penetracion
+     where pen.clientes_que_compran::numeric / v_total_activos >= (
+             case when pen.tipo = 'producto' then v_umbral_pen_producto
+                  else v_umbral_pen_sub end
+           )
        and not exists (
          select 1 from compradas_por_cli c where c.clave = pen.clave
        )
@@ -182,7 +187,7 @@ begin
         left join stock_actual s on s.producto_id = pr.id
        where pr.empresa_id = v_emp
          and pr.activo = true
-         and pr.creado_en::date >= v_hace_30
+         and pr.creado_en::date >= v_hace_7
          and coalesce(s.stock, 0) > 0
          and not exists (select 1 from comprados_alguna_vez c where c.producto_id = pr.id)
        order by pr.creado_en desc
@@ -192,7 +197,8 @@ begin
   return jsonb_build_object(
     'cliente_id',                  p_cliente_id,
     'denominador_clientes_activos', v_total_activos,
-    'umbral_penetracion',          v_umbral_penetracion,
+    'umbral_pen_sub',              v_umbral_pen_sub,
+    'umbral_pen_producto',         v_umbral_pen_producto,
     'lo_de_siempre',               v_lo_de_siempre,
     'gap_sugeridos',               v_gap,
     'novedades',                   v_novedades,
