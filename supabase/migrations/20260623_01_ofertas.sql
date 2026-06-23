@@ -50,7 +50,6 @@ declare
   v_min_apariciones int := 2;
   v_top_siempre int := 30;
   v_top_gap int := 10;
-  v_top_prods_gap int := 5;
   v_top_novedades int := 10;
   v_top_ofertas int := 15;
   v_total_activos int;
@@ -184,7 +183,6 @@ begin
            and coalesce(nullif(btrim(pr.subcategoria),''), pr.nombre) = g.clave
            and coalesce(s.stock, 0) > 0
          order by coalesce(s.stock, 0) desc, pr.nombre
-         limit v_top_prods_gap
       ) t
     )
   ) order by g.penetracion_pct desc), '[]'::jsonb)
