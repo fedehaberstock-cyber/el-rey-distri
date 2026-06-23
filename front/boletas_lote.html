@@ -81,19 +81,25 @@
     border-radius:10px;color:var(--red-tx);font-size:14px}
 
   @media print{
-    @page{size:A5;margin:8mm}
+    @page{size:A5;margin:5mm}
     .topbar,.no-print{display:none!important}
-    html,body{padding:0;background:#fff;max-width:100%;font-size:12px}
+    html,body{padding:0;background:#fff;max-width:100%;font-size:9.5px;line-height:1.25}
     .boleta-wrap{margin:0;border:none;border-radius:0;page-break-after:always;break-after:page}
     .boleta-wrap:last-child{page-break-after:auto;break-after:auto}
-    .bol-empresa{font-size:14px}
-    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .vend,.tot-row{font-size:11px}
-    .bol-cliente .nm{font-size:12px}
-    .item-nm,.item-total,.item-cant{font-size:11px}
-    .item-tag{font-size:9px}
-    .total-cobrar .v,.total-normal .v{font-size:16px}
-    .item-row{padding:4px 0}
-    .bol-header,.bol-cliente,.bol-items,.bol-totales{padding:8px 10px}
+    .bol-empresa{font-size:12px}
+    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .vend,.tot-row{font-size:9px}
+    .bol-cliente .nm{font-size:10px}
+    .item-hdr{padding:2px 0 3px;font-size:8.5px}
+    .item-row{padding:1.5px 0;gap:6px}
+    .item-nm,.item-total,.item-cant{font-size:9px;line-height:1.2}
+    .item-desc{font-size:8.5px;margin-top:0}
+    .item-tag{font-size:8px;padding:0 4px}
+    .total-cobrar .v,.total-normal .v{font-size:13px}
+    .saldo-ant-row,.tot-row{padding:1.5px 0}
+    .bol-header{padding:4px 8px 3px}
+    .bol-cliente{padding:4px 8px}
+    .bol-items{padding:3px 8px}
+    .bol-totales,.bol-firma{padding:5px 8px}
   }
 </style>
 </head>
