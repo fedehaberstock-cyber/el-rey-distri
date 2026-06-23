@@ -20,6 +20,10 @@ declare
   v_hace_30 date := (current_date - 30);
   v_umbral_penetracion numeric := 0.5;  -- 50% de los clientes activos
   v_min_compras int := 3;               -- min veces para ser "lo de siempre"
+  v_top_siempre int := 30;              -- max items en lo_de_siempre
+  v_top_gap int := 10;                  -- max subcategorias en gap
+  v_top_prods_gap int := 5;             -- max productos por subcat en gap
+  v_top_novedades int := 10;            -- max productos en novedades
   v_total_activos int;
   v_lo_de_siempre jsonb;
   v_gap jsonb;
@@ -56,20 +60,30 @@ begin
     having count(distinct p.id) >= v_min_compras
   )
   select coalesce(jsonb_agg(jsonb_build_object(
-    'producto_id',     cc.producto_id,
-    'nombre',          pr.nombre,
-    'categoria',       pr.categoria,
-    'subcategoria',    pr.subcategoria,
-    'cantidad_tipica', greatest(round(cc.cant_mediana)::int, 1),
-    'veces',           cc.veces,
-    'dias_ultima',     (current_date - cc.ultima_compra)::int,
-    'stock',           coalesce(s.stock, 0),
-    'precio',          pr.precio
-  ) order by cc.veces desc, cc.ultima_compra desc), '[]'::jsonb)
+    'producto_id',     t.producto_id,
+    'nombre',          t.nombre,
+    'categoria',       t.categoria,
+    'subcategoria',    t.subcategoria,
+    'cantidad_tipica', t.cantidad_tipica,
+    'veces',           t.veces,
+    'dias_ultima',     t.dias_ultima,
+    'stock',           t.stock,
+    'precio',          t.precio
+  ) order by t.veces desc, t.dias_ultima asc), '[]'::jsonb)
     into v_lo_de_siempre
-    from compras_cli cc
-    join productos pr on pr.id = cc.producto_id and pr.activo = true
-    left join stock_actual s on s.producto_id = pr.id;
+    from (
+      select cc.producto_id, pr.nombre, pr.categoria, pr.subcategoria,
+             greatest(round(cc.cant_mediana)::int, 1) as cantidad_tipica,
+             cc.veces,
+             (current_date - cc.ultima_compra)::int as dias_ultima,
+             coalesce(s.stock, 0) as stock,
+             pr.precio
+        from compras_cli cc
+        join productos pr on pr.id = cc.producto_id and pr.activo = true
+        left join stock_actual s on s.producto_id = pr.id
+       order by cc.veces desc, cc.ultima_compra desc
+       limit v_top_siempre
+    ) t;
 
   -- ── 2. Gap de subcategorias ────────────────────────────────────────────
   with penetracion as (
@@ -106,6 +120,8 @@ begin
        and not exists (
          select 1 from compradas_por_cli c where c.subcategoria = pen.subcategoria
        )
+     order by clientes_que_compran desc
+     limit v_top_gap
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'subcategoria',     g.subcategoria,
@@ -113,18 +129,23 @@ begin
     'clientes',         g.clientes_que_compran,
     'productos', (
       select coalesce(jsonb_agg(jsonb_build_object(
-        'producto_id', pr.id,
-        'nombre',      pr.nombre,
-        'categoria',   pr.categoria,
-        'precio',      pr.precio,
-        'stock',       coalesce(s.stock, 0)
-      ) order by coalesce(s.stock, 0) desc, pr.nombre), '[]'::jsonb)
-      from productos pr
-      left join stock_actual s on s.producto_id = pr.id
-      where pr.empresa_id = v_emp
-        and pr.activo = true
-        and pr.subcategoria = g.subcategoria
-        and coalesce(s.stock, 0) > 0
+        'producto_id', t.id,
+        'nombre',      t.nombre,
+        'categoria',   t.categoria,
+        'precio',      t.precio,
+        'stock',       t.stock
+      ) order by t.stock desc, t.nombre), '[]'::jsonb)
+      from (
+        select pr.id, pr.nombre, pr.categoria, pr.precio, coalesce(s.stock, 0) as stock
+          from productos pr
+          left join stock_actual s on s.producto_id = pr.id
+         where pr.empresa_id = v_emp
+           and pr.activo = true
+           and pr.subcategoria = g.subcategoria
+           and coalesce(s.stock, 0) > 0
+         order by coalesce(s.stock, 0) desc, pr.nombre
+         limit v_top_prods_gap
+      ) t
     )
   ) order by g.penetracion_pct desc), '[]'::jsonb)
     into v_gap
@@ -140,22 +161,28 @@ begin
        and p.estado != 'anulado'
   )
   select coalesce(jsonb_agg(jsonb_build_object(
-    'producto_id',  pr.id,
-    'nombre',       pr.nombre,
-    'categoria',    pr.categoria,
-    'subcategoria', pr.subcategoria,
-    'precio',       pr.precio,
-    'stock',        coalesce(s.stock, 0),
-    'creado_en',    pr.creado_en
-  ) order by pr.creado_en desc), '[]'::jsonb)
+    'producto_id',  t.id,
+    'nombre',       t.nombre,
+    'categoria',    t.categoria,
+    'subcategoria', t.subcategoria,
+    'precio',       t.precio,
+    'stock',        t.stock,
+    'creado_en',    t.creado_en
+  ) order by t.creado_en desc), '[]'::jsonb)
     into v_novedades
-    from productos pr
-    left join stock_actual s on s.producto_id = pr.id
-    where pr.empresa_id = v_emp
-      and pr.activo = true
-      and pr.creado_en::date >= v_hace_30
-      and coalesce(s.stock, 0) > 0
-      and not exists (select 1 from comprados_alguna_vez c where c.producto_id = pr.id);
+    from (
+      select pr.id, pr.nombre, pr.categoria, pr.subcategoria, pr.precio,
+             coalesce(s.stock, 0) as stock, pr.creado_en
+        from productos pr
+        left join stock_actual s on s.producto_id = pr.id
+       where pr.empresa_id = v_emp
+         and pr.activo = true
+         and pr.creado_en::date >= v_hace_30
+         and coalesce(s.stock, 0) > 0
+         and not exists (select 1 from comprados_alguna_vez c where c.producto_id = pr.id)
+       order by pr.creado_en desc
+       limit v_top_novedades
+    ) t;
 
   return jsonb_build_object(
     'cliente_id',                  p_cliente_id,
