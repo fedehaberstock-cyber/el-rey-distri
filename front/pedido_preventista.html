@@ -187,6 +187,34 @@
     .item,.results{animation:fade .18s ease}
     @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   }
+
+  /* ─ Sugerencias ─────────────────────────────────────────────────────── */
+  .sug-loading{padding:10px 18px;color:var(--ink-soft);font-size:13px;text-align:center}
+  .sug-sec{padding:8px 18px 6px;border-top:1px solid var(--line-soft)}
+  .sug-hdr{display:flex;justify-content:space-between;align-items:center;
+    padding:6px 0;cursor:pointer;font-size:13px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--ink)}
+  .sug-caret{font-size:11px;color:var(--ink-soft)}
+  .sug-body{margin-top:4px}
+  .sug-row{display:flex;justify-content:space-between;align-items:center;
+    gap:10px;padding:9px 10px;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;margin-bottom:6px;cursor:pointer}
+  .sug-row:active{background:var(--line-soft)}
+  .sug-info{flex:1;min-width:0}
+  .sug-nm{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .sug-sub{font-size:11px;color:var(--ink-soft);margin-top:2px;line-height:1.3}
+  .sug-add{flex-shrink:0;background:var(--gold);color:#fff;font-size:12px;font-weight:700;
+    padding:5px 10px;border-radius:7px;white-space:nowrap}
+  .sug-add.ghost{background:var(--gold-lt,#F5E9D0);color:var(--gold-dk,#8A5F09)}
+  .sug-tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;
+    letter-spacing:.03em;text-transform:uppercase;line-height:1.5}
+  .sug-tag.urg{background:#F6E5E2;color:#A8392B}
+  .sug-tag.oferta{background:#FDF2DC;color:#8A5F09}
+  .sug-tag.nuevo{background:#E7F0E8;color:#2C6B3F}
+  .sug-tag.prod{background:#E8F0FB;color:#2A4E9A}
+  .sug-gap-row{background:var(--gold-lt,#F5E9D0);border-color:var(--gold,#A9760E)}
+  .sug-gap-prods{padding-left:14px;margin-bottom:6px}
+  .sug-gap-prods .sug-row{background:#fff;border-color:var(--line-soft)}
 </style>
 </head>
 <body>
@@ -242,6 +270,12 @@ let confirmando = false;
 let confirmadoData = null;     // {pedido_id, boleta_id, total, saldo_anterior, total_a_cobrar}
 let expandido = null;          // id producto con opciones abiertas en el buscador
 let pendienteSync = false;     // true cuando confirmado offline y aún no se sincronizó
+
+// Sugerencias por cliente (RPC rpc_sugerencias_cliente)
+let sugerencias = null;
+let sugFetching = false;
+let sugSec = { ofertas: true, siempre: true, gap: false, novedades: false };
+let gapAbierto = null;         // clave del gap expandido (productos visibles)
 // Panel de cobro inline (registra pago al cliente seleccionado, queda en recaudación del preventista)
 let cobroOpen   = false;
 let cobroMonto  = '';
@@ -252,9 +286,12 @@ let cobroSaving = false;
 Object.assign(window, {
   addUnidad, addBulto, setCant, setCantDirecto, setDisc, quitar,
   toggleExpandido, confirmar, nuevo, render,
-  setCliente: v => { clienteId = v; busquedaCli = ''; render(); },
+  setCliente: v => { clienteId = v; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); cargarSugerencias(v); },
   setBusquedaCli: v => { busquedaCli = v; renderCliResults(); },
-  limpiarCliente: () => { clienteId = ''; busquedaCli = ''; render(); },
+  limpiarCliente: () => { clienteId = ''; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); },
+  toggleSug: id => { sugSec[id] = !sugSec[id]; renderSugerencias(); },
+  toggleGap: clave => { gapAbierto = gapAbierto === clave ? null : clave; renderSugerencias(); },
+  addProdCant: (id, cant) => addProductoCant(id, cant),
   setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
   scrollAProductos: () => {
     setTimeout(() => {
@@ -449,6 +486,55 @@ function addUnidad(id){
   if (inp) inp.focus();
 }
 
+// Agregar producto con cantidad arbitraria (usado desde sugerencias).
+function addProductoCant(id, cant) {
+  cant = Math.max(1, parseInt(cant) || 1);
+  const p = prod(id);
+  if (p && p.stock != null && p.stock <= 0) { alert('Sin stock disponible.'); return; }
+  const disp = disponible(id);
+  if (disp < cant) {
+    if (disp <= 0) { alert(`Sin stock disponible (${p?.stock || 0} u).`); return; }
+    cant = disp; // ajustar a lo disponible
+  }
+  const ex = orden.find(o => o.productoId === id && !o.esBulto);
+  if (ex) { ex.cant += cant; }
+  else { orden.push({ productoId: id, cant, disc: 0, esBulto: false, uPorBulto: 1 }); }
+  refrescarItems();
+  renderSugerencias();
+  // Toast de feedback rapido
+  mostrarToast(`✓ ${cant}u ${p?.nombre || ''}`);
+}
+
+function mostrarToast(msg) {
+  let t = document.getElementById('sug-toast');
+  if (t) t.remove();
+  t = document.createElement('div');
+  t.id = 'sug-toast';
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%);'
+    + 'background:var(--ink);color:#fff;padding:9px 15px;border-radius:999px;'
+    + 'font-size:13px;font-weight:600;z-index:50;max-width:90%;'
+    + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+async function cargarSugerencias(cliId) {
+  if (!cliId) return;
+  sugFetching = true; sugerencias = null; renderSugerencias();
+  try {
+    const { data, error } = await supabase.rpc('rpc_sugerencias_cliente', { p_cliente_id: cliId });
+    if (error) throw error;
+    sugerencias = data || null;
+  } catch (e) {
+    console.warn('[sugerencias] error:', e.message || e);
+    sugerencias = null; // sin sugerencias (offline o RPC inexistente)
+  } finally {
+    sugFetching = false;
+    renderSugerencias();
+  }
+}
+
 function addBulto(id){
   const p = prod(id);
   if (p.stock != null && p.stock <= 0) { alert('Sin stock disponible.'); return; }
@@ -489,6 +575,110 @@ function refrescarItems(){
   renderBar();
   const sw = document.querySelector('section.search-wrap');
   if (sw) sw.classList.toggle('has-items', orden.length > 0);
+}
+
+// ── SUGERENCIAS POR CLIENTE ──────────────────────────────────────────────
+function renderSugerencias() {
+  const box = document.getElementById('sug-box');
+  if (!box) return;
+  if (!clienteId) { box.innerHTML = ''; return; }
+  if (sugFetching) {
+    box.innerHTML = `<div class="sug-loading">Buscando sugerencias…</div>`;
+    return;
+  }
+  if (!sugerencias) { box.innerHTML = ''; return; }
+
+  const ofertas   = sugerencias.ofertas || [];
+  const siempre   = sugerencias.lo_de_siempre || [];
+  const gap       = sugerencias.gap_sugeridos || [];
+  const novedades = sugerencias.novedades || [];
+
+  if (!ofertas.length && !siempre.length && !gap.length && !novedades.length) {
+    box.innerHTML = `<div class="sug-loading">Sin sugerencias para este cliente.</div>`;
+    return;
+  }
+
+  box.innerHTML = `
+    ${ofertas.length   ? sugSection('ofertas',   '🔥 Ofertas',         ofertas.length,   renderSugOfertas(ofertas))     : ''}
+    ${siempre.length   ? sugSection('siempre',   '📦 Lo de siempre',   siempre.length,   renderSugSiempre(siempre))     : ''}
+    ${gap.length       ? sugSection('gap',       '💡 Le podés ofrecer', gap.length,       renderSugGap(gap))             : ''}
+    ${novedades.length ? sugSection('novedades', '🆕 Novedades',       novedades.length, renderSugNovedades(novedades)) : ''}
+  `;
+}
+
+function sugSection(id, titulo, count, contenido) {
+  const open = sugSec[id];
+  return `<section class="sug-sec">
+    <div class="sug-hdr" onclick="window.toggleSug('${id}')">
+      <span>${titulo} <span style="opacity:.6;font-weight:500">(${count})</span></span>
+      <span class="sug-caret">${open ? '▲' : '▼'}</span>
+    </div>
+    ${open ? `<div class="sug-body">${contenido}</div>` : ''}
+  </section>`;
+}
+
+function sugRow(prodId, cant, nombre, sub, badge, sinStock) {
+  const tap = sinStock ? '' :
+    `onpointerdown="event.preventDefault();this.dataset.sy=event.clientY"
+     onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.addProdCant('${prodId}', ${cant})"`;
+  return `<div class="sug-row" ${tap} ${sinStock ? 'style="opacity:.55"' : ''}>
+    <div class="sug-info">
+      <div class="sug-nm">${nombre}${badge || ''}</div>
+      <div class="sug-sub">${sub}${sinStock ? ' · <b style="color:var(--red-tx)">SIN STOCK</b>' : ''}</div>
+    </div>
+    ${sinStock ? '' : `<span class="sug-add">+${cant}</span>`}
+  </div>`;
+}
+
+function renderSugSiempre(items) {
+  return items.map(it => {
+    const badge = it.urgente ? ' <span class="sug-tag urg">⚠ atrasado</span>' : '';
+    const sub = `compró ${it.veces}x · hace ${it.dias_ultima}d${it.frec_dias ? ` · cada ~${it.frec_dias}d` : ''}`;
+    return sugRow(it.producto_id, it.cantidad_tipica, it.nombre, sub, badge, (it.stock || 0) <= 0);
+  }).join('');
+}
+
+function renderSugOfertas(items) {
+  return items.map(it => {
+    const ahorroPct = (it.precio_normal && it.precio_oferta && it.precio_oferta < it.precio_normal)
+      ? Math.round((1 - it.precio_oferta / it.precio_normal) * 100) : null;
+    const badge = ahorroPct ? ` <span class="sug-tag oferta">−${ahorroPct}%</span>` : ' <span class="sug-tag oferta">OFERTA</span>';
+    const sub = it.descripcion + (it.vigente_hasta ? ` · hasta ${it.vigente_hasta}` : '');
+    return sugRow(it.producto_id, 1, it.nombre, sub, badge, (it.stock || 0) <= 0);
+  }).join('');
+}
+
+function renderSugNovedades(items) {
+  return items.map(it => {
+    const badge = ' <span class="sug-tag nuevo">🆕</span>';
+    const sub = `${it.subcategoria || it.categoria || ''} · ${ars(it.precio || 0)}`;
+    return sugRow(it.producto_id, 1, it.nombre, sub, badge, (it.stock || 0) <= 0);
+  }).join('');
+}
+
+function renderSugGap(items) {
+  return items.map(g => {
+    const esProd = g.tipo === 'producto';
+    const open = gapAbierto === g.clave;
+    const subInfo = `${g.penetracion_pct}% de tus clientes (${g.clientes})`;
+    // Si es producto suelto, sin expandir — agrega directo.
+    if (esProd) {
+      const p = (g.productos || [])[0];
+      if (!p) return '';
+      return sugRow(p.producto_id, 1, g.clave, subInfo, ' <span class="sug-tag prod">PRODUCTO</span>', (p.stock || 0) <= 0);
+    }
+    // Subcategoría: chip "Ofrecer ›" que expande sus productos.
+    return `<div class="sug-row sug-gap-row" onclick="window.toggleGap('${g.clave.replace(/'/g, "\\'")}')">
+      <div class="sug-info">
+        <div class="sug-nm">${g.clave}</div>
+        <div class="sug-sub">${subInfo} · ${(g.productos || []).length} opciones</div>
+      </div>
+      <span class="sug-add ghost">${open ? '▲' : 'Ofrecer ›'}</span>
+    </div>
+    ${open ? `<div class="sug-gap-prods">
+      ${(g.productos || []).map(p => sugRow(p.producto_id, 1, p.nombre, ars(p.precio || 0), '', (p.stock || 0) <= 0)).join('')}
+    </div>` : ''}`;
+  }).join('');
 }
 
 function setCant(i,d){
@@ -635,6 +825,7 @@ function render(){
       <input class="field" type="date" value="${fechaReparto}"
         onchange="window.setFechaReparto(this.value)">
     </section>
+    ${cli ? `<div id="sug-box"></div>` : ''}
     <div class="divider"></div>
     <section class="search-wrap ${orden.length?'has-items':''}">
       <div class="lbl">Agregar producto</div>
@@ -662,6 +853,7 @@ function render(){
   renderResults();
   renderItems();
   renderBar();
+  renderSugerencias();
   if (cobroOpen) renderCobro();
 
   const badgeEl = document.getElementById('sync-badge-ped');
