@@ -322,9 +322,13 @@ function porProveedor() {
   return [...map.values()].sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
 }
 
+function diasUrgencia() {
+  return horizonte != null ? horizonte : 7
+}
 function aplanarUrgentes() {
+  const lim = diasUrgencia()
   return todosLosItems()
-    .filter(s => s.dias_restantes !== null && s.dias_restantes <= 7)
+    .filter(s => s.dias_restantes !== null && s.dias_restantes <= lim)
     .sort((a,b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999))
 }
 
@@ -643,7 +647,7 @@ function renderListaSugeridos() {
     const items = filtroBusqueda(aplanarUrgentes()).filter(it =>
       !filtroProv || (it.reasignado_a || it.proveedor_id || 'sin') === filtroProv)
     lista.innerHTML = items.length
-      ? `<div class="prov-card"><div class="prov-hdr"><div class="top"><div class="nm">Solo urgentes (≤ 7 días)</div></div></div>${items.map(it => renderItem(it)).join('')}</div>`
+      ? `<div class="prov-card"><div class="prov-hdr"><div class="top"><div class="nm">Solo urgentes (≤ ${diasUrgencia()} días)</div></div></div>${items.map(it => renderItem(it)).join('')}</div>`
       : `<div class="empty">Sin urgentes que coincidan.</div>`
     return
   }
