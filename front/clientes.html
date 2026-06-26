@@ -631,6 +631,13 @@ async function confirmarCobro(){
   const monto = esCargo ? n : -n;
   const forma = esCargo ? 'cuenta_corriente' : cobroFormaPago;
 
+  // Foto de comprobante OBLIGATORIA para transferencias nuevas.
+  if (!esCargo && forma === 'transferencia' && !editandoMovId && !cobroFotoFile) {
+    btn.disabled = false; btn.textContent = 'Confirmar cobro';
+    if (errEl) { errEl.textContent = 'Es obligatorio adjuntar la foto del comprobante.'; errEl.style.display='block'; }
+    return;
+  }
+
   // Si es transferencia y hay foto, subirla al storage primero.
   let comprobante_url = null;
   if (!esCargo && forma === 'transferencia' && cobroFotoFile) {

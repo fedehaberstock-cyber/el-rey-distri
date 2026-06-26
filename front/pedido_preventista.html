@@ -284,6 +284,9 @@ let observaciones = '';
 let cobroOpen   = false;
 let cobroMonto  = '';
 let cobroForma  = 'efectivo';
+let cobroFotoFile = null;
+let cobroFotoPreview = '';
+let cobroRef = '';
 let cobroSaving = false;
 
 // expongo handlers
@@ -313,28 +316,67 @@ Object.assign(window, {
   abrirCobro: () => {
     if (!clienteId) return;
     cobroOpen = true; cobroMonto = ''; cobroForma = 'efectivo'; cobroSaving = false;
+    cobroFotoFile = null; cobroFotoPreview = ''; cobroRef = '';
     render();
     setTimeout(() => document.getElementById('cb-monto')?.focus(), 80);
   },
-  cerrarCobro: () => { cobroOpen = false; render(); },
+  cerrarCobro: () => {
+    cobroOpen = false;
+    cobroFotoFile = null; cobroFotoPreview = ''; cobroRef = '';
+    render();
+  },
   setCobroMonto: v => { cobroMonto = v; const b = document.getElementById('cb-ok'); if (b) b.disabled = !(parseFloat(v) > 0) || cobroSaving; },
   setCobroForma: v => { cobroForma = v; render(); },
+  setCobroRef: v => { cobroRef = v; },
+  setCobroFoto: file => {
+    if (!file) return;
+    cobroFotoFile = file;
+    const r = new FileReader();
+    r.onload = e => { cobroFotoPreview = e.target.result; render(); };
+    r.readAsDataURL(file);
+  },
+  limpiarCobroFoto: () => { cobroFotoFile = null; cobroFotoPreview = ''; render(); },
   confirmarCobro: async () => {
     const n = parseFloat(cobroMonto);
     if (!n || n <= 0) return;
     const usr = getUsuario && getUsuario();
     if (!usr?.id) { alert('Sin usuario'); return; }
+    if (cobroForma === 'transferencia' && !cobroFotoFile) {
+      alert('Es obligatorio adjuntar la foto del comprobante para transferencias.');
+      return;
+    }
     cobroSaving = true;
     const btn = document.getElementById('cb-ok');
     if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+    let comprobante_url = null;
+    if (cobroForma === 'transferencia' && cobroFotoFile) {
+      if (btn) btn.textContent = 'Subiendo foto…';
+      const ext = (cobroFotoFile.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${clienteId}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
+      const up = await supabase.storage.from('comprobantes')
+        .upload(path, cobroFotoFile, { upsert: false, contentType: cobroFotoFile.type || 'image/jpeg' });
+      if (up.error) {
+        cobroSaving = false;
+        alert('Error subiendo foto: ' + up.error.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirmar cobro'; }
+        return;
+      }
+      comprobante_url = supabase.storage.from('comprobantes').getPublicUrl(path).data.publicUrl;
+      if (btn) btn.textContent = 'Guardando…';
+    }
+    const referencia_externa = (cobroForma === 'transferencia' && cobroRef.trim()) ? cobroRef.trim() : null;
+
     const { error } = await supabase.from('mov_cuenta').insert({
       empresa_id: usr.empresa_id,
       cliente_id: clienteId,
       tipo: 'pago',
-      monto: -Math.abs(n),         // pago = negativo (resta del saldo)
-      forma_pago: cobroForma,      // 'efectivo' | 'transferencia'
+      monto: -Math.abs(n),
+      forma_pago: cobroForma,
       referencia_tipo: 'cobro_preventista',
-      usuario_id: usr.id,          // queda asociado al preventista → aparece en Recaudación
+      usuario_id: usr.id,
+      comprobante_url,
+      referencia_externa,
     });
     cobroSaving = false;
     if (error) {
@@ -342,10 +384,10 @@ Object.assign(window, {
       if (btn) { btn.disabled = false; btn.textContent = 'Confirmar cobro'; }
       return;
     }
-    // refrescar saldo del cliente en pantalla
     const cli = clientes.find(c => c.id === clienteId);
     if (cli) cli.saldo = (cli.saldo || 0) - n;
     cobroOpen = false; cobroMonto = '';
+    cobroFotoFile = null; cobroFotoPreview = ''; cobroRef = '';
     render();
   },
   registrarSinPedidoFor: async (cid) => {
@@ -915,6 +957,21 @@ function renderCobro(){
           📲 Transferencia
         </label>
       </div>
+      ${cobroForma === 'transferencia' ? `
+        <div style="background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:12px;margin-top:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--red-tx);margin-bottom:6px">📷 Comprobante (obligatorio)</div>
+          ${cobroFotoPreview ? `
+            <img src="${cobroFotoPreview}" style="width:100%;max-height:160px;object-fit:contain;border-radius:8px;background:var(--line-soft);margin-bottom:6px">
+            <button onclick="window.limpiarCobroFoto()" style="width:100%;padding:7px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">Quitar foto</button>
+          ` : `
+            <label style="display:block;width:100%;padding:13px;border:1px solid var(--gold);background:var(--gold-lt,#F5E9D0);color:var(--gold-dk);border-radius:8px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+              📷 Tomar foto
+              <input type="file" accept="image/*" capture="environment" style="display:none"
+                onchange="window.setCobroFoto(this.files[0])">
+            </label>`}
+          <input class="field" placeholder="N° de operación o banco (opcional)"
+            value="${cobroRef}" oninput="window.setCobroRef(this.value)" style="font-size:14px">
+        </div>` : ''}
       <div class="cb-btns">
         <button class="cb-cancel" onclick="window.cerrarCobro()">Cancelar</button>
         <button class="cb-ok" id="cb-ok" onclick="window.confirmarCobro()"

@@ -366,7 +366,8 @@ async function cargarTodo() {
   // Inicializar cierres
   pedidos.forEach(p => {
     if (!cierres[p.id]) {
-      cierres[p.id] = { noEntregado:false, anulado:false, motivo:'', usaEf:false, ef:'', usaTr:false, tr:'', usaCc:false, cc:'' }
+      cierres[p.id] = { noEntregado:false, anulado:false, motivo:'', usaEf:false, ef:'', usaTr:false, tr:'', usaCc:false, cc:'',
+        trFoto:null, trFotoPreview:'', trRef:'' }
     }
   })
 
@@ -390,6 +391,21 @@ let gastos     = []   // [{concepto, monto}]
 let efEntregado = ''
 let observaciones = ''
 window.cierres = cierres  // exponer para oninput inline
+
+// Handlers de foto de comprobante por pedido (transferencia)
+window.setTrFoto = (pid, file) => {
+  if (!file || !cierres[pid]) return
+  cierres[pid].trFoto = file
+  const r = new FileReader()
+  r.onload = e => { cierres[pid].trFotoPreview = e.target.result; render() }
+  r.readAsDataURL(file)
+}
+window.limpiarTrFoto = (pid) => {
+  if (!cierres[pid]) return
+  cierres[pid].trFoto = null
+  cierres[pid].trFotoPreview = ''
+  render()
+}
 
 const totalACobrar = p => p.tacobrar || (p.totalPedido + p.saldoAnt)
 const pagado  = id => { const c=cierres[id]; return (parseFloat(c.ef)||0)+(parseFloat(c.tr)||0)+(parseFloat(c.cc)||0) }
@@ -591,7 +607,22 @@ function renderCierre(el) {
             <span class="monto-lbl">📲 Transferencia</span>
             <input class="monto-input" id="tr-${p.id}" type="number" min="0"
               value="${c.tr}" oninput="cierres['${p.id}'].tr=this.value;actualizarResumen()">
-          </div>` : ''}
+          </div>
+          ${(parseFloat(c.tr) || 0) > 0 ? `
+            <div style="background:#fff;border:1px dashed var(--line);border-radius:8px;padding:8px;margin:6px 0">
+              <div style="font-size:10px;font-weight:700;color:var(--red-tx);margin-bottom:5px">📷 Comprobante (obligatorio)</div>
+              ${c.trFotoPreview ? `
+                <img src="${c.trFotoPreview}" style="width:100%;max-height:120px;object-fit:contain;border-radius:6px;background:var(--line-soft);margin-bottom:5px">
+                <button onclick="window.limpiarTrFoto('${p.id}')" style="width:100%;padding:5px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:5px">Quitar foto</button>
+              ` : `
+                <label style="display:block;width:100%;padding:9px;border:1px solid var(--gold);background:var(--gold-lt,#F5E9D0);color:var(--gold-dk);border-radius:6px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:5px">
+                  📷 Tomar foto
+                  <input type="file" accept="image/*" capture="environment" style="display:none"
+                    onchange="window.setTrFoto('${p.id}', this.files[0])">
+                </label>`}
+              <input class="monto-input" placeholder="N° op. (opcional)"
+                value="${c.trRef || ''}" oninput="cierres['${p.id}'].trRef=this.value" style="width:100%;font-size:12px">
+            </div>` : ''}` : ''}
         ${!c.noEntregado && c.usaCc ? `
           <div class="monto-row">
             <span class="monto-lbl">📒 En cuenta</span>
@@ -780,10 +811,32 @@ async function confirmarCierre() {
     return
   }
 
+  // Validar comprobante por cada pedido con transferencia
+  for (const p of pedidos) {
+    const c = cierres[p.id]
+    if (c.anulado || c.noEntregado) continue
+    if ((parseFloat(c.tr) || 0) > 0 && !c.trFoto) {
+      alert(`Falta la foto del comprobante de transferencia de "${p.cliente || ''}". Es obligatoria.`)
+      return
+    }
+  }
+
   const btn = document.querySelector('.bar .bar-btn')
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…' }
+  if (btn) { btn.disabled = true; btn.textContent = 'Subiendo fotos…' }
 
   try {
+    // Subir fotos de comprobante (si las hay) y guardar URLs por pedido
+    for (const p of pedidos) {
+      const c = cierres[p.id]
+      if (c.anulado || c.noEntregado || !c.trFoto) continue
+      const ext = (c.trFoto.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${p.id}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`
+      const up = await supabase.storage.from('comprobantes')
+        .upload(path, c.trFoto, { upsert: false, contentType: c.trFoto.type || 'image/jpeg' })
+      if (up.error) throw new Error('Error subiendo foto de ' + (p.cliente || '') + ': ' + up.error.message)
+      c.trFotoUrl = supabase.storage.from('comprobantes').getPublicUrl(path).data.publicUrl
+    }
+    if (btn) btn.textContent = 'Guardando…'
     // Actualizar cada pedido con cobros/entrega
     for (const p of pedidos) {
       const c = cierres[p.id]
@@ -793,11 +846,13 @@ async function confirmarCierre() {
         continue
       }
       await supabase.from('pedidos').update({
-        entregado:          !c.noEntregado,
-        motivo_no_entrega:  c.motivo || null,
-        monto_efectivo:     parseFloat(c.ef)  || 0,
-        monto_transf:       parseFloat(c.tr)  || 0,
-        monto_cuenta:       parseFloat(c.cc)  || 0,
+        entregado:               !c.noEntregado,
+        motivo_no_entrega:       c.motivo || null,
+        monto_efectivo:          parseFloat(c.ef)  || 0,
+        monto_transf:            parseFloat(c.tr)  || 0,
+        monto_cuenta:            parseFloat(c.cc)  || 0,
+        comprobante_transf_url:  c.trFotoUrl || null,
+        referencia_transf:       (c.trRef || '').trim() || null,
       }).eq('id', p.id)
     }
     // Cerrar hoja con payload — incluye gastos, efectivo entregado y observación
