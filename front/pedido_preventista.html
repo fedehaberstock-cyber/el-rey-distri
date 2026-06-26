@@ -624,6 +624,10 @@ function refrescarItems(){
   renderBar();
   const sw = document.querySelector('section.search-wrap');
   if (sw) sw.classList.toggle('has-items', orden.length > 0);
+  const extras = document.getElementById('extras-box');
+  if (extras) extras.style.display = orden.length ? 'block' : 'none';
+  const cnt = document.getElementById('items-count');
+  if (cnt) cnt.textContent = `${orden.length} ${orden.length===1?'ítem':'ítems'}`;
 }
 
 // ── SUGERENCIAS POR CLIENTE ──────────────────────────────────────────────
@@ -897,11 +901,10 @@ function render(){
     </section>
     <div class="divider"></div>
     <section>
-      <div class="lbl">Pedido <span>${orden.length} ${orden.length===1?'ítem':'ítems'}</span></div>
+      <div class="lbl">Pedido <span id="items-count">${orden.length} ${orden.length===1?'ítem':'ítems'}</span></div>
       <div id="items"></div>
     </section>
-    ${orden.length ? `
-    <section style="padding-top:0">
+    <section id="extras-box" style="padding-top:0; display:${orden.length?'block':'none'}">
       <div class="genrow">
         <label for="dg">Descuento general</label>
         <div class="disc">
@@ -914,7 +917,7 @@ function render(){
         placeholder="Notas para el cliente o la entrega…"
         oninput="window.setObservaciones(this.value)"
         style="resize:vertical;min-height:42px">${observaciones}</textarea>
-    </section>` : ''}
+    </section>
   `;
 
   renderResults();
