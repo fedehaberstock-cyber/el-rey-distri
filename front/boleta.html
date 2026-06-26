@@ -129,26 +129,30 @@
     cursor:pointer;font-family:inherit}
 
   /* PRINT */
+  .bol-obs{margin:8px 18px;padding:8px 12px;background:var(--line-soft);
+    border-left:3px solid var(--gold);border-radius:4px;font-size:13px;line-height:1.4}
+  .bol-obs-lbl{font-weight:700;color:var(--gold-dk);margin-right:4px}
   @media print{
     @page{size:A5;margin:5mm}
     .hdr,.bar,.no-print,.estado-wrap{display:none!important}
-    html,body{padding:0;background:#fff;font-size:9.5px;line-height:1.25;max-width:100%}
+    html,body{padding:0;background:#fff;font-size:11px;line-height:1.25;max-width:100%}
     .boleta-wrap{margin:0;border:none;border-radius:0}
-    .bol-empresa{font-size:12px}
-    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .vend,.tot-row{font-size:9px}
-    .bol-cliente .nm{font-size:10px}
-    .item-hdr{padding:2px 0 3px;font-size:8.5px}
+    .bol-empresa{font-size:13.5px}
+    .bol-sub,.bol-num,.bol-cliente .dir,.bol-cliente .vend,.tot-row{font-size:10.5px}
+    .bol-cliente .nm{font-size:11.5px}
+    .item-hdr{padding:2px 0 3px;font-size:10px}
     .item-row{padding:1.5px 0;gap:6px}
-    .item-nm,.item-total,.item-cant{font-size:9px;line-height:1.2}
-    .item-desc{font-size:8.5px;margin-top:0}
-    .item-tag{font-size:8px;padding:0 4px}
-    .total-cobrar .v,.total-normal .v{font-size:13px}
+    .item-nm,.item-total,.item-cant{font-size:10.5px;line-height:1.2}
+    .item-desc{font-size:10px;margin-top:0}
+    .item-tag{font-size:9.5px;padding:0 4px}
+    .total-cobrar .v,.total-normal .v{font-size:14.5px}
     .saldo-ant-row,.tot-row{padding:1.5px 0}
     .bol-header{padding:4px 8px 3px}
     .bol-cliente{padding:4px 8px}
     .bol-items{padding:3px 8px}
     .bol-totales,.bol-firma{padding:5px 8px}
-    .nota-saldo{border:1px solid #c8a84b;font-size:8.5px;padding:3px 5px}
+    .nota-saldo{border:1px solid #c8a84b;font-size:10px;padding:3px 5px}
+    .bol-obs{margin:3px 8px;padding:3px 6px;font-size:10px}
     .firma-line{width:80px}
   }
 </style>
@@ -308,6 +312,10 @@ function render() {
       </div>
     </div>
 
+    ${ped?.observaciones ? `
+    <div class="bol-obs">
+      <span class="bol-obs-lbl">📝 Obs.:</span> ${ped.observaciones}
+    </div>` : ''}
     ${tieneSaldo ? `
     <div class="nota-saldo no-print">
       ⚠ El saldo anterior de ${ars(saldoAnt)} corresponde a deuda preexistente al momento de confirmar este pedido. Al cobrar, se imputa primero contra el saldo anterior.

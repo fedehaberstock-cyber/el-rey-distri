@@ -276,6 +276,10 @@ let sugerencias = null;
 let sugFetching = false;
 let sugSec = { ofertas: true, siempre: true, gap: false, novedades: false };
 let gapAbierto = null;         // clave del gap expandido (productos visibles)
+let buscadorFocus = false;     // input de buscar producto enfocado (oculta sugerencias)
+
+// Observaciones del pedido (texto libre, se imprime en la boleta)
+let observaciones = '';
 // Panel de cobro inline (registra pago al cliente seleccionado, queda en recaudación del preventista)
 let cobroOpen   = false;
 let cobroMonto  = '';
@@ -292,7 +296,10 @@ Object.assign(window, {
   toggleSug: id => { sugSec[id] = !sugSec[id]; renderSugerencias(); },
   toggleGap: clave => { gapAbierto = gapAbierto === clave ? null : clave; renderSugerencias(); },
   addProdCant: (id, cant) => addProductoCant(id, cant),
-  setBusqueda: v => { busqueda = v; expandido = null; renderResults(); },
+  setBusqueda: v => { busqueda = v; expandido = null; renderResults(); renderSugerencias(); },
+  setBusqFocus: v => { buscadorFocus = !!v; renderSugerencias(); },
+  setObservaciones: v => { observaciones = v; },
+  irInicio: () => salirAInicio(),
   scrollAProductos: () => {
     setTimeout(() => {
       const input = document.querySelector('.search-wrap input.field');
@@ -607,7 +614,11 @@ function renderSugerencias() {
 }
 
 function sugSection(id, titulo, count, contenido) {
-  const open = sugSec[id];
+  // Mientras se busca o el input de busqueda esta enfocado (teclado abierto),
+  // las secciones se colapsan visualmente para no molestar el listado de
+  // resultados. El estado real de sugSec[id] se preserva.
+  const buscando = (busqueda && busqueda.trim() !== '') || buscadorFocus;
+  const open = !buscando && sugSec[id];
   return `<section class="sug-sec">
     <div class="sug-hdr" onclick="window.toggleSug('${id}')">
       <span>${titulo} <span style="opacity:.6;font-weight:500">(${count})</span></span>
@@ -724,7 +735,7 @@ async function confirmar(){
   const payload = {
     cliente_id: clienteId,
     descuento: descGeneral,
-    observaciones: null,
+    observaciones: observaciones && observaciones.trim() ? observaciones.trim() : null,
     fecha_reparto: fechaReparto,
     items: orden.map(it => ({
       producto_id: it.productoId,
@@ -785,7 +796,14 @@ function render(){
         <div>El Rey<small>Cargar pedido</small></div>
       </div>
       <div class="user" style="flex-direction:column;align-items:flex-end;gap:2px">
-        <div style="display:flex;align-items:center;gap:6px"><span class="dot"></span><b>${usr?.nombre || ''}</b> · ${rolTxt}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onclick="window.irInicio()" title="Volver al inicio"
+            style="background:var(--gold-lt,#F5E9D0);border:1px solid var(--gold);color:var(--gold-dk);
+              border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+            🏠 Inicio
+          </button>
+          <span class="dot"></span><b>${usr?.nombre || ''}</b> · ${rolTxt}
+        </div>
         <div id="sync-badge-ped"></div>
       </div>
     </div>
@@ -830,7 +848,9 @@ function render(){
     <section class="search-wrap ${orden.length?'has-items':''}">
       <div class="lbl">Agregar producto</div>
       <input class="field" placeholder="Buscar por nombre…" value="${busqueda}"
-        oninput="window.setBusqueda(this.value)" onfocus="window.scrollAProductos()" autocomplete="off">
+        oninput="window.setBusqueda(this.value)"
+        onfocus="window.setBusqFocus(true);window.scrollAProductos()"
+        onblur="window.setBusqFocus(false)" autocomplete="off">
       <div id="res"></div>
     </section>
     <div class="divider"></div>
@@ -847,6 +867,11 @@ function render(){
             oninput="window.setDescGeneral(this.value)"> %
         </div>
       </div>
+      <div class="lbl" style="margin-top:10px">Observaciones (se imprimen en la boleta)</div>
+      <textarea class="field" id="obs-ped" rows="2"
+        placeholder="Notas para el cliente o la entrega…"
+        oninput="window.setObservaciones(this.value)"
+        style="resize:vertical;min-height:42px">${observaciones}</textarea>
     </section>` : ''}
   `;
 
@@ -1131,11 +1156,49 @@ function renderDone(app){
 }
 
 async function nuevo(){
-  clienteId=''; orden=[]; descGeneral=0; busqueda='';
+  clienteId=''; orden=[]; descGeneral=0; busqueda=''; observaciones='';
   confirmado=false; confirmadoData=null; expandido=null; pendienteSync=false;
+  sugerencias=null; gapAbierto=null;
   // refrescar datos (saldos pueden haber cambiado, stock también)
   await cargarTodo();
   render();
+}
+
+// ── BACK GESTURE TRAP + INICIO ──────────────────────────────────────────
+// Cuando hay trabajo en curso (cliente, items u observaciones), interceptamos
+// el gesto/boton de atras del navegador para evitar perder el pedido sin querer.
+let _backTrapInstalado = false;
+function hayTrabajoEnCurso() {
+  return clienteId || orden.length > 0 || (observaciones && observaciones.trim());
+}
+function instalarBackTrap() {
+  if (_backTrapInstalado) return;
+  _backTrapInstalado = true;
+  history.pushState({ trap: 1 }, '', location.href);
+  window.addEventListener('popstate', onBackTrap);
+}
+function onBackTrap() {
+  if (!hayTrabajoEnCurso()) {
+    // dejar salir sin preguntar
+    window.removeEventListener('popstate', onBackTrap);
+    _backTrapInstalado = false;
+    history.back();
+    return;
+  }
+  if (confirm('Si salís ahora se pierde el pedido en curso. ¿Confirmás salir?')) {
+    window.removeEventListener('popstate', onBackTrap);
+    _backTrapInstalado = false;
+    location.href = './login_home.html';
+  } else {
+    // mantener en la pagina re-pusheando estado
+    history.pushState({ trap: 1 }, '', location.href);
+  }
+}
+function salirAInicio() {
+  if (hayTrabajoEnCurso() && !confirm('Si salís ahora se pierde el pedido en curso. ¿Confirmás salir?')) return;
+  window.removeEventListener('popstate', onBackTrap);
+  _backTrapInstalado = false;
+  location.href = './login_home.html';
 }
 
 // ── ARRANQUE ──────────────────────────────────────────────────────────
@@ -1143,6 +1206,7 @@ async function arrancar(){
   await requireSession();
   if (!tienePermiso('pedidos', 'crear')) { location.href = './login_home.html'; return; }
   initSync(supabase); // no await — corre en background
+  instalarBackTrap();
   render();           // muestra UI con listas vacías mientras carga
   await cargarTodo();
   render();
