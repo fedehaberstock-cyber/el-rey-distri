@@ -200,7 +200,7 @@ async function cargarTodo() {
 
   // No-admin: limitar a sus propios cobros (defensa cliente; RLS no filtra por usuario aquí).
   let qCobros = supabase.from('mov_cuenta')
-    .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios(nombre), clientes(nombre)')
+    .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios:usuario_id(nombre), clientes(nombre)')
     .eq('empresa_id', usuario.empresa_id)
     .eq('tipo', 'pago')
     .gte('fecha', hace180)
