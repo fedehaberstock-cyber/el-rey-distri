@@ -177,6 +177,9 @@ let busqueda = '';
 let cobroOpen = false;
 let cobroMonto = '';
 let cobroFormaPago = 'efectivo';
+let cobroFotoFile = null;     // File seleccionado para subir como comprobante
+let cobroFotoPreview = '';    // dataURL para preview local
+let cobroRef = '';            // referencia externa (Nº op, banco, etc)
 let cobroTipo = 'pago';      // 'pago' = ingreso de dinero, 'cargo' = registrar deuda
 let cobroMotivo = '';
 
@@ -290,7 +293,16 @@ async function cargarMovimientos(cliId){
 window.setBusqueda = (v) => { busqueda = v; renderCliList(); };
 window.setNuevoCampo = (k, v) => { nuevoForm[k] = v; };
 window.setCobroMonto = (v) => { cobroMonto = v; };
-window.setCobroForma = (v) => { cobroFormaPago = v; };
+window.setCobroForma = (v) => { cobroFormaPago = v; render(); };
+window.setCobroRef = (v) => { cobroRef = v; };
+window.setFotoCobro = (file) => {
+  if (!file) return;
+  cobroFotoFile = file;
+  const r = new FileReader();
+  r.onload = e => { cobroFotoPreview = e.target.result; render(); };
+  r.readAsDataURL(file);
+};
+window.limpiarFotoCobro = () => { cobroFotoFile = null; cobroFotoPreview = ''; render(); };
 window.setCobroMotivo = (v) => { cobroMotivo = v; };
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────
@@ -489,6 +501,21 @@ function renderCobro(){
             Transferencia
           </label>
         </div>
+        ${cobroFormaPago === 'transferencia' ? `
+          <div style="background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:12px;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px">Comprobante (opcional)</div>
+            ${cobroFotoPreview ? `
+              <img src="${cobroFotoPreview}" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;background:var(--line-soft);margin-bottom:8px">
+              <button onclick="window.limpiarFotoCobro()" style="width:100%;padding:8px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">Quitar foto</button>
+            ` : `
+              <label style="display:block;width:100%;padding:14px;border:1px solid var(--gold);background:var(--gold-lt,#F5E9D0);color:var(--gold-dk);border-radius:8px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
+                📷 Tomar / subir foto
+                <input type="file" accept="image/*" capture="environment" style="display:none"
+                  onchange="window.setFotoCobro(this.files[0])">
+              </label>`}
+            <input class="field" placeholder="N° de operación o banco (opcional)"
+              value="${cobroRef}" oninput="window.setCobroRef(this.value)" style="font-size:14px">
+          </div>` : ''}
       `}
       <div id="cobro-err" class="" style="color:var(--red-tx);font-size:13px;text-align:center;margin-bottom:8px;display:none"></div>
       <div class="cobro-btns">
@@ -501,8 +528,17 @@ function renderCobro(){
   setTimeout(()=>{ const i=document.getElementById('cobro-input'); if(i) i.focus(); },50);
 }
 
-function abrirCobro(tipo='pago'){ editandoMovId=null; cobroOpen=true; cobroTipo=tipo; cobroMonto=''; cobroMotivo=''; cobroFormaPago='efectivo'; render(); }
-function cerrarCobro(){ cobroOpen=false; editandoMovId=null; render(); }
+function abrirCobro(tipo='pago'){
+  editandoMovId=null; cobroOpen=true; cobroTipo=tipo;
+  cobroMonto=''; cobroMotivo=''; cobroFormaPago='efectivo';
+  cobroFotoFile=null; cobroFotoPreview=''; cobroRef='';
+  render();
+}
+function cerrarCobro(){
+  cobroOpen=false; editandoMovId=null;
+  cobroFotoFile=null; cobroFotoPreview=''; cobroRef='';
+  render();
+}
 
 function renderEditarZona(){
   const c = clientes.find(x=>x.id===cliSelId); if(!c) return;
@@ -595,11 +631,30 @@ async function confirmarCobro(){
   const monto = esCargo ? n : -n;
   const forma = esCargo ? 'cuenta_corriente' : cobroFormaPago;
 
+  // Si es transferencia y hay foto, subirla al storage primero.
+  let comprobante_url = null;
+  if (!esCargo && forma === 'transferencia' && cobroFotoFile) {
+    btn.textContent = 'Subiendo foto…';
+    const ext = (cobroFotoFile.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${cliSelId}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
+    const up = await supabase.storage.from('comprobantes')
+      .upload(path, cobroFotoFile, { upsert: false, contentType: cobroFotoFile.type || 'image/jpeg' });
+    if (up.error) {
+      btn.disabled = false; btn.textContent = editandoMovId ? 'Guardar' : 'Confirmar cobro';
+      if (errEl) { errEl.textContent = 'Error subiendo foto: ' + up.error.message; errEl.style.display='block'; }
+      return;
+    }
+    comprobante_url = supabase.storage.from('comprobantes').getPublicUrl(path).data.publicUrl;
+    btn.textContent = 'Guardando…';
+  }
+  const referencia_externa = (forma === 'transferencia' && cobroRef.trim()) ? cobroRef.trim() : null;
+
   let error;
   if (editandoMovId) {
-    ({ error } = await supabase.from('mov_cuenta')
-      .update({ monto, forma_pago: forma })
-      .eq('id', editandoMovId));
+    const upd = { monto, forma_pago: forma };
+    if (comprobante_url) upd.comprobante_url = comprobante_url;
+    if (referencia_externa) upd.referencia_externa = referencia_externa;
+    ({ error } = await supabase.from('mov_cuenta').update(upd).eq('id', editandoMovId));
   } else {
     const { data: { user } } = await supabase.auth.getUser();
     const { data: usr } = await supabase.from('usuarios')
@@ -612,6 +667,8 @@ async function confirmarCobro(){
       forma_pago: forma,
       referencia_tipo: 'ajuste_manual',
       usuario_id: usr.id,
+      comprobante_url,
+      referencia_externa,
     }));
   }
 
@@ -622,7 +679,9 @@ async function confirmarCobro(){
   }
 
   await Promise.all([cargarClientes(), cargarMovimientos(cliSelId)]);
-  cobroOpen=false; editandoMovId=null; cobroMonto=''; render();
+  cobroOpen=false; editandoMovId=null; cobroMonto='';
+  cobroFotoFile=null; cobroFotoPreview=''; cobroRef='';
+  render();
 }
 
 // ── NUEVO CLIENTE ─────────────────────────────────────────────────────

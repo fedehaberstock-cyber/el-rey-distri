@@ -421,6 +421,9 @@ async function renderHomeAdmin(){
     tile('recaudacion', `<div class="action-card" onclick="location.href='./reporte_recaudacion.html'">
       <div class="icon">💵</div><div class="ac-title">Recaudación</div>
       <div class="ac-desc">Lo cobrado por preventista</div></div>`),
+    (u.rol === 'admin' ? `<div class="action-card" onclick="location.href='./transferencias.html'">
+      <div class="icon">📲</div><div class="ac-title">Transferencias</div>
+      <div class="ac-desc">Comprobantes y conciliación</div></div>` : ''),
     tile('ventas_totales', `<div class="action-card" onclick="location.href='./historial_hojas.html'">
       <div class="icon">📅</div><div class="ac-title">Historial de hojas</div>
       <div class="ac-desc">Hojas pasadas y boletas</div></div>`),
