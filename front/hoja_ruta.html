@@ -616,8 +616,8 @@ function renderCierre(el) {
                 <button onclick="window.limpiarTrFoto('${p.id}')" style="width:100%;padding:5px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:5px">Quitar foto</button>
               ` : `
                 <label style="display:block;width:100%;padding:9px;border:1px solid var(--gold);background:var(--gold-lt,#F5E9D0);color:var(--gold-dk);border-radius:6px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:5px">
-                  📷 Tomar foto
-                  <input type="file" accept="image/*" capture="environment" style="display:none"
+                  📷 Subir foto
+                  <input type="file" accept="image/*" style="display:none"
                     onchange="window.setTrFoto('${p.id}', this.files[0])">
                 </label>`}
               <input class="monto-input" placeholder="N° op. (opcional)"

@@ -965,8 +965,8 @@ function renderCobro(){
             <button onclick="window.limpiarCobroFoto()" style="width:100%;padding:7px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">Quitar foto</button>
           ` : `
             <label style="display:block;width:100%;padding:13px;border:1px solid var(--gold);background:var(--gold-lt,#F5E9D0);color:var(--gold-dk);border-radius:8px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">
-              📷 Tomar foto
-              <input type="file" accept="image/*" capture="environment" style="display:none"
+              📷 Subir foto (cámara o galería)
+              <input type="file" accept="image/*" style="display:none"
                 onchange="window.setCobroFoto(this.files[0])">
             </label>`}
           <input class="field" placeholder="N° de operación o banco (opcional)"
