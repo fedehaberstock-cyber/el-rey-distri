@@ -250,7 +250,14 @@ async function cargarTodo() {
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
     supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('velocidad_venta').select('producto_id, unidades_por_dia'),
-    supabase.from('mov_stock').select('producto_id, fecha').eq('tipo', 'venta'),
+    (() => {
+      const hace65 = new Date(Date.now() - 65 * 86400000).toISOString().slice(0, 10);
+      return supabase.from('mov_stock')
+        .select('producto_id, fecha')
+        .eq('tipo', 'venta')
+        .gte('fecha', hace65)
+        .limit(50000);
+    })(),
   ]);
   const { data: provProds } = await supabase.from('producto_proveedor')
     .select('id, producto_id, proveedor_id, costo, observaciones, actualizado_en, proveedores(nombre)')

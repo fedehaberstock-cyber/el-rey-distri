@@ -97,7 +97,11 @@ let proveedores = []
 let categorias = []    // únicas
 let subcategorias = [] // únicas por categoría seleccionada
 let filtros = { categoria:'', subcategoria:'', proveedor_id:'' }
-let porcentaje = ''
+let ajusteCosto  = { tipo:'%', valor:'' }   // tipo: '%' o '$'
+let ajustePrecio = { tipo:'%', valor:'' }
+let seleccionados = new Set()   // ids de productos elegidos manualmente (aditivo a filtros)
+let selectorOpen = false
+let busquedaSel = ''
 let preview = []       // [{prodId, precioActual, precioNuevo, excluido}]
 let aplicando = false
 
@@ -133,22 +137,43 @@ function redondear50_00(p) {
   return cien + 100
 }
 
+function coincideFiltros(p) {
+  return (!filtros.categoria    || p.categoria === filtros.categoria) &&
+         (!filtros.subcategoria || p.subcategoria === filtros.subcategoria) &&
+         (!filtros.proveedor_id || p.proveedor_id === filtros.proveedor_id)
+}
+
+function hayFiltroActivo() {
+  return !!(filtros.categoria || filtros.subcategoria || filtros.proveedor_id)
+}
+
+// Lista final: si hay filtros → todos los que coincidan; se agregan los seleccionados manualmente.
+// Si NO hay filtros activos → solo los seleccionados manualmente.
 function productosFiltrados() {
-  return productos.filter(p =>
-    (!filtros.categoria    || p.categoria === filtros.categoria) &&
-    (!filtros.subcategoria || p.subcategoria === filtros.subcategoria) &&
-    (!filtros.proveedor_id || p.proveedor_id === filtros.proveedor_id)
-  )
+  const porFiltro = hayFiltroActivo() ? productos.filter(coincideFiltros) : []
+  const porSel = productos.filter(p => seleccionados.has(p.id))
+  const map = new Map()
+  for (const p of porFiltro) map.set(p.id, p)
+  for (const p of porSel)    map.set(p.id, p)
+  return [...map.values()]
+}
+
+function aplicarAjuste(valorActual, ajuste) {
+  const v = parseFloat(ajuste.valor)
+  if (!isFinite(v) || v === 0) return valorActual
+  if (ajuste.tipo === '%') return valorActual * (1 + v / 100)
+  return valorActual + v
 }
 
 function calcularPreview() {
-  const pct = parseFloat(porcentaje)
-  if (!isFinite(pct)) { alert('Ingresá un porcentaje válido'); return }
+  const hayAjusteCosto  = isFinite(parseFloat(ajusteCosto.valor))  && parseFloat(ajusteCosto.valor)  !== 0
+  const hayAjustePrecio = isFinite(parseFloat(ajustePrecio.valor)) && parseFloat(ajustePrecio.valor) !== 0
+  if (!hayAjusteCosto && !hayAjustePrecio) { alert('Ingresá un valor de ajuste en costo o precio'); return }
   const lista = productosFiltrados()
-  if (!lista.length) { alert('No hay productos que coincidan con los filtros'); return }
+  if (!lista.length) { alert('No hay productos seleccionados. Elegí filtros o marcá productos individuales.'); return }
   preview = lista.map(p => {
-    const crudo = p.precio * (1 + pct / 100)
-    const costoCrudo = p.costo * (1 + pct / 100)
+    const costoCrudo  = hayAjusteCosto  ? aplicarAjuste(p.costo,  ajusteCosto)  : p.costo
+    const precioCrudo = hayAjustePrecio ? aplicarAjuste(p.precio, ajustePrecio) : p.precio
     return {
       prodId: p.id,
       nombre: p.nombre,
@@ -157,7 +182,7 @@ function calcularPreview() {
       costoActual: p.costo,
       costoNuevo: String(Math.round(costoCrudo)),
       precioActual: p.precio,
-      precioNuevo: String(redondear50_00(crudo)),
+      precioNuevo: String(hayAjustePrecio ? redondear50_00(precioCrudo) : Math.round(precioCrudo)),
       excluido: false,
     }
   })
@@ -167,7 +192,10 @@ function calcularPreview() {
 async function aplicar() {
   const aAplicar = preview.filter(r => !r.excluido)
   if (!aAplicar.length) { alert('Sin productos para actualizar'); return }
-  if (!confirm(`Aplicar ${porcentaje}% sobre ${aAplicar.length} productos? Esta acción actualiza los precios.`)) return
+  const resumenAj = []
+  if (parseFloat(ajusteCosto.valor))  resumenAj.push(`costo ${ajusteCosto.tipo==='%'?ajusteCosto.valor+'%':'$'+ajusteCosto.valor}`)
+  if (parseFloat(ajustePrecio.valor)) resumenAj.push(`precio ${ajustePrecio.tipo==='%'?ajustePrecio.valor+'%':'$'+ajustePrecio.valor}`)
+  if (!confirm(`Aplicar ${resumenAj.join(' y ')} sobre ${aAplicar.length} productos? Esta acción actualiza los precios.`)) return
 
   aplicando = true; render()
   const updates = aAplicar.map(r =>
@@ -188,8 +216,14 @@ async function aplicar() {
   await supabase.from('ajustes_precios_log').insert({
     empresa_id: usuario.empresa_id,
     usuario_id: usuario.id,
-    filtros: { ...filtros, excluidos: preview.filter(r => r.excluido).map(r => r.prodId) },
-    porcentaje: parseFloat(porcentaje),
+    filtros: {
+      ...filtros,
+      seleccionados: [...seleccionados],
+      excluidos: preview.filter(r => r.excluido).map(r => r.prodId),
+      ajuste_costo:  ajusteCosto,
+      ajuste_precio: ajustePrecio,
+    },
+    porcentaje: parseFloat(ajustePrecio.valor) || parseFloat(ajusteCosto.valor) || 0,
     productos_afectados: aAplicar.length,
   })
 
@@ -201,7 +235,10 @@ async function aplicar() {
       p.costo  = Math.round(parseFloat(r.costoNuevo)  || 0)
     }
   }
-  preview = []; porcentaje = ''
+  preview = []
+  ajusteCosto  = { tipo:'%', valor:'' }
+  ajustePrecio = { tipo:'%', valor:'' }
+  seleccionados = new Set()
   render()
   toast(`✓ ${aAplicar.length} precios actualizados`)
 }
@@ -251,20 +288,61 @@ function render() {
     </section>
 
     <section>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="lbl" style="margin:0">Productos a ajustar</div>
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px"
+          onclick="window._toggleSelector()">
+          ${selectorOpen ? '× Cerrar selector' : '＋ Elegir productos'}${seleccionados.size?` (${seleccionados.size})`:''}
+        </button>
+      </div>
       <div class="summary">
         <div>
           <div class="nro">${lista.length}</div>
-          <div class="desc">productos coinciden con los filtros</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:end">
-          <div>
-            <div class="lbl">% a aplicar</div>
-            <input class="field" id="pct" type="number" step="0.1" value="${porcentaje}"
-              placeholder="3.5" style="width:100px"
-              onchange="window._setPct(this.value)">
+          <div class="desc">
+            ${hayFiltroActivo() && seleccionados.size ? `por filtros + ${seleccionados.size} elegidos`
+              : hayFiltroActivo() ? 'coinciden con los filtros'
+              : seleccionados.size ? `productos elegidos manualmente`
+              : 'sin filtros ni selección'}
           </div>
-          <button class="btn-gold" onclick="window._calcular()">Calcular preview →</button>
         </div>
+        <button class="btn-gold" onclick="window._calcular()">Calcular preview →</button>
+      </div>
+    </section>
+
+    ${selectorOpen ? renderSelector() : ''}
+
+    <section>
+      <div class="lbl">Ajuste de costo</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+          <button onclick="window._setTipoCosto('%')"
+            style="padding:10px 14px;border:none;background:${ajusteCosto.tipo==='%'?'var(--gold)':'var(--card)'};
+              color:${ajusteCosto.tipo==='%'?'#fff':'var(--ink)'};font-weight:700;cursor:pointer;font-family:inherit">%</button>
+          <button onclick="window._setTipoCosto('$')"
+            style="padding:10px 14px;border:none;background:${ajusteCosto.tipo==='$'?'var(--gold)':'var(--card)'};
+              color:${ajusteCosto.tipo==='$'?'#fff':'var(--ink)'};font-weight:700;cursor:pointer;font-family:inherit">$</button>
+        </div>
+        <input class="field" type="number" step="0.01" value="${ajusteCosto.valor}"
+          placeholder="${ajusteCosto.tipo==='%'?'Ej: 3.5':'Ej: 500'}"
+          oninput="window._setValorCosto(this.value)" style="flex:1">
+      </div>
+
+      <div class="lbl">Ajuste de precio de venta</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+          <button onclick="window._setTipoPrecio('%')"
+            style="padding:10px 14px;border:none;background:${ajustePrecio.tipo==='%'?'var(--gold)':'var(--card)'};
+              color:${ajustePrecio.tipo==='%'?'#fff':'var(--ink)'};font-weight:700;cursor:pointer;font-family:inherit">%</button>
+          <button onclick="window._setTipoPrecio('$')"
+            style="padding:10px 14px;border:none;background:${ajustePrecio.tipo==='$'?'var(--gold)':'var(--card)'};
+              color:${ajustePrecio.tipo==='$'?'#fff':'var(--ink)'};font-weight:700;cursor:pointer;font-family:inherit">$</button>
+        </div>
+        <input class="field" type="number" step="0.01" value="${ajustePrecio.valor}"
+          placeholder="${ajustePrecio.tipo==='%'?'Ej: 5':'Ej: 800'}"
+          oninput="window._setValorPrecio(this.value)" style="flex:1">
+      </div>
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:6px">
+        Dejá vacío el que no quieras modificar. El precio se redondea al múltiplo de $50 (podés corregirlo por fila).
       </div>
     </section>
 
@@ -320,10 +398,67 @@ function render() {
   `
 }
 
+function renderSelector() {
+  const q = busquedaSel.trim().toLowerCase()
+  const lista = productos
+    .filter(p => !q || p.nombre.toLowerCase().includes(q)
+                     || (p.categoria||'').toLowerCase().includes(q)
+                     || (p.subcategoria||'').toLowerCase().includes(q))
+    .slice(0, 200)
+  return `
+    <section>
+      <div class="lbl">Buscar y elegir productos individuales</div>
+      <input class="field" placeholder="Buscar por nombre, categoría o subcategoría…"
+        value="${busquedaSel}" oninput="window._setBusqSel(this.value)" autocomplete="off">
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selMarcarLista()">
+          Marcar los ${lista.length} visibles
+        </button>
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selLimpiar()">
+          Limpiar selección
+        </button>
+        <span style="font-size:12px;color:var(--ink-soft);margin-left:auto">${seleccionados.size} elegidos</span>
+      </div>
+      <div style="max-height:340px;overflow-y:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
+        ${lista.length ? lista.map(p => {
+          const chk = seleccionados.has(p.id)
+          return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:13px">
+            <input class="cb" type="checkbox" ${chk?'checked':''} onchange="window._selToggle('${p.id}')">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600">${p.nombre}</div>
+              <div style="font-size:11px;color:var(--ink-soft)">${p.categoria||'—'}${p.subcategoria?` · ${p.subcategoria}`:''} · costo ${ars(p.costo)} · precio ${ars(p.precio)}</div>
+            </div>
+          </label>`
+        }).join('') : `<div class="empty" style="padding:24px">Sin resultados${q?' para "'+busquedaSel+'"':''}.</div>`}
+      </div>
+      ${lista.length===200 ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:6px">Mostrando primeros 200. Afiná la búsqueda para ver más.</div>` : ''}
+    </section>`
+}
+
 window._setCat = v => { filtros.categoria = v; filtros.subcategoria=''; preview=[]; render() }
 window._setSubCat = v => { filtros.subcategoria = v; preview=[]; render() }
 window._setProv = v => { filtros.proveedor_id = v; preview=[]; render() }
-window._setPct = v => { porcentaje = v }
+window._setTipoCosto  = t => { ajusteCosto.tipo  = t; render() }
+window._setTipoPrecio = t => { ajustePrecio.tipo = t; render() }
+window._setValorCosto  = v => { ajusteCosto.valor  = v }
+window._setValorPrecio = v => { ajustePrecio.valor = v }
+window._toggleSelector = () => { selectorOpen = !selectorOpen; busquedaSel = ''; render() }
+window._setBusqSel = v => { busquedaSel = v; render() }
+window._selToggle = id => {
+  if (seleccionados.has(id)) seleccionados.delete(id); else seleccionados.add(id)
+  render()
+}
+window._selLimpiar = () => { seleccionados = new Set(); preview = []; render() }
+window._selMarcarLista = () => {
+  const q = busquedaSel.trim().toLowerCase()
+  productos
+    .filter(p => !q || p.nombre.toLowerCase().includes(q)
+                     || (p.categoria||'').toLowerCase().includes(q)
+                     || (p.subcategoria||'').toLowerCase().includes(q))
+    .slice(0, 200)
+    .forEach(p => seleccionados.add(p.id))
+  render()
+}
 window._calcular = () => calcularPreview()
 window._toggleExcl = i => { preview[i].excluido = !preview[i].excluido; render() }
 window._setPrecio = (i,v) => { preview[i].precioNuevo = v; render() }
