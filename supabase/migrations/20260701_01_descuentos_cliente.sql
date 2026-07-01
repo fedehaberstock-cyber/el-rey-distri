@@ -35,16 +35,16 @@ alter table public.descuentos_cliente enable row level security;
 
 drop policy if exists "descuentos_cliente_sel" on public.descuentos_cliente;
 create policy "descuentos_cliente_sel" on public.descuentos_cliente
-  for select using (empresa_id in (select empresa_id from public.usuarios where auth_uid = auth.uid()));
+  for select using (empresa_id in (select empresa_id from public.usuarios where auth_id = auth.uid()));
 
 drop policy if exists "descuentos_cliente_ins" on public.descuentos_cliente;
 create policy "descuentos_cliente_ins" on public.descuentos_cliente
-  for insert with check (empresa_id in (select empresa_id from public.usuarios where auth_uid = auth.uid()));
+  for insert with check (empresa_id in (select empresa_id from public.usuarios where auth_id = auth.uid()));
 
 drop policy if exists "descuentos_cliente_upd" on public.descuentos_cliente;
 create policy "descuentos_cliente_upd" on public.descuentos_cliente
-  for update using (empresa_id in (select empresa_id from public.usuarios where auth_uid = auth.uid()));
+  for update using (empresa_id in (select empresa_id from public.usuarios where auth_id = auth.uid()));
 
 drop policy if exists "descuentos_cliente_del" on public.descuentos_cliente;
 create policy "descuentos_cliente_del" on public.descuentos_cliente
-  for delete using (empresa_id in (select empresa_id from public.usuarios where auth_uid = auth.uid()));
+  for delete using (empresa_id in (select empresa_id from public.usuarios where auth_id = auth.uid()));
