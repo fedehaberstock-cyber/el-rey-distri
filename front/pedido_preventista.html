@@ -280,6 +280,8 @@ let buscadorFocus = false;     // input de buscar producto enfocado (oculta suge
 
 // Observaciones del pedido (texto libre, se imprime en la boleta)
 let observaciones = '';
+// Descuentos automáticos por cliente (se carga en setCliente)
+let descuentosCliente = [];  // [{alcance, alcance_valor, porcentaje, excluye}]
 // Panel de cobro inline (registra pago al cliente seleccionado, queda en recaudación del preventista)
 let cobroOpen   = false;
 let cobroMonto  = '';
@@ -293,7 +295,7 @@ let cobroSaving = false;
 Object.assign(window, {
   addUnidad, addBulto, setCant, setCantDirecto, setDisc, quitar,
   toggleExpandido, confirmar, nuevo, render,
-  setCliente: v => { clienteId = v; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); cargarSugerencias(v); },
+  setCliente: v => { clienteId = v; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); cargarSugerencias(v); cargarDescuentosCliente(v); },
   setBusquedaCli: v => { busquedaCli = v; renderCliResults(); },
   limpiarCliente: () => { clienteId = ''; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); },
   toggleSug: id => { sugSec[id] = !sugSec[id]; renderSugerencias(); },
@@ -454,7 +456,7 @@ async function cargarTodo(){
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
     supabase.from('productos')
-      .select('id, nombre, precio, u_bulto, desc_bulto')
+      .select('id, nombre, precio, u_bulto, desc_bulto, categoria, subcategoria')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
@@ -525,7 +527,10 @@ function addUnidad(id){
   if (disponible(id) < 1) { alert(`Stock insuficiente. Disponible: ${p.stock} u.`); return; }
   const ex = orden.find(o=>o.productoId===id && !o.esBulto);
   if(ex){ ex.cant++; }
-  else { orden.push({productoId:id, cant:1, disc:0, esBulto:false, uPorBulto:1}); }
+  else {
+    const auto = resolverDescuento(p);
+    orden.push({productoId:id, cant:1, disc:auto.pct, discAuto:auto.esAuto, esBulto:false, uPorBulto:1});
+  }
   busqueda=''; expandido=null;
   const inp = document.querySelector('.search-wrap input.field');
   if (inp) inp.value = '';
@@ -547,7 +552,10 @@ function addProductoCant(id, cant) {
   }
   const ex = orden.find(o => o.productoId === id && !o.esBulto);
   if (ex) { ex.cant += cant; }
-  else { orden.push({ productoId: id, cant, disc: 0, esBulto: false, uPorBulto: 1 }); }
+  else {
+    const auto = resolverDescuento(p);
+    orden.push({ productoId: id, cant, disc: auto.pct, discAuto: auto.esAuto, esBulto: false, uPorBulto: 1 });
+  }
   refrescarItems();
   renderSugerencias();
   // Toast de feedback rapido
@@ -566,6 +574,40 @@ function mostrarToast(msg) {
     + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 1800);
+}
+
+async function cargarDescuentosCliente(cliId) {
+  descuentosCliente = [];
+  if (!cliId) return;
+  try {
+    const { data, error } = await supabase.from('descuentos_cliente')
+      .select('alcance, alcance_valor, porcentaje, excluye')
+      .eq('cliente_id', cliId);
+    if (error) throw error;
+    descuentosCliente = data || [];
+  } catch (e) {
+    console.warn('[descuentos_cliente] error:', e.message || e);
+    descuentosCliente = [];
+  }
+}
+
+// Resuelve el % de descuento automático para un producto según reglas del cliente.
+// Prioridad: producto > subcategoria > categoria > todo.
+// Retorna { pct, esAuto } — si no aplica, pct=0 y esAuto=false.
+function resolverDescuento(p) {
+  if (!p || !descuentosCliente.length) return { pct: 0, esAuto: false };
+  const cat = (p.categoria || '').trim();
+  const sub = (p.subcategoria || '').trim();
+  // Buscar en orden de especificidad
+  const buscar = (alcance, valor) =>
+    descuentosCliente.find(d => d.alcance === alcance && (alcance === 'todo' || (d.alcance_valor || '').trim() === valor));
+  let regla = buscar('producto', String(p.id));
+  if (!regla && sub) regla = buscar('subcategoria', sub);
+  if (!regla && cat) regla = buscar('categoria', cat);
+  if (!regla)         regla = buscar('todo', '');
+  if (!regla) return { pct: 0, esAuto: false };
+  if (regla.excluye)  return { pct: 0, esAuto: true };  // marca "auto excluido"
+  return { pct: Number(regla.porcentaje) || 0, esAuto: true };
 }
 
 async function cargarSugerencias(cliId) {
@@ -768,7 +810,7 @@ function setCantDirecto(i, v){
   it.cant = nuevo;
   refrescarItems();
 }
-function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); refrescarItems(); }
+function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); orden[i].discAuto=false; refrescarItems(); }
 function quitar(i){ orden.splice(i,1); refrescarItems(); }
 function toggleExpandido(id){ expandido = expandido===id ? null : id; renderResults(); }
 
@@ -1079,6 +1121,7 @@ function renderResults(){
             <div class="disc">
               <input type="number" min="0" max="100" value="${it.disc}"
                 onchange="window.setDisc(${i},this.value)"> % desc
+              ${it.discAuto ? `<span style="margin-left:6px;font-size:10px;background:#E7EEF7;color:#2A5A8A;padding:2px 6px;border-radius:999px;font-weight:700">AUTO</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -1154,6 +1197,7 @@ function renderItems(){
         <div class="disc">
           <input type="number" min="0" max="100" value="${it.disc}"
             oninput="window.setDisc(${i},this.value)"> % desc.
+          ${it.discAuto ? `<span style="margin-left:6px;font-size:10px;background:#E7EEF7;color:#2A5A8A;padding:2px 6px;border-radius:999px;font-weight:700">AUTO</span>` : ''}
         </div>
       </div>
     </div>`;
