@@ -290,7 +290,7 @@ function render() {
     <section>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div class="lbl" style="margin:0">Productos a ajustar</div>
-        <button class="btn-ghost" style="padding:6px 12px;font-size:12px"
+        <button id="btn-toggle-selector" class="btn-ghost" style="padding:6px 12px;font-size:12px"
           onclick="window._toggleSelector()">
           ${selectorOpen ? '× Cerrar selector' : '＋ Elegir productos'}${seleccionados.size?` (${seleccionados.size})`:''}
         </button>
@@ -396,42 +396,58 @@ function render() {
       </div>
     </div>` : ''}
   `
+  if (selectorOpen) renderSelectorResultados()
 }
 
-function renderSelector() {
+function listaSelector() {
   const q = busquedaSel.trim().toLowerCase()
-  const lista = productos
+  return productos
     .filter(p => !q || p.nombre.toLowerCase().includes(q)
                      || (p.categoria||'').toLowerCase().includes(q)
                      || (p.subcategoria||'').toLowerCase().includes(q))
     .slice(0, 200)
+}
+
+function renderSelectorResultados() {
+  const box = document.getElementById('sel-resultados')
+  if (!box) return
+  const lista = listaSelector()
+  const q = busquedaSel.trim()
+  box.innerHTML = lista.length ? lista.map(p => {
+    const chk = seleccionados.has(p.id)
+    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:13px">
+      <input class="cb" type="checkbox" ${chk?'checked':''} onchange="window._selToggle('${p.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--ink-soft)">${p.categoria||'—'}${p.subcategoria?` · ${p.subcategoria}`:''} · costo ${ars(p.costo)} · precio ${ars(p.precio)}</div>
+      </div>
+    </label>`
+  }).join('') : `<div class="empty" style="padding:24px">Sin resultados${q?' para "'+q+'"':''}.</div>`
+  const cont = document.getElementById('sel-count')
+  if (cont) cont.textContent = `${seleccionados.size} elegidos`
+  const btnMarcar = document.getElementById('sel-marcar')
+  if (btnMarcar) btnMarcar.textContent = `Marcar los ${lista.length} visibles`
+  const foot = document.getElementById('sel-foot')
+  if (foot) foot.style.display = lista.length === 200 ? 'block' : 'none'
+}
+
+function renderSelector() {
   return `
     <section>
       <div class="lbl">Buscar y elegir productos individuales</div>
-      <input class="field" placeholder="Buscar por nombre, categoría o subcategoría…"
+      <input class="field" id="sel-busq" placeholder="Buscar por nombre, categoría o subcategoría…"
         value="${busquedaSel}" oninput="window._setBusqSel(this.value)" autocomplete="off">
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selMarcarLista()">
-          Marcar los ${lista.length} visibles
+        <button id="sel-marcar" class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selMarcarLista()">
+          Marcar visibles
         </button>
         <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selLimpiar()">
           Limpiar selección
         </button>
-        <span style="font-size:12px;color:var(--ink-soft);margin-left:auto">${seleccionados.size} elegidos</span>
+        <span id="sel-count" style="font-size:12px;color:var(--ink-soft);margin-left:auto">${seleccionados.size} elegidos</span>
       </div>
-      <div style="max-height:340px;overflow-y:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
-        ${lista.length ? lista.map(p => {
-          const chk = seleccionados.has(p.id)
-          return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:13px">
-            <input class="cb" type="checkbox" ${chk?'checked':''} onchange="window._selToggle('${p.id}')">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600">${p.nombre}</div>
-              <div style="font-size:11px;color:var(--ink-soft)">${p.categoria||'—'}${p.subcategoria?` · ${p.subcategoria}`:''} · costo ${ars(p.costo)} · precio ${ars(p.precio)}</div>
-            </div>
-          </label>`
-        }).join('') : `<div class="empty" style="padding:24px">Sin resultados${q?' para "'+busquedaSel+'"':''}.</div>`}
-      </div>
-      ${lista.length===200 ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:6px">Mostrando primeros 200. Afiná la búsqueda para ver más.</div>` : ''}
+      <div id="sel-resultados" style="max-height:340px;overflow-y:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--card)"></div>
+      <div id="sel-foot" style="display:none;font-size:11px;color:var(--ink-soft);margin-top:6px">Mostrando primeros 200. Afiná la búsqueda para ver más.</div>
     </section>`
 }
 
@@ -443,21 +459,36 @@ window._setTipoPrecio = t => { ajustePrecio.tipo = t; render() }
 window._setValorCosto  = v => { ajusteCosto.valor  = v }
 window._setValorPrecio = v => { ajustePrecio.valor = v }
 window._toggleSelector = () => { selectorOpen = !selectorOpen; busquedaSel = ''; render() }
-window._setBusqSel = v => { busquedaSel = v; render() }
+window._setBusqSel = v => { busquedaSel = v; renderSelectorResultados() }
 window._selToggle = id => {
   if (seleccionados.has(id)) seleccionados.delete(id); else seleccionados.add(id)
-  render()
+  renderSelectorResultados()
+  actualizarResumen()
 }
-window._selLimpiar = () => { seleccionados = new Set(); preview = []; render() }
+window._selLimpiar = () => {
+  seleccionados = new Set(); preview = []
+  renderSelectorResultados(); actualizarResumen()
+}
 window._selMarcarLista = () => {
-  const q = busquedaSel.trim().toLowerCase()
-  productos
-    .filter(p => !q || p.nombre.toLowerCase().includes(q)
-                     || (p.categoria||'').toLowerCase().includes(q)
-                     || (p.subcategoria||'').toLowerCase().includes(q))
-    .slice(0, 200)
-    .forEach(p => seleccionados.add(p.id))
-  render()
+  listaSelector().forEach(p => seleccionados.add(p.id))
+  renderSelectorResultados()
+  actualizarResumen()
+}
+
+function actualizarResumen() {
+  // Refresca el card superior (cantidad, descripción) y el botón toggle sin destruir el input
+  const lista = productosFiltrados()
+  const nro = document.querySelector('.summary .nro')
+  const desc = document.querySelector('.summary .desc')
+  if (nro) nro.textContent = lista.length
+  if (desc) desc.textContent = hayFiltroActivo() && seleccionados.size
+    ? `por filtros + ${seleccionados.size} elegidos`
+    : hayFiltroActivo() ? 'coinciden con los filtros'
+    : seleccionados.size ? 'productos elegidos manualmente'
+    : 'sin filtros ni selección'
+  const btnTog = document.getElementById('btn-toggle-selector')
+  if (btnTog) btnTog.textContent = (selectorOpen ? '× Cerrar selector' : '＋ Elegir productos')
+    + (seleccionados.size ? ` (${seleccionados.size})` : '')
 }
 window._calcular = () => calcularPreview()
 window._toggleExcl = i => { preview[i].excluido = !preview[i].excluido; render() }
