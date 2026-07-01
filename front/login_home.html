@@ -289,8 +289,8 @@ async function renderHomeAdmin(){
       .select('id, pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto)')
       .eq('empresa_id', u.empresa_id)
       .in('estado', ['confirmado', 'entregado'])
-      .gte('fecha', hoy + 'T00:00:00')
-      .lte('fecha', hoy + 'T23:59:59'),
+      .gte('fecha', hoy + 'T00:00:00-03:00')
+      .lte('fecha', hoy + 'T23:59:59-03:00'),
     supabase.from('saldo_actual')
       .select('cliente_id, saldo')
       .gt('saldo', 0),
@@ -520,7 +520,7 @@ async function renderHomePreventista(){
     .eq('empresa_id', u.empresa_id)
     .eq('usuario_id', u.id)
     .in('estado', ['confirmado', 'entregado'])
-    .gte('fecha', hoy + 'T00:00:00').lte('fecha', hoy + 'T23:59:59')
+    .gte('fecha', hoy + 'T00:00:00-03:00').lte('fecha', hoy + 'T23:59:59-03:00')
     .order('fecha', { ascending: false });
 
   const pedidos = peds || [];
