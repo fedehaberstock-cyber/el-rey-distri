@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Plantillas de descuento</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:720px;margin:0 auto;padding-bottom:100px}
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  section{padding:14px 18px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px}
+  .field{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:14px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .btn-gold{background:var(--gold);color:#fff;border:none;padding:12px 16px;border-radius:10px;
+    font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
+  .btn-gold:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:11px 16px;
+    border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-danger{background:var(--red-bg);color:var(--red-tx);border:1px solid var(--red-tx);
+    padding:9px 14px;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+  .card .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .card .nm{font-size:16px;font-weight:700}
+  .card .sub{font-size:12px;color:var(--ink-soft);margin-top:4px}
+  .cb{width:18px;height:18px;accent-color:var(--gold);cursor:pointer}
+  .chip{display:inline-block;padding:4px 10px;background:#E7EEF7;color:#2A5A8A;
+    border-radius:999px;font-size:12px;font-weight:600;margin:0 6px 6px 0}
+  .chip.excl{background:var(--red-bg);color:var(--red-tx)}
+  .chip.recargo{background:var(--amber-bg);color:var(--amber-tx)}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft)}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20}
+  .bar-row{display:flex;gap:10px}
+  .bar-row button{flex:1;padding:13px;border-radius:12px;font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;z-index:50}
+  .tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .tab{flex:1;padding:11px 8px;text-align:center;font-size:13px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+import { ars } from './src/utils.js?v=2'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('clientes', 'admin')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let vista = 'lista'   // 'lista' | 'detalle'
+let plantillas = []   // [{id, nombre, descripcion, activo, reglas_count, clientes_count}]
+let plantillaSelId = null
+let plantillaSel = null   // {id, nombre, descripcion, activo, reglas: [...]}
+let productos = []
+let categorias = []
+let subcategorias = []
+let clientesAsignados = []      // clientes que tienen la plantilla actual
+let modoAgregar = 'grupo'       // 'grupo' | 'productos'
+let nuevaRegla = { alcance:'todo', alcance_valor:'', porcentaje:'', excluye:false }
+let filtros = { categoria:'', subcategoria:'', proveedor_id:'' }
+let proveedores = []
+let seleccionados = new Set()
+let busquedaSel = ''
+let pctSel = ''
+let excluyeSel = false
+
+// ── CARGA ──────────────────────────────────────────────────────────────────
+async function cargarLista() {
+  const [{ data: pls }, { data: reglas }, { data: cps }] = await Promise.all([
+    supabase.from('plantillas_descuento').select('id, nombre, descripcion, activo, created_at')
+      .eq('empresa_id', usuario.empresa_id).order('nombre'),
+    supabase.from('plantillas_descuento_reglas').select('plantilla_id'),
+    supabase.from('clientes_plantillas').select('plantilla_id'),
+  ])
+  const reglasCount = {}
+  for (const r of (reglas || [])) reglasCount[r.plantilla_id] = (reglasCount[r.plantilla_id] || 0) + 1
+  const cliCount = {}
+  for (const c of (cps || [])) cliCount[c.plantilla_id] = (cliCount[c.plantilla_id] || 0) + 1
+  plantillas = (pls || []).map(p => ({
+    ...p,
+    reglas_count: reglasCount[p.id] || 0,
+    clientes_count: cliCount[p.id] || 0,
+  }))
+}
+
+async function cargarDetalle(id) {
+  const [{ data: pl }, { data: rls }, { data: cps }] = await Promise.all([
+    supabase.from('plantillas_descuento').select('id, nombre, descripcion, activo').eq('id', id).single(),
+    supabase.from('plantillas_descuento_reglas').select('id, alcance, alcance_valor, porcentaje, excluye')
+      .eq('plantilla_id', id).order('created_at'),
+    supabase.from('clientes_plantillas').select('cliente_id, clientes(nombre)').eq('plantilla_id', id),
+  ])
+  plantillaSel = { ...pl, reglas: rls || [] }
+  clientesAsignados = (cps || []).map(c => ({ id: c.cliente_id, nombre: c.clientes?.nombre || '?' }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+}
+
+async function cargarCatalogo() {
+  if (productos.length && proveedores.length) return
+  const [{ data: prods }, { data: provs }] = await Promise.all([
+    supabase.from('productos').select('id, nombre, categoria, subcategoria, proveedor_id, costo, precio')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('proveedores').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ])
+  productos = prods || []
+  proveedores = provs || []
+  categorias = [...new Set(productos.map(p => (p.categoria || '').trim()).filter(Boolean))].sort()
+  subcategorias = [...new Set(productos.map(p => (p.subcategoria || '').trim()).filter(Boolean))].sort()
+}
+
+// ── ACCIONES ───────────────────────────────────────────────────────────────
+async function crearPlantilla() {
+  const nombre = prompt('Nombre de la plantilla (ej: "Cliente especial", "Mayorista"):')
+  if (!nombre || !nombre.trim()) return
+  const { data, error } = await supabase.from('plantillas_descuento').insert({
+    empresa_id: usuario.empresa_id, nombre: nombre.trim(),
+  }).select('id').single()
+  if (error) { alert('Error: ' + error.message); return }
+  await irDetalle(data.id)
+}
+
+async function renombrarPlantilla() {
+  const nombre = prompt('Nuevo nombre:', plantillaSel.nombre)
+  if (!nombre || !nombre.trim() || nombre.trim() === plantillaSel.nombre) return
+  const { error } = await supabase.from('plantillas_descuento')
+    .update({ nombre: nombre.trim() }).eq('id', plantillaSel.id)
+  if (error) { alert('Error: ' + error.message); return }
+  plantillaSel.nombre = nombre.trim()
+  render()
+}
+
+async function eliminarPlantilla() {
+  const usada = clientesAsignados.length
+  const msg = usada
+    ? `Esta plantilla está aplicada a ${usada} cliente${usada===1?'':'s'}. Al eliminar, ya no se aplicará. ¿Continuar?`
+    : `¿Eliminar la plantilla "${plantillaSel.nombre}" y todas sus reglas?`
+  if (!confirm(msg)) return
+  const { error } = await supabase.from('plantillas_descuento').delete().eq('id', plantillaSel.id)
+  if (error) { alert('Error: ' + error.message); return }
+  vista = 'lista'; plantillaSelId = null; plantillaSel = null
+  await cargarLista(); render()
+}
+
+async function eliminarRegla(id) {
+  if (!confirm('¿Eliminar esta regla?')) return
+  const { error } = await supabase.from('plantillas_descuento_reglas').delete().eq('id', id)
+  if (error) { alert('Error: ' + error.message); return }
+  await cargarDetalle(plantillaSel.id); render()
+}
+
+async function agregarReglaGrupo() {
+  const alc = nuevaRegla.alcance
+  const val = (nuevaRegla.alcance_valor || '').trim()
+  const pct = parseFloat(nuevaRegla.porcentaje)
+  if (alc !== 'todo' && !val) { alert('Falta el valor del alcance.'); return }
+  if (!nuevaRegla.excluye && !isFinite(pct)) { alert('Ingresá un porcentaje.'); return }
+  const { error } = await supabase.from('plantillas_descuento_reglas').insert({
+    plantilla_id: plantillaSel.id,
+    alcance: alc,
+    alcance_valor: alc === 'todo' ? null : val,
+    porcentaje: nuevaRegla.excluye ? 0 : pct,
+    excluye: !!nuevaRegla.excluye,
+  })
+  if (error) { alert('Error: ' + error.message); return }
+  nuevaRegla = { alcance:'todo', alcance_valor:'', porcentaje:'', excluye:false }
+  await cargarDetalle(plantillaSel.id); render()
+  toast('✓ Regla agregada')
+}
+
+async function agregarReglasProductos() {
+  const lista = listaSelector()
+  const ids = [...seleccionados].filter(id => productos.some(p => p.id === id))
+  if (!ids.length) { alert('No hay productos seleccionados.'); return }
+  const pct = parseFloat(pctSel)
+  if (!excluyeSel && !isFinite(pct)) { alert('Ingresá un porcentaje o marcá "Exclusión".'); return }
+  if (!confirm(`Agregar ${ids.length} regla${ids.length===1?'':'s'} a "${plantillaSel.nombre}"?`)) return
+  const filas = ids.map(id => ({
+    plantilla_id: plantillaSel.id,
+    alcance: 'producto',
+    alcance_valor: id,
+    porcentaje: excluyeSel ? 0 : pct,
+    excluye: !!excluyeSel,
+  }))
+  const { error } = await supabase.from('plantillas_descuento_reglas').insert(filas)
+  if (error) { alert('Error: ' + error.message); return }
+  seleccionados = new Set(); pctSel = ''; excluyeSel = false; busquedaSel = ''
+  filtros = { categoria:'', subcategoria:'', proveedor_id:'' }
+  await cargarDetalle(plantillaSel.id); render()
+  toast(`✓ ${ids.length} reglas agregadas`)
+}
+
+async function irDetalle(id) {
+  plantillaSelId = id; vista = 'detalle'
+  seleccionados = new Set(); busquedaSel = ''; pctSel = ''; excluyeSel = false
+  filtros = { categoria:'', subcategoria:'', proveedor_id:'' }
+  nuevaRegla = { alcance:'todo', alcance_valor:'', porcentaje:'', excluye:false }
+  modoAgregar = 'grupo'
+  render()
+  await Promise.all([cargarDetalle(id), cargarCatalogo()])
+  render()
+}
+
+function irLista() {
+  vista = 'lista'; plantillaSel = null; plantillaSelId = null
+  render()
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function nombreProducto(id) {
+  const p = productos.find(x => x.id === id)
+  return p ? p.nombre : id
+}
+
+function listaSelector() {
+  const q = busquedaSel.trim().toLowerCase()
+  return productos.filter(p => {
+    if (filtros.categoria    && (p.categoria || '') !== filtros.categoria) return false
+    if (filtros.subcategoria && (p.subcategoria || '') !== filtros.subcategoria) return false
+    if (filtros.proveedor_id && p.proveedor_id !== filtros.proveedor_id) return false
+    if (q && !(p.nombre.toLowerCase().includes(q)
+              || (p.categoria || '').toLowerCase().includes(q)
+              || (p.subcategoria || '').toLowerCase().includes(q))) return false
+    return true
+  }).slice(0, 300)
+}
+
+function subsDeCategoria() {
+  if (!filtros.categoria) return subcategorias
+  return [...new Set(productos.filter(p => (p.categoria || '') === filtros.categoria && p.subcategoria)
+    .map(p => p.subcategoria))].sort()
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById('root')
+  if (vista === 'lista') { renderLista(el); return }
+  renderDetalle(el)
+}
+
+function renderLista(el) {
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Plantillas de descuento</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+    <section>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;color:var(--ink-soft)">
+          ${plantillas.length} plantilla${plantillas.length===1?'':'s'}
+        </div>
+        <button class="btn-gold" onclick="window._crear()">＋ Nueva plantilla</button>
+      </div>
+      ${plantillas.length ? plantillas.map(p => `
+        <div class="card" onclick="window._abrir('${p.id}')" style="cursor:pointer">
+          <div class="top">
+            <div style="flex:1;min-width:0">
+              <div class="nm">${p.nombre}</div>
+              ${p.descripcion ? `<div class="sub">${p.descripcion}</div>` : ''}
+              <div class="sub">
+                <b>${p.reglas_count}</b> regla${p.reglas_count===1?'':'s'} ·
+                <b>${p.clientes_count}</b> cliente${p.clientes_count===1?'':'s'} usando
+              </div>
+            </div>
+            <span style="color:var(--ink-soft);font-size:18px">›</span>
+          </div>
+        </div>`).join('')
+        : `<div class="empty">Sin plantillas todavía. Creá la primera con el botón de arriba.</div>`}
+    </section>
+  `
+}
+
+function renderDetalle(el) {
+  if (!plantillaSel) { el.innerHTML = `<div class="loading">Cargando…</div>`; return }
+  const p = plantillaSel
+  el.innerHTML = `
+    <div class="hdr">
+      <button class="back" onclick="window._volver()">‹ Plantillas</button>
+      <div style="font-size:14px;font-weight:600">${p.nombre}</div>
+      <button class="back" onclick="window._renombrar()">✏</button>
+    </div>
+
+    <section>
+      <div class="lbl">Reglas (${p.reglas.length})</div>
+      ${p.reglas.length ? p.reglas.map(r => renderChipRegla(r)).join('') : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0">Sin reglas. Agregá al menos una abajo.</div>`}
+    </section>
+
+    <section style="border-top:1px solid var(--line-soft);padding-top:16px">
+      <div class="lbl">Agregar reglas</div>
+      <div class="tabs">
+        <div class="tab ${modoAgregar==='grupo'?'active':''}" onclick="window._setModo('grupo')">Por grupo (categoría/todos)</div>
+        <div class="tab ${modoAgregar==='productos'?'active':''}" onclick="window._setModo('productos')">Productos específicos</div>
+      </div>
+      ${modoAgregar === 'grupo' ? renderFormGrupo() : renderFormProductos()}
+    </section>
+
+    <section style="border-top:1px solid var(--line-soft);padding-top:16px">
+      <div class="lbl">Clientes con esta plantilla (${clientesAsignados.length})</div>
+      ${clientesAsignados.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${clientesAsignados.map(c => `<span class="chip" style="background:var(--gold-lt);color:var(--gold-dk)">${c.nombre}</span>`).join('')}</div>`
+        : `<div style="color:var(--ink-soft);font-size:13px">Ningún cliente la tiene aplicada. Asignala desde la ficha del cliente.</div>`}
+    </section>
+
+    <div class="bar">
+      <div class="bar-row">
+        <button class="btn-danger" onclick="window._eliminar()" style="flex:0;padding:12px 16px">🗑 Eliminar plantilla</button>
+      </div>
+    </div>
+  `
+  if (modoAgregar === 'productos') renderSelectorResultados()
+}
+
+function renderChipRegla(r) {
+  const cls = r.excluye ? 'excl' : (Number(r.porcentaje) < 0 ? 'recargo' : '')
+  const lbl = r.alcance === 'todo' ? 'Todos'
+    : r.alcance === 'producto' ? 'Producto: ' + nombreProducto(r.alcance_valor)
+    : r.alcance.charAt(0).toUpperCase() + r.alcance.slice(1) + ': ' + (r.alcance_valor || '')
+  const val = r.excluye ? 'EXCLUIR' : (Number(r.porcentaje) >= 0 ? '-' : '+') + Math.abs(Number(r.porcentaje)) + '%'
+  return `<div class="chip ${cls}" style="padding-right:6px">
+    ${lbl} · <b>${val}</b>
+    <button onclick="event.stopPropagation();window._delRegla('${r.id}')"
+      style="margin-left:6px;background:none;border:none;color:inherit;font-size:14px;cursor:pointer;padding:0 4px;font-family:inherit">×</button>
+  </div>`
+}
+
+function renderFormGrupo() {
+  const alc = nuevaRegla.alcance
+  return `
+    <div class="row3" style="margin-bottom:10px">
+      <select class="field" onchange="window._setAlcance(this.value)">
+        <option value="todo"         ${alc==='todo'?'selected':''}>Todos los productos</option>
+        <option value="categoria"    ${alc==='categoria'?'selected':''}>Categoría</option>
+        <option value="subcategoria" ${alc==='subcategoria'?'selected':''}>Subcategoría</option>
+      </select>
+      ${alc !== 'todo' ? `
+        <select class="field" onchange="window._setAlcVal(this.value)">
+          <option value="">— Elegir ${alc} —</option>
+          ${(alc === 'categoria' ? categorias : subcategorias).map(v => `<option value="${v}" ${nuevaRegla.alcance_valor===v?'selected':''}>${v}</option>`).join('')}
+        </select>` : '<div></div>'}
+      <div></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px;cursor:pointer">
+      <input type="checkbox" class="cb" ${nuevaRegla.excluye?'checked':''} onchange="window._setExcl(this.checked)">
+      Exclusión (0%, sobrescribe reglas más amplias)
+    </label>
+    ${!nuevaRegla.excluye ? `
+      <input class="field" type="number" step="0.1" value="${nuevaRegla.porcentaje}"
+        placeholder="Porcentaje (positivo = descuento, negativo = recargo)"
+        oninput="window._setPct(this.value)">` : ''}
+    <button class="btn-gold" style="margin-top:10px;width:100%" onclick="window._addGrupo()">Agregar regla</button>
+  `
+}
+
+function renderFormProductos() {
+  const lista = listaSelector()
+  return `
+    <div class="row3" style="margin-bottom:10px">
+      <select class="field" onchange="window._setFCat(this.value)">
+        <option value="">Todas las categorías</option>
+        ${categorias.map(c => `<option value="${c}" ${filtros.categoria===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select class="field" onchange="window._setFSub(this.value)" ${!filtros.categoria?'disabled':''}>
+        <option value="">Todas las subcategorías</option>
+        ${subsDeCategoria().map(s => `<option value="${s}" ${filtros.subcategoria===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select class="field" onchange="window._setFProv(this.value)">
+        <option value="">Todos los proveedores</option>
+        ${proveedores.map(pv => `<option value="${pv.id}" ${filtros.proveedor_id===pv.id?'selected':''}>${pv.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <input class="field" id="sel-busq" placeholder="Buscar por nombre…"
+      value="${busquedaSel}" oninput="window._setBusqSel(this.value)" autocomplete="off">
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+      <button id="sel-marcar" class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selMarcarLista()">
+        Marcar visibles
+      </button>
+      <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="window._selLimpiar()">
+        Limpiar
+      </button>
+      <span id="sel-count" style="font-size:12px;color:var(--ink-soft);margin-left:auto">${seleccionados.size} elegidos</span>
+    </div>
+    <div id="sel-resultados"
+      style="max-height:280px;overflow-y:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--card)"></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft)">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px;cursor:pointer">
+        <input type="checkbox" class="cb" ${excluyeSel?'checked':''} onchange="window._setExclSel(this.checked)">
+        Excluir estos productos (0%, aunque otra regla más amplia los cubra)
+      </label>
+      ${!excluyeSel ? `
+        <input class="field" type="number" step="0.1" value="${pctSel}"
+          placeholder="Porcentaje a aplicar (positivo = descuento, negativo = recargo)"
+          oninput="window._setPctSel(this.value)">` : ''}
+      <button class="btn-gold" style="margin-top:10px;width:100%" onclick="window._addProds()">
+        Agregar ${seleccionados.size} regla${seleccionados.size===1?'':'s'} de producto
+      </button>
+    </div>
+  `
+}
+
+function renderSelectorResultados() {
+  const box = document.getElementById('sel-resultados')
+  if (!box) return
+  const lista = listaSelector()
+  box.innerHTML = lista.length ? lista.map(p => {
+    const chk = seleccionados.has(p.id)
+    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:13px">
+      <input class="cb" type="checkbox" ${chk?'checked':''} onchange="window._selToggle('${p.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--ink-soft)">${p.categoria||'—'}${p.subcategoria?` · ${p.subcategoria}`:''} · costo ${ars(p.costo)} · precio ${ars(p.precio)}</div>
+      </div>
+    </label>`
+  }).join('') : `<div class="empty" style="padding:24px">Sin resultados.</div>`
+  const cnt = document.getElementById('sel-count'); if (cnt) cnt.textContent = `${seleccionados.size} elegidos`
+  const bm = document.getElementById('sel-marcar'); if (bm) bm.textContent = `Marcar los ${lista.length} visibles`
+}
+
+// ── EXPOSURE ───────────────────────────────────────────────────────────────
+window._crear = () => crearPlantilla()
+window._abrir = id => irDetalle(id)
+window._volver = () => irLista()
+window._renombrar = () => renombrarPlantilla()
+window._eliminar = () => eliminarPlantilla()
+window._delRegla = id => eliminarRegla(id)
+window._setModo = m => { modoAgregar = m; render() }
+
+window._setAlcance = v => { nuevaRegla.alcance = v; nuevaRegla.alcance_valor = ''; render() }
+window._setAlcVal  = v => { nuevaRegla.alcance_valor = v }
+window._setExcl    = v => { nuevaRegla.excluye = !!v; render() }
+window._setPct     = v => { nuevaRegla.porcentaje = v }
+window._addGrupo   = () => agregarReglaGrupo()
+
+window._setFCat  = v => { filtros.categoria = v; filtros.subcategoria = ''; render() }
+window._setFSub  = v => { filtros.subcategoria = v; render() }
+window._setFProv = v => { filtros.proveedor_id = v; render() }
+window._setBusqSel = v => { busquedaSel = v; renderSelectorResultados() }
+window._selToggle = id => {
+  if (seleccionados.has(id)) seleccionados.delete(id); else seleccionados.add(id)
+  renderSelectorResultados()
+}
+window._selLimpiar = () => { seleccionados = new Set(); renderSelectorResultados() }
+window._selMarcarLista = () => { listaSelector().forEach(p => seleccionados.add(p.id)); renderSelectorResultados() }
+window._setPctSel  = v => { pctSel = v }
+window._setExclSel = v => { excluyeSel = !!v; render() }
+window._addProds   = () => agregarReglasProductos()
+
+function toast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2000)
+}
+
+await cargarLista()
+render()
+</script>
+</body>
+</html>

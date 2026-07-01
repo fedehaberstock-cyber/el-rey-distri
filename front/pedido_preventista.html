@@ -580,34 +580,49 @@ async function cargarDescuentosCliente(cliId) {
   descuentosCliente = [];
   if (!cliId) return;
   try {
-    const { data, error } = await supabase.from('descuentos_cliente')
+    // 1) plantillas asignadas al cliente
+    const { data: cps, error: e1 } = await supabase.from('clientes_plantillas')
+      .select('plantilla_id').eq('cliente_id', cliId);
+    if (e1) throw e1;
+    const ids = (cps || []).map(x => x.plantilla_id);
+    if (!ids.length) return;
+    // 2) reglas de esas plantillas
+    const { data: rls, error: e2 } = await supabase.from('plantillas_descuento_reglas')
       .select('alcance, alcance_valor, porcentaje, excluye')
-      .eq('cliente_id', cliId);
-    if (error) throw error;
-    descuentosCliente = data || [];
+      .in('plantilla_id', ids);
+    if (e2) throw e2;
+    descuentosCliente = rls || [];
   } catch (e) {
     console.warn('[descuentos_cliente] error:', e.message || e);
     descuentosCliente = [];
   }
 }
 
-// Resuelve el % de descuento automático para un producto según reglas del cliente.
-// Prioridad: producto > subcategoria > categoria > todo.
-// Retorna { pct, esAuto } — si no aplica, pct=0 y esAuto=false.
+// Resuelve el % de descuento automático para un producto.
+// Prioridad de alcance: producto > subcategoria > categoria > todo.
+// Si en un mismo nivel hay varias reglas (varias plantillas), gana:
+//   - Exclusión > cualquier % (exclusión bloquea)
+//   - Mayor porcentaje (más beneficio al cliente)
 function resolverDescuento(p) {
   if (!p || !descuentosCliente.length) return { pct: 0, esAuto: false };
   const cat = (p.categoria || '').trim();
   const sub = (p.subcategoria || '').trim();
-  // Buscar en orden de especificidad
-  const buscar = (alcance, valor) =>
-    descuentosCliente.find(d => d.alcance === alcance && (alcance === 'todo' || (d.alcance_valor || '').trim() === valor));
-  let regla = buscar('producto', String(p.id));
-  if (!regla && sub) regla = buscar('subcategoria', sub);
-  if (!regla && cat) regla = buscar('categoria', cat);
-  if (!regla)         regla = buscar('todo', '');
-  if (!regla) return { pct: 0, esAuto: false };
-  if (regla.excluye)  return { pct: 0, esAuto: true };  // marca "auto excluido"
-  return { pct: Number(regla.porcentaje) || 0, esAuto: true };
+  const pid = String(p.id);
+  const buscarNivel = (alcance, valor) =>
+    descuentosCliente.filter(d =>
+      d.alcance === alcance &&
+      (alcance === 'todo' || (d.alcance_valor || '').trim() === valor));
+  const elegirMejor = arr => {
+    if (!arr.length) return null;
+    if (arr.some(d => d.excluye)) return { pct: 0, esAuto: true };
+    const pct = Math.max(...arr.map(d => Number(d.porcentaje) || 0));
+    return { pct, esAuto: true };
+  };
+  let res = elegirMejor(buscarNivel('producto', pid));
+  if (!res && sub) res = elegirMejor(buscarNivel('subcategoria', sub));
+  if (!res && cat) res = elegirMejor(buscarNivel('categoria', cat));
+  if (!res)         res = elegirMejor(buscarNivel('todo', ''));
+  return res || { pct: 0, esAuto: false };
 }
 
 async function cargarSugerencias(cliId) {

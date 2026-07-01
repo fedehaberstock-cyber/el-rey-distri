@@ -192,13 +192,10 @@ let nuevoForm = {nombre:'', dir:'', tel:'', zona_id:'', posicion_zona:''};
 let zonasList = [];
 let editandoZona = false; // panel editar zona/posición de un cliente
 
-// Descuentos automáticos por cliente
-let descuentosCli = [];   // reglas del cliente actual [{id, alcance, alcance_valor, porcentaje, excluye}]
+// Plantillas de descuento (reutilizables entre clientes)
+let plantillasAll = [];      // [{id, nombre, descripcion, reglas_count}]
+let plantillasCliIds = new Set();  // ids de plantillas asignadas al cliente actual
 let descPanelOpen = false;
-let descNueva = { alcance:'todo', alcance_valor:'', porcentaje:'', excluye:false };
-let catalogoCats = [];    // ['Analgésicos', ...]
-let catalogoSubs = [];    // ['Ibuprofeno oral', ...]
-let catalogoProds = [];   // [{id, nombre, categoria, subcategoria}]
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 // adapter al formato del mockup: pago se muestra como negativo
@@ -324,77 +321,35 @@ function render(){
   if(descPanelOpen) renderDescuentosPanel();
 }
 
-function resolveAlcanceLabel(d) {
-  if (d.alcance === 'producto') {
-    const p = catalogoProds.find(x => x.id === d.alcance_valor);
-    return p ? p.nombre : (d.alcance_valor || '');
-  }
-  return d.alcance_valor || '';
-}
-
 function renderDescuentosPanel() {
   const c = clientes.find(x => x.id === cliSelId);
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.onclick = e => { if (e.target === ov) window.cerrarDescuentos(); };
-  const alc = descNueva.alcance;
-  const opcionesValor = alc === 'categoria' ? catalogoCats
-    : alc === 'subcategoria' ? catalogoSubs
-    : alc === 'producto' ? catalogoProds
-    : [];
   ov.innerHTML = `
     <div class="cobro-panel" style="max-height:88vh;overflow-y:auto">
-      <h3>Descuentos automáticos</h3>
-      <p>${c?.nombre || ''} — se aplican al agregar productos en el pedido.</p>
+      <h3>Plantillas asignadas</h3>
+      <p>${c?.nombre || ''} — marcá las plantillas que se aplican a este cliente.</p>
 
-      <div style="margin-bottom:18px">
-        ${descuentosCli.length ? descuentosCli.map(d => `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:6px">
-            <div style="flex:1;min-width:0;font-size:13px">
-              <b>${d.alcance==='todo'?'Todos los productos':d.alcance}</b>${d.alcance!=='todo'?` · ${resolveAlcanceLabel(d)}`:''}<br>
-              <span style="color:${d.excluye?'var(--red-tx,#A8392B)':(Number(d.porcentaje)<0?'var(--red-tx,#A8392B)':'var(--gold-dk)')};font-weight:700">
-                ${d.excluye ? 'EXCLUIR (0%)' : (Number(d.porcentaje)>=0 ? 'Descuento ' : 'Recargo ') + Math.abs(Number(d.porcentaje)) + '%'}
-              </span>
+      <div style="margin-bottom:16px">
+        ${plantillasAll.length ? plantillasAll.map(pl => {
+          const chk = plantillasCliIds.has(pl.id);
+          return `<label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${chk?'var(--gold)':'var(--line)'};border-radius:10px;margin-bottom:8px;cursor:pointer;background:${chk?'var(--gold-lt)':'var(--card)'}">
+            <input type="checkbox" ${chk?'checked':''} onchange="window.togglePlantillaCli('${pl.id}', this.checked)"
+              style="width:20px;height:20px;accent-color:var(--gold)">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600">${pl.nombre}</div>
+              <div style="font-size:11px;color:var(--ink-soft)">${pl.reglas_count} regla${pl.reglas_count===1?'':'s'}${pl.descripcion?' · '+pl.descripcion:''}</div>
             </div>
-            <button onclick="window.eliminarDescuento('${d.id}')" style="background:none;border:none;color:var(--red-tx,#A8392B);font-size:18px;cursor:pointer;padding:4px 8px;font-family:inherit" title="Eliminar">🗑</button>
-          </div>`).join('') : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0">Sin reglas todavía.</div>`}
+          </label>`;
+        }).join('') : `<div style="color:var(--ink-soft);font-size:13px;padding:10px 0">
+          Todavía no hay plantillas. Creá una desde el menú <b>Plantillas de descuento</b>.
+        </div>`}
       </div>
 
-      <div style="border-top:1px solid var(--line);padding-top:14px">
-        <div style="font-size:12px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Nueva regla</div>
-
-        <label style="display:block;font-size:12px;margin-bottom:4px">Alcance</label>
-        <select class="field" onchange="window.setDescAlcance(this.value)">
-          <option value="todo"         ${alc==='todo'?'selected':''}>Todos los productos</option>
-          <option value="categoria"    ${alc==='categoria'?'selected':''}>Categoría</option>
-          <option value="subcategoria" ${alc==='subcategoria'?'selected':''}>Subcategoría</option>
-          <option value="producto"     ${alc==='producto'?'selected':''}>Producto específico</option>
-        </select>
-
-        ${alc !== 'todo' ? `
-          <label style="display:block;font-size:12px;margin:10px 0 4px">Valor</label>
-          <select class="field" onchange="window.setDescValor(this.value)">
-            <option value="">— Elegir ${alc} —</option>
-            ${alc === 'producto'
-              ? opcionesValor.map(p => `<option value="${p.id}" ${descNueva.alcance_valor===p.id?'selected':''}>${p.nombre}</option>`).join('')
-              : opcionesValor.map(v => `<option value="${v}" ${descNueva.alcance_valor===v?'selected':''}>${v}</option>`).join('')}
-          </select>` : ''}
-
-        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;cursor:pointer">
-          <input type="checkbox" ${descNueva.excluye?'checked':''} onchange="window.setDescExcluye(this.checked)"
-            style="width:18px;height:18px;accent-color:var(--gold)">
-          Exclusión (no aplicar descuento a este alcance)
-        </label>
-
-        ${!descNueva.excluye ? `
-          <label style="display:block;font-size:12px;margin:10px 0 4px">Porcentaje (positivo = descuento, negativo = recargo)</label>
-          <input class="field" type="number" step="0.1" value="${descNueva.porcentaje}"
-            placeholder="Ej: 5 ó -3" oninput="window.setDescPct(this.value)">` : ''}
-
-        <div style="display:flex;gap:10px;margin-top:14px">
-          <button class="bar-btn" style="flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line)" onclick="window.cerrarDescuentos()">Cerrar</button>
-          <button class="bar-btn" style="flex:1" onclick="window.agregarDescuento()">Agregar regla</button>
-        </div>
+      <div style="display:flex;gap:10px">
+        <button class="bar-btn" style="flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line)" onclick="window.irPlantillas()">Administrar plantillas ›</button>
+        <button class="bar-btn" style="flex:1" onclick="window.cerrarDescuentos()">Listo</button>
       </div>
     </div>`;
   document.getElementById('root').appendChild(ov);
@@ -511,14 +466,14 @@ function renderDetalle(){
     </div>
     ${tienePermiso('clientes','admin') ? `
     <div class="sec-lbl" style="display:flex;justify-content:space-between;align-items:center">
-      <span>Descuentos automáticos</span>
-      <button onclick="window.abrirDescuentos()" style="background:none;border:none;color:var(--gold);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✏ Editar</button>
+      <span>Plantillas de descuento</span>
+      <button onclick="window.abrirDescuentos()" style="background:none;border:none;color:var(--gold);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✏ Asignar</button>
     </div>
     <div style="padding:0 18px 12px">
-      ${descuentosCli.length ? descuentosCli.map(d => `
-        <div style="display:inline-block;background:#E7EEF7;color:#2A5A8A;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;margin:0 6px 6px 0">
-          ${d.excluye ? '✕ ' : ''}${d.alcance==='todo'?'Todos':d.alcance}${d.alcance!=='todo'?': '+resolveAlcanceLabel(d):''}${d.excluye?' (excluir)':` ${Number(d.porcentaje)>=0?'-':'+'}${Math.abs(Number(d.porcentaje))}%`}
-        </div>`).join('') : `<div style="color:var(--ink-soft);font-size:13px">Sin reglas. Los precios se aplican tal cual.</div>`}
+      ${plantillasCliIds.size ? [...plantillasCliIds].map(pid => {
+        const pl = plantillasAll.find(p => p.id === pid);
+        return `<div style="display:inline-block;background:var(--gold-lt);color:var(--gold-dk);padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;margin:0 6px 6px 0">${pl?.nombre || '?'}</div>`;
+      }).join('') : `<div style="color:var(--ink-soft);font-size:13px">Sin plantillas. Los precios se aplican tal cual.</div>`}
     </div>` : ''}
     <div class="sec-lbl">Boletas</div>
     <div class="movs">
@@ -875,74 +830,55 @@ async function guardarCliente(){
 // ── NAVEGACIÓN ────────────────────────────────────────────────────────
 function irLista()          { vista='lista'; cobroOpen=false; busqueda=''; render(); }
 async function irDetalle(id){
-  cliSelId=id; vista='detalle'; descPanelOpen=false; descuentosCli=[]; render();
+  cliSelId=id; vista='detalle'; descPanelOpen=false; render();
   const tareas = []
   if (!movsCache[id]) tareas.push(cargarMovimientos(id))
   if (!boletasCache[id]) tareas.push(cargarBoletasCliente(id))
-  tareas.push(cargarDescuentosCli(id))
-  if (!catalogoProds.length) tareas.push(cargarCatalogo())
+  tareas.push(cargarPlantillasCli(id))
+  if (!plantillasAll.length) tareas.push(cargarPlantillasAll())
   if (tareas.length) {
     await Promise.all(tareas)
     if (vista==='detalle' && cliSelId===id) render();
   }
 }
 
-async function cargarDescuentosCli(cliId) {
-  const { data, error } = await supabase
-    .from('descuentos_cliente')
-    .select('id, alcance, alcance_valor, porcentaje, excluye')
-    .eq('cliente_id', cliId)
-    .order('created_at');
-  descuentosCli = error ? [] : (data || []);
+async function cargarPlantillasAll() {
+  const [{ data: pls }, { data: reglas }] = await Promise.all([
+    supabase.from('plantillas_descuento').select('id, nombre, descripcion')
+      .eq('empresa_id', usuarioActual.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('plantillas_descuento_reglas').select('plantilla_id'),
+  ]);
+  const cnt = {};
+  for (const r of (reglas || [])) cnt[r.plantilla_id] = (cnt[r.plantilla_id] || 0) + 1;
+  plantillasAll = (pls || []).map(p => ({ ...p, reglas_count: cnt[p.id] || 0 }));
 }
 
-async function cargarCatalogo() {
-  const { data, error } = await supabase.from('productos')
-    .select('id, nombre, categoria, subcategoria')
-    .eq('activo', true)
-    .order('nombre');
-  if (error) return;
-  catalogoProds = data || [];
-  catalogoCats  = [...new Set(catalogoProds.map(p => (p.categoria||'').trim()).filter(Boolean))].sort();
-  catalogoSubs  = [...new Set(catalogoProds.map(p => (p.subcategoria||'').trim()).filter(Boolean))].sort();
+async function cargarPlantillasCli(cliId) {
+  const { data, error } = await supabase.from('clientes_plantillas')
+    .select('plantilla_id').eq('cliente_id', cliId);
+  plantillasCliIds = new Set(error ? [] : (data || []).map(x => x.plantilla_id));
 }
 
-async function agregarDescuento() {
-  const alc = descNueva.alcance;
-  const val = (descNueva.alcance_valor || '').trim();
-  const pct = parseFloat(descNueva.porcentaje);
-  if (alc !== 'todo' && !val) { alert('Falta el valor del alcance.'); return; }
-  if (!descNueva.excluye && !isFinite(pct)) { alert('Ingresá un porcentaje.'); return; }
-  const { error } = await supabase.from('descuentos_cliente').insert({
-    empresa_id: usuarioActual.empresa_id,
-    cliente_id: cliSelId,
-    alcance: alc,
-    alcance_valor: alc === 'todo' ? null : val,
-    porcentaje: descNueva.excluye ? 0 : pct,
-    excluye: !!descNueva.excluye,
-  });
-  if (error) { alert('Error: ' + error.message); return; }
-  descNueva = { alcance:'todo', alcance_valor:'', porcentaje:'', excluye:false };
-  await cargarDescuentosCli(cliSelId);
+async function togglePlantillaCli(plantillaId, checked) {
+  if (checked) {
+    const { error } = await supabase.from('clientes_plantillas').insert({
+      cliente_id: cliSelId, plantilla_id: plantillaId,
+    });
+    if (error) { alert('Error: ' + error.message); return; }
+    plantillasCliIds.add(plantillaId);
+  } else {
+    const { error } = await supabase.from('clientes_plantillas').delete()
+      .eq('cliente_id', cliSelId).eq('plantilla_id', plantillaId);
+    if (error) { alert('Error: ' + error.message); return; }
+    plantillasCliIds.delete(plantillaId);
+  }
   render();
 }
 
-async function eliminarDescuento(id) {
-  if (!confirm('¿Eliminar esta regla?')) return;
-  const { error } = await supabase.from('descuentos_cliente').delete().eq('id', id);
-  if (error) { alert('Error: ' + error.message); return; }
-  await cargarDescuentosCli(cliSelId);
-  render();
-}
-
-window.abrirDescuentos    = () => { descPanelOpen = true; render(); };
-window.cerrarDescuentos   = () => { descPanelOpen = false; render(); };
-window.setDescAlcance     = v => { descNueva.alcance = v; descNueva.alcance_valor = ''; render(); };
-window.setDescValor       = v => { descNueva.alcance_valor = v; };
-window.setDescPct         = v => { descNueva.porcentaje = v; };
-window.setDescExcluye     = v => { descNueva.excluye = !!v; render(); };
-window.agregarDescuento   = () => agregarDescuento();
-window.eliminarDescuento  = id => eliminarDescuento(id);
+window.abrirDescuentos  = () => { descPanelOpen = true; render(); };
+window.cerrarDescuentos = () => { descPanelOpen = false; render(); };
+window.togglePlantillaCli = (id, chk) => togglePlantillaCli(id, chk);
+window.irPlantillas = () => { location.href = './descuentos.html'; };
 
 async function cargarBoletasCliente(cliId) {
   const { data, error } = await supabase
