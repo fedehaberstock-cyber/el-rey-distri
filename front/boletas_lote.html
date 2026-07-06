@@ -139,7 +139,7 @@ const { data: boletas, error } = await supabase
   .select(`
     id, total, saldo_anterior, total_a_cobrar, fecha, pedido_id,
     pedidos (
-      id, descuento, observaciones,
+      id, descuento, observaciones, cliente_id,
       usuarios!pedidos_usuario_id_fkey(nombre),
       clientes(nombre, direccion, telefono),
       pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, productos(nombre))
@@ -152,6 +152,24 @@ if (error) {
   throw error
 }
 
+// Recalcular saldo dinámicamente para cada boleta: pagos posteriores a la fecha
+// del pedido reducen saldo_anterior y total_a_cobrar mostrados.
+const cliIds = [...new Set(boletas.map(b => b.pedidos?.cliente_id).filter(Boolean))]
+if (cliIds.length) {
+  const { data: pagos } = await supabase.from('mov_cuenta')
+    .select('cliente_id, monto, fecha')
+    .in('cliente_id', cliIds)
+    .eq('tipo', 'pago')
+    .limit(20000)
+  for (const b of boletas) {
+    const cli = b.pedidos?.cliente_id
+    if (!cli || !b.fecha) { b.pagos_posteriores = 0; continue }
+    b.pagos_posteriores = (pagos || [])
+      .filter(m => m.cliente_id === cli && m.fecha > b.fecha)
+      .reduce((s, m) => s + Math.abs(Number(m.monto) || 0), 0)
+  }
+}
+
 // Ordenar respetando el orden recibido por URL
 const byPedidoId = new Map(boletas.map(b => [b.pedido_id, b]))
 const ordenadas = pedidoIds.map(id => byPedidoId.get(id)).filter(Boolean)
@@ -162,9 +180,12 @@ function renderBoleta(boleta) {
   const items = ped?.pedido_items || []
   const prev = ped?.usuarios?.nombre || ''
   const desc = Number(ped?.descuento || 0)
-  const saldoAnt = Number(boleta.saldo_anterior) || 0
+  const saldoAntFrozen = Number(boleta.saldo_anterior) || 0
   const total = Number(boleta.total) || 0
-  const totalCobrar = Number(boleta.total_a_cobrar) || 0
+  const totalCobrarFrozen = Number(boleta.total_a_cobrar) || 0
+  const pagosPost = Number(boleta.pagos_posteriores) || 0
+  const saldoAnt    = Math.max(0, saldoAntFrozen - pagosPost)
+  const totalCobrar = Math.max(0, totalCobrarFrozen - pagosPost)
   const numCorto = boleta.id.slice(-4).toUpperCase()
   const subtotal = items.reduce((s, it) => s + Number(it.cantidad) * Number(it.precio_unit), 0)
   const descMonto = desc > 0 ? subtotal * desc / 100 : 0

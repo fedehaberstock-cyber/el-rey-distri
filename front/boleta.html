@@ -186,7 +186,7 @@ async function cargarBoleta() {
     .select(`
       id, total, saldo_anterior, total_a_cobrar, estado, fecha,
       pedidos (
-        id, descuento, observaciones,
+        id, descuento, observaciones, cliente_id,
         usuarios!pedidos_usuario_id_fkey(nombre),
         clientes(nombre, direccion, telefono),
         pedido_items(
@@ -199,6 +199,22 @@ async function cargarBoleta() {
     .single()
   if (error) throw error
   boleta = data
+
+  // Recalcular saldo dinámicamente: pagos posteriores a la fecha del pedido
+  // reducen el saldo anterior y total a cobrar mostrados en la boleta.
+  boleta.pagos_posteriores = 0
+  const cliId = data?.pedidos?.cliente_id
+  if (cliId && data.fecha) {
+    const { data: pagos } = await supabase.from('mov_cuenta')
+      .select('monto, fecha')
+      .eq('cliente_id', cliId)
+      .eq('tipo', 'pago')
+      .gt('fecha', data.fecha)
+      .limit(5000)
+    // los pagos suelen guardarse con monto negativo (contribuyen a reducir el saldo)
+    const suma = (pagos || []).reduce((s, m) => s + Math.abs(Number(m.monto) || 0), 0)
+    boleta.pagos_posteriores = suma
+  }
 }
 
 const fmtF = s => {
@@ -218,9 +234,14 @@ function render() {
   const items = ped?.pedido_items || []
   const prev = ped?.usuarios?.nombre || ''
   const desc = Number(ped?.descuento || 0)
-  const saldoAnt = Number(boleta.saldo_anterior) || 0
+  const saldoAntFrozen = Number(boleta.saldo_anterior) || 0
   const total = Number(boleta.total) || 0
-  const totalCobrar = Number(boleta.total_a_cobrar) || 0
+  const totalCobrarFrozen = Number(boleta.total_a_cobrar) || 0
+  const pagosPost = Number(boleta.pagos_posteriores) || 0
+  // Aplicar pagos posteriores: primero reducen saldo anterior, remanente reduce total a cobrar
+  const saldoAnt    = Math.max(0, saldoAntFrozen - pagosPost)
+  const totalCobrar = Math.max(0, totalCobrarFrozen - pagosPost)
+  const huboPago    = pagosPost > 0 && (saldoAnt !== saldoAntFrozen || totalCobrar !== totalCobrarFrozen)
   const numCorto = boleta.id.slice(-4).toUpperCase()
 
   const subtotal = items.reduce((s, it) => s + Number(it.cantidad) * Number(it.precio_unit), 0)
@@ -315,6 +336,10 @@ function render() {
     ${ped?.observaciones ? `
     <div class="bol-obs">
       <span class="bol-obs-lbl">📝 Obs.:</span> ${ped.observaciones}
+    </div>` : ''}
+    ${huboPago ? `
+    <div class="nota-saldo no-print" style="background:var(--green-bg,#E7F0E8);color:var(--green-tx,#2C6B3F)">
+      ✓ Se aplicaron ${ars(pagosPost)} de pagos posteriores. Los importes ya están actualizados.
     </div>` : ''}
     ${tieneSaldo ? `
     <div class="nota-saldo no-print">

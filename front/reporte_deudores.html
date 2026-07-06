@@ -286,7 +286,14 @@ function render() {
     const aging = agingDe(c.id);
     const nivel = nivelDeudaAging(aging);
     return { ...c, saldo, dias, nivel, aging };
-  }).filter(c => c.saldo > 0).sort((a, b) => b.saldo - a.saldo);
+  }).filter(c => c.saldo > 0)
+    // ordenar por antigüedad de la deuda (más viejo primero); a igual antigüedad, mayor saldo primero
+    .sort((a, b) => {
+      const fa = a.aging?.masViejo || '9999-12-31';
+      const fb = b.aging?.masViejo || '9999-12-31';
+      if (fa !== fb) return fa.localeCompare(fb);   // más viejo (fecha menor) primero
+      return b.saldo - a.saldo;
+    });
 
   const filtrados = datos.filter(c => {
     if (filtro !== 'todos' && c.nivel !== filtro) return false;
@@ -351,7 +358,14 @@ function renderDeudList() {
     const aging = agingDe(c.id);
     const nivel = nivelDeudaAging(aging);
     return { ...c, saldo, dias, nivel, aging };
-  }).filter(c => c.saldo > 0).sort((a, b) => b.saldo - a.saldo);
+  }).filter(c => c.saldo > 0)
+    // ordenar por antigüedad de la deuda (más viejo primero); a igual antigüedad, mayor saldo primero
+    .sort((a, b) => {
+      const fa = a.aging?.masViejo || '9999-12-31';
+      const fb = b.aging?.masViejo || '9999-12-31';
+      if (fa !== fb) return fa.localeCompare(fb);   // más viejo (fecha menor) primero
+      return b.saldo - a.saldo;
+    });
   const filtrados = datos.filter(c => {
     if (filtro !== 'todos' && c.nivel !== filtro) return false;
     if (busqueda.trim() && !c.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
