@@ -169,30 +169,51 @@ let vistaDetalle = 'movs';
 let guardandoCobro = false;
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
+// Estrategia: saldo se obtiene de la vista saldo_actual (server-side, sin límite
+// de filas). Solo los deudores (saldo > 0) se listan; sus movimientos se traen
+// para calcular aging FIFO y detalles.
+let saldoMap = {};   // cliente_id -> saldo
+
 async function cargarTodo() {
-  const [{ data: clis, error: errC }, { data: movs, error: errM }] = await Promise.all([
+  const [{ data: clis, error: errC }, { data: sal, error: errS }] = await Promise.all([
     supabase.from('clientes')
       .select('id, nombre, telefono, direccion')
       .eq('empresa_id', usuario.empresa_id)
       .order('nombre'),
-    supabase.from('mov_cuenta')
-      .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, referencia_tipo')
-      .eq('empresa_id', usuario.empresa_id)
-      .order('fecha', { ascending: false }),
+    supabase.from('saldo_actual').select('cliente_id, saldo'),
   ]);
-
-  if (errC || errM) {
+  if (errC || errS) {
     document.getElementById('root').innerHTML =
-      `<div class="err-box">Error al cargar datos: ${(errC || errM).message}</div>`;
+      `<div class="err-box">Error al cargar datos: ${(errC || errS).message}</div>`;
     return;
   }
   clientes = clis || [];
-  movimientos = movs || [];
+  saldoMap = {};
+  for (const r of (sal || [])) saldoMap[r.cliente_id] = Number(r.saldo) || 0;
+
+  // Traer movimientos SOLO de los deudores actuales (para aging y detalle)
+  const deudoresIds = Object.keys(saldoMap).filter(id => saldoMap[id] > 0);
+  if (deudoresIds.length) {
+    const { data: movs, error: errM } = await supabase.from('mov_cuenta')
+      .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, referencia_tipo')
+      .eq('empresa_id', usuario.empresa_id)
+      .in('cliente_id', deudoresIds)
+      .order('fecha', { ascending: false })
+      .limit(50000);
+    if (errM) {
+      document.getElementById('root').innerHTML =
+        `<div class="err-box">Error al cargar movimientos: ${errM.message}</div>`;
+      return;
+    }
+    movimientos = movs || [];
+  } else {
+    movimientos = [];
+  }
   render();
 }
 
 // ── HELPERS CÁLCULO ────────────────────────────────────────────────────────
-const saldoDe = id => movimientos.filter(m => m.cliente_id === id).reduce((s, m) => s + m.monto, 0);
+const saldoDe = id => saldoMap[id] || 0;
 
 const ultimoPago = id => {
   const pagos = movimientos.filter(m => m.cliente_id === id && m.tipo === 'pago')
