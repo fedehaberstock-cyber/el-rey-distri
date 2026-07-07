@@ -1098,45 +1098,140 @@ async function confirmarPanel() {
 window._setTab            = t  => { tab = t; filtroGrupo = 'todo'; busqueda = ''; vista = 'lista'; render(); };
 window._setBusqueda       = v  => { busqueda = v; renderStockList(); };
 
-// Genera texto WhatsApp con productos en stock agrupados por categoría.
-// Si u_bulto > 1 usa el precio unitario final del bulto (con desc_bulto aplicado).
-window._abrirListaPrecios = () => {
-  const conStock = productos
-    .filter(p => p.stock > 0 && p.precio > 0)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-  if (!conStock.length) { alert('No hay productos con stock disponible.'); return; }
+// Opciones persistentes durante la sesión del modal
+let _lpOpts = { modo:'unidad', soloConStock:true, excluidas:new Set(), diasRec:7, soloRec:false };
+
+function _lpGenerarTexto() {
+  const hoy = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Cordoba' });
+  const cutoff = _lpOpts.diasRec > 0
+    ? new Date(Date.now() - _lpOpts.diasRec * 86400000).toISOString().slice(0,10)
+    : null;
+
+  let lista = productos.filter(p => {
+    if (p.precio <= 0) return false;
+    if (_lpOpts.soloConStock && p.stock <= 0) return false;
+    if (_lpOpts.excluidas.has(p.cat)) return false;
+    if (_lpOpts.soloRec) {
+      if (!cutoff || !p.ultimo_cambio_costo) return false;
+      if (p.ultimo_cambio_costo < cutoff) return false;
+    }
+    return true;
+  }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+
+  if (!lista.length) {
+    return { txt: '(Sin productos que coincidan con las opciones seleccionadas.)', count: 0 };
+  }
 
   const porCat = new Map();
-  for (const p of conStock) {
+  for (const p of lista) {
     const arr = porCat.get(p.cat) || [];
     arr.push(p);
     porCat.set(p.cat, arr);
   }
   const cats = [...porCat.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
 
-  const hoy = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Cordoba' });
-  let txt = `*📋 Lista de precios — El Rey*\n${hoy}\n`;
-  for (const [cat, lista] of cats) {
+  const titulo = _lpOpts.soloRec
+    ? `*📈 Aumentos recientes (${_lpOpts.diasRec}d) — El Rey*`
+    : `*📋 Lista de precios — El Rey*`;
+  let txt = `${titulo}\n${hoy}\n`;
+  for (const [cat, arr] of cats) {
     txt += `\n*${cat}*\n`;
-    for (const p of lista) {
-      const precioFinal = p.u_bulto > 1
-        ? Math.round(p.precio * (1 - (p.desc_bulto || 0) / 100))
-        : p.precio;
-      txt += `• ${p.nombre} — ${ars(precioFinal)}\n`;
+    for (const p of arr) {
+      let precioFinal;
+      let sufijo = '';
+      if (_lpOpts.modo === 'bulto' && p.u_bulto > 1) {
+        // precio de bulto: precio unit * u_bulto * (1 - desc_bulto)
+        precioFinal = Math.round(p.precio * p.u_bulto * (1 - (p.desc_bulto || 0) / 100));
+        sufijo = ` (bulto ${p.u_bulto}u)`;
+      } else {
+        precioFinal = p.precio;
+      }
+      const marca = (!_lpOpts.soloRec && cutoff && p.ultimo_cambio_costo && p.ultimo_cambio_costo >= cutoff) ? '📈 ' : '';
+      txt += `• ${marca}${p.nombre}${sufijo} — ${ars(precioFinal)}\n`;
     }
   }
+  return { txt, count: lista.length };
+}
+
+function _lpActualizarTexto() {
+  const { txt, count } = _lpGenerarTexto();
+  const ta = document.getElementById('lp-txt');
+  if (ta) ta.value = txt;
+  const cnt = document.getElementById('lp-count');
+  if (cnt) cnt.textContent = `${count} producto${count===1?'':'s'}`;
+}
+
+window._lpSetModo   = v => { _lpOpts.modo = v; document.querySelectorAll('.lp-modo').forEach(x => x.classList.toggle('active', x.dataset.v===v)); _lpActualizarTexto(); };
+window._lpSetStock  = v => { _lpOpts.soloConStock = v === '1'; document.querySelectorAll('.lp-stock').forEach(x => x.classList.toggle('active', x.dataset.v===v)); _lpActualizarTexto(); };
+window._lpToggleCat = c => {
+  if (_lpOpts.excluidas.has(c)) _lpOpts.excluidas.delete(c); else _lpOpts.excluidas.add(c);
+  const b = document.querySelector(`.lp-cat[data-c="${CSS.escape(c)}"]`);
+  if (b) { b.classList.toggle('excluida', _lpOpts.excluidas.has(c)); }
+  _lpActualizarTexto();
+};
+window._lpSetDias   = v => { _lpOpts.diasRec = Math.max(0, parseInt(v) || 0); _lpActualizarTexto(); };
+window._lpSetSoloRec= v => { _lpOpts.soloRec = v; document.querySelectorAll('.lp-rec').forEach(x => x.classList.toggle('active', x.dataset.v===(v?'1':'0'))); _lpActualizarTexto(); };
+
+window._abrirListaPrecios = () => {
+  // reset a defaults
+  _lpOpts = { modo:'unidad', soloConStock:true, excluidas:new Set(), diasRec:7, soloRec:false };
+  const cats = [...new Set(productos.filter(p => p.precio > 0).map(p => p.cat))]
+    .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const chip = (cls, dataV, active, label) =>
+    `<button class="${cls} chip" data-v="${dataV}" onclick="window._${cls==='lp-modo'?'lpSetModo':cls==='lp-stock'?'lpSetStock':'lpSetSoloRec'}('${dataV}'${cls==='lp-rec'?')':')'}"
+      style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:${active?'var(--gold)':'var(--card)'};color:${active?'#fff':'var(--ink-soft)'};font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">${label}</button>`;
 
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
   ov.innerHTML = `
-    <div class="panel" style="max-height:85vh;display:flex;flex-direction:column">
+    <div class="panel" style="max-height:90vh;display:flex;flex-direction:column;overflow-y:auto">
       <h3>Lista para compartir</h3>
-      <p class="sub">${conStock.length} productos con stock</p>
+      <p class="sub" id="lp-count">…</p>
+
+      <label class="fl" style="margin-top:0">Precios</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="lp-modo chip active" data-v="unidad" onclick="window._lpSetModo('unidad')"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--gold);color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Por unidad</button>
+        <button class="lp-modo chip" data-v="bulto" onclick="window._lpSetModo('bulto')"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Por bulto</button>
+      </div>
+
+      <label class="fl">Alcance</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="lp-stock chip active" data-v="1" onclick="window._lpSetStock('1')"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--gold);color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Solo con stock</button>
+        <button class="lp-stock chip" data-v="0" onclick="window._lpSetStock('0')"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Todos</button>
+      </div>
+
+      <label class="fl">Categorías (tocá para excluir)</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${cats.map(c => `<button class="lp-cat chip" data-c="${c}" onclick="window._lpToggleCat('${c.replace(/'/g,"\\'")}')"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:600;font-size:12px;cursor:pointer;font-family:inherit">${c}</button>`).join('')}
+      </div>
+
+      <label class="fl">Aumentos recientes</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:13px;color:var(--ink-soft)">Últimos</span>
+        <input type="number" min="0" value="${_lpOpts.diasRec}" oninput="window._lpSetDias(this.value)"
+          style="width:70px;padding:8px;border:1px solid var(--line);border-radius:8px;text-align:center;font-family:inherit">
+        <span style="font-size:13px;color:var(--ink-soft)">días</span>
+        <button class="lp-rec chip active" data-v="0" onclick="window._lpSetSoloRec(false)"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--gold);color:#fff;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;margin-left:auto">Marcar 📈</button>
+        <button class="lp-rec chip" data-v="1" onclick="window._lpSetSoloRec(true)"
+          style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-weight:600;font-size:12px;cursor:pointer;font-family:inherit">Solo esos</button>
+      </div>
+
+      <label class="fl">Vista previa</label>
       <textarea id="lp-txt" readonly
-        style="flex:1;min-height:280px;padding:12px;border:1px solid var(--line);border-radius:10px;
+        style="min-height:200px;padding:12px;border:1px solid var(--line);border-radius:10px;
           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;
-          background:var(--card);color:var(--ink);resize:vertical">${txt}</textarea>
+          background:var(--card);color:var(--ink);resize:vertical"></textarea>
+
+      <style>.lp-cat.excluida{background:var(--red-bg)!important;color:var(--red-tx)!important;text-decoration:line-through;opacity:.75}</style>
+
       <div class="panel-btns" style="margin-top:12px">
         <button class="cancel" onclick="document.querySelector('.overlay').remove()">Cerrar</button>
         <button class="bar-btn" onclick="window._copiarLista()">📋 Copiar</button>
@@ -1144,6 +1239,7 @@ window._abrirListaPrecios = () => {
       </div>
     </div>`;
   document.getElementById('root').appendChild(ov);
+  _lpActualizarTexto();
 };
 
 window._copiarLista = async () => {
