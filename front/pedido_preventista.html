@@ -861,19 +861,37 @@ async function confirmar(){
     return;
   }
 
-  const { data, error } = await supabase.rpc('confirmar_pedido', { p_payload: payload });
+  // supabase-js normalmente no lanza; pero fetch abortado en Safari sí puede lanzar
+  // TypeError ("Load failed"). Envolvemos para no dejar el pedido en limbo.
+  let data = null, error = null;
+  try {
+    const resp = await supabase.rpc('confirmar_pedido', { p_payload: payload });
+    data  = resp.data;
+    error = resp.error;
+  } catch (e) {
+    error = e;
+  }
   confirmando = false;
 
   if (error) {
-    // si la red falló durante el intento, encolar para reintentar
-    if (!navigator.onLine || error.message?.includes('fetch')) {
+    const msg = String(error.message || error || '').toLowerCase();
+    // Detectar fallas de red: fetch (Chrome/FF), Load failed (Safari), NetworkError,
+    // aborted, timeout, y también offline detectado por el navegador.
+    const esFalloRed = !navigator.onLine
+      || msg.includes('fetch')
+      || msg.includes('load failed')
+      || msg.includes('network')
+      || msg.includes('timeout')
+      || msg.includes('abort');
+    if (esFalloRed) {
+      // encolar para reintentar cuando vuelva la conexión
       await pushOp('confirmar_pedido', payload);
       pendienteSync = true;
       confirmadoData = null;
       confirmado = true;
       render();
     } else {
-      mostrarError('Error al confirmar el pedido: ' + error.message);
+      mostrarError('Error al confirmar el pedido: ' + (error.message || error));
       renderBar();
     }
     return;
