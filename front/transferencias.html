@@ -13,13 +13,14 @@
     --green-bg:#E7F0E8; --green-tx:#2C6B3F;
     --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
     --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --blue-bg:#E7EEF7;  --blue-tx:#2A5A8A;
     --card:#FFFFFF;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     font-size:15px;line-height:1.4}
-  body{max-width:560px;margin:0 auto;padding-bottom:40px}
+  body{max-width:560px;margin:0 auto;padding-bottom:96px}
 
   .hdr{display:flex;align-items:center;justify-content:space-between;
     padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
@@ -32,11 +33,15 @@
 
   .filters{padding:12px 18px;background:var(--paper);border-bottom:1px solid var(--line-soft)}
   .filters-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-  .filters input{padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;background:var(--card)}
-  .chips{display:flex;gap:6px}
+  .filters-row2{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:8px}
+  .filters input, .filters select{padding:9px 12px;border:1px solid var(--line);border-radius:9px;
+    font-family:inherit;font-size:14px;background:var(--card);width:100%}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;
     border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer}
   .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .actions-inline{display:flex;gap:6px;margin-top:6px;font-size:12px}
+  .lnk{background:none;border:none;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit;font-size:12px;padding:2px 6px}
 
   .kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 18px}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 14px}
@@ -45,22 +50,30 @@
   .kpi.amber .num{color:var(--amber-tx)}
   .kpi.green{border-color:var(--green-tx)}
   .kpi.green .num{color:var(--green-tx)}
+  .kpi.blue{border-color:var(--blue-tx)}
+  .kpi.blue .num{color:var(--blue-tx)}
   .kpi .lbl{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
 
   .list{padding:6px 18px}
+  .group-hdr{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);padding:14px 4px 6px;display:flex;justify-content:space-between;align-items:baseline}
+  .group-total{font-weight:700;color:var(--ink);font-size:13px}
   .tr-card{background:var(--card);border:1px solid var(--line);border-radius:12px;
-    padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;cursor:pointer}
+    padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center}
   .tr-card.pendiente{border-left:4px solid var(--amber-tx)}
   .tr-card.conciliada{border-left:4px solid var(--green-tx);opacity:.85}
-  .tr-thumb{width:54px;height:54px;border-radius:8px;background:var(--line-soft);
-    background-size:cover;background-position:center;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--ink-soft)}
-  .tr-info{flex:1;min-width:0}
+  .tr-cb{width:20px;height:20px;accent-color:var(--gold);cursor:pointer;flex-shrink:0}
+  .tr-thumb{width:52px;height:52px;border-radius:8px;background:var(--line-soft);
+    background-size:cover;background-position:center;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--ink-soft);cursor:pointer}
+  .tr-info{flex:1;min-width:0;cursor:pointer}
   .tr-cli{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tr-meta{font-size:12px;color:var(--ink-soft);margin-top:1px}
-  .tr-monto{font-size:15px;font-weight:700;color:var(--green-tx);white-space:nowrap}
+  .tr-monto{font-size:15px;font-weight:700;color:var(--green-tx);white-space:nowrap;cursor:pointer}
   .badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.04em;margin-left:6px}
   .badge.pend{background:var(--amber-bg);color:var(--amber-tx)}
   .badge.conc{background:var(--green-bg);color:var(--green-tx)}
+  .badge.enviado{background:var(--blue-bg);color:var(--blue-tx)}
+  .badge.sinben{background:var(--red-bg);color:var(--red-tx)}
 
   .empty{text-align:center;padding:40px 18px;color:var(--ink-soft);font-size:14px}
   .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
@@ -75,18 +88,49 @@
   .panel h3{font-size:17px;font-weight:700;margin-bottom:4px}
   .panel .meta{font-size:12px;color:var(--ink-soft);margin-bottom:14px}
   .panel img{width:100%;max-height:55vh;object-fit:contain;border-radius:10px;background:var(--line-soft);display:block;margin:8px 0 12px}
-  .det-row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+  .det-row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid var(--line-soft);gap:10px}
   .det-row:last-child{border-bottom:none}
   .det-row .k{color:var(--ink-soft)}
-  .det-row .v{font-weight:600}
+  .det-row .v{font-weight:600;text-align:right}
+  .fl{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin:12px 0 4px}
+  .field{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:14px;font-family:inherit;color:var(--ink);appearance:none}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
   .btns{display:flex;gap:10px;margin-top:14px}
   .btn-gold{flex:1;padding:13px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
   .btn-green{flex:1;padding:13px;background:var(--green-tx);color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
+  .btn-blue{flex:1;padding:13px;background:var(--blue-tx);color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
   .btn-ghost{flex:1;padding:13px;background:var(--card);border:1px solid var(--line);border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px;color:var(--ink)}
+  .btn-danger{padding:10px 12px;background:var(--red-bg);color:var(--red-tx);border:1px solid var(--red-tx);border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:12px}
+
+  .bar-bottom{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:10px 18px 14px;z-index:25;
+    display:none;gap:8px;align-items:center;box-shadow:0 -6px 12px rgba(0,0,0,.05)}
+  .bar-bottom.show{display:flex}
+  .bar-bottom .sel-info{flex:1;font-size:13px;font-weight:600;color:var(--ink)}
+  .bar-bottom button{padding:11px 14px;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px}
+  .bar-bottom .exp{background:var(--gold);color:#fff}
+  .bar-bottom .clr{background:var(--card);border:1px solid var(--line);color:var(--ink)}
+
+  .ben-item{padding:12px 14px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ben-item.inactivo{opacity:.5}
+  .ben-nom{font-weight:700}
+  .ben-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .ben-tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;text-transform:uppercase;margin-left:6px}
+  .ben-tag.propio{background:var(--green-bg);color:var(--green-tx)}
+  .ben-tag.tercero{background:var(--blue-bg);color:var(--blue-tx)}
 </style>
 </head>
 <body>
 <div id="root"><div class="loading">Cargando…</div></div>
+<div id="bar-bottom" class="bar-bottom">
+  <div class="sel-info" id="bar-info"></div>
+  <button class="clr" onclick="window._limpiarSel()">Limpiar</button>
+  <button class="exp" onclick="window._exportarSel()">📄 Exportar</button>
+</div>
 
 <script type="module">
 import { supabase } from './src/supabase.js'
@@ -99,52 +143,134 @@ if (usuario.rol !== 'admin') { location.href = './login_home.html'; throw new Er
 const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(d)
 const isoOffset = (days) => _fmtArg(new Date(Date.now() + days * 86400000))
 const fmtFecha = s => new Date(s).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+const fmtFechaCorta = s => new Date(s).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' })
 
 let transferencias = []
+let beneficiarios = []
 let desde = isoOffset(-30)
 let hasta = isoOffset(0)
 let filtro = 'pendientes'  // 'pendientes' | 'conciliadas' | 'todas'
+let beneFiltro = 'todos'   // id o 'todos' o 'sin-asignar'
+let nroOpBusq = ''
+let agrupar = false
 let detalle = null
 let guardando = false
+let seleccionadas = new Set()
+let benefPanelOpen = false
+let benefEditando = null  // {id?, nombre, alias_cbu, tipo, activo}
 
 async function cargar() {
-  const { data, error } = await supabase
-    .from('mov_cuenta')
-    .select(`id, fecha, monto, comprobante_url, referencia_externa, conciliado, conciliado_en,
-      clientes(nombre, telefono),
-      usuarios:usuario_id(nombre),
-      conciliador:conciliado_por(nombre)`)
-    .eq('empresa_id', usuario.empresa_id)
-    .eq('tipo', 'pago')
-    .eq('forma_pago', 'transferencia')
-    .gte('fecha', desde + 'T00:00:00')
-    .lte('fecha', hasta + 'T23:59:59')
-    .order('fecha', { ascending: false })
-    .limit(500)
-  if (error) {
-    document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`
+  const [{ data: movs, error: e1 }, { data: bens, error: e2 }] = await Promise.all([
+    supabase.from('mov_cuenta')
+      .select(`id, fecha, monto, comprobante_url, referencia_externa, conciliado, conciliado_en,
+        nro_operacion_interna, beneficiario_id, enviado_al_beneficiario, enviado_en,
+        clientes(nombre, telefono),
+        usuarios:usuario_id(nombre),
+        conciliador:conciliado_por(nombre)`)
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('tipo', 'pago')
+      .eq('forma_pago', 'transferencia')
+      .gte('fecha', desde + 'T00:00:00-03:00')
+      .lte('fecha', hasta + 'T23:59:59-03:00')
+      .order('fecha', { ascending: false })
+      .limit(2000),
+    supabase.from('beneficiarios_transferencia')
+      .select('id, nombre, alias_cbu, tipo, activo')
+      .eq('empresa_id', usuario.empresa_id)
+      .order('nombre'),
+  ])
+  if (e1 || e2) {
+    document.getElementById('root').innerHTML = `<div class="err-box">Error: ${(e1||e2).message}</div>`
     return
   }
-  transferencias = data || []
+  transferencias = movs || []
+  beneficiarios = bens || []
   render()
 }
 
+function benefNombre(id) {
+  if (!id) return 'Sin asignar'
+  const b = beneficiarios.find(x => x.id === id)
+  return b ? b.nombre : '(eliminado)'
+}
+function benefTipo(id) {
+  if (!id) return null
+  return beneficiarios.find(x => x.id === id)?.tipo || null
+}
+
 function listaFiltrada() {
-  if (filtro === 'pendientes') return transferencias.filter(t => !t.conciliado)
-  if (filtro === 'conciliadas') return transferencias.filter(t => t.conciliado)
-  return transferencias
+  let l = transferencias
+  if (filtro === 'pendientes') l = l.filter(t => !t.conciliado)
+  else if (filtro === 'conciliadas') l = l.filter(t => t.conciliado)
+  if (beneFiltro === 'sin-asignar') l = l.filter(t => !t.beneficiario_id)
+  else if (beneFiltro !== 'todos') l = l.filter(t => t.beneficiario_id === beneFiltro)
+  if (nroOpBusq.trim()) {
+    const q = nroOpBusq.trim()
+    l = l.filter(t => String(t.nro_operacion_interna || '').includes(q)
+                   || (t.referencia_externa || '').toLowerCase().includes(q.toLowerCase()))
+  }
+  return l
 }
 
 function totales() {
   const pend = transferencias.filter(t => !t.conciliado).reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
   const conc = transferencias.filter(t => t.conciliado).reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
-  return { pend, conc }
+  const sinAsig = transferencias.filter(t => !t.beneficiario_id).length
+  return { pend, conc, sinAsig }
+}
+
+function renderRow(t) {
+  const cls = t.conciliado ? 'conciliada' : 'pendiente'
+  const cli = t.clientes?.nombre || '(sin cliente)'
+  const monto = Math.abs(Number(t.monto))
+  const thumb = t.comprobante_url ? `style="background-image:url('${t.comprobante_url}')"` : ''
+  const checked = seleccionadas.has(t.id) ? 'checked' : ''
+  const badges = []
+  if (t.conciliado)              badges.push('<span class="badge conc">conciliada</span>')
+  else                           badges.push('<span class="badge pend">pendiente</span>')
+  if (t.enviado_al_beneficiario) badges.push('<span class="badge enviado">enviada</span>')
+  if (!t.beneficiario_id)        badges.push('<span class="badge sinben">sin benef.</span>')
+  const nroOp = t.nro_operacion_interna ? `#${t.nro_operacion_interna}` : '(sin nº)'
+  return `<div class="tr-card ${cls}">
+    <input type="checkbox" class="tr-cb" ${checked} onchange="window._togSel('${t.id}')">
+    <div class="tr-thumb" ${thumb} onclick="window._verDetalle('${t.id}')">${t.comprobante_url ? '' : '📄'}</div>
+    <div class="tr-info" onclick="window._verDetalle('${t.id}')">
+      <div class="tr-cli">${nroOp} · ${cli}${badges.join('')}</div>
+      <div class="tr-meta">${fmtFecha(t.fecha)} · ${benefNombre(t.beneficiario_id)}</div>
+    </div>
+    <div class="tr-monto" onclick="window._verDetalle('${t.id}')">${ars(monto)}</div>
+  </div>`
 }
 
 function render() {
   const el = document.getElementById('root')
   const tot = totales()
   const lista = listaFiltrada()
+  const benOptions = beneficiarios
+    .filter(b => b.activo || b.id === beneFiltro)
+    .map(b => `<option value="${b.id}" ${beneFiltro===b.id?'selected':''}>${b.nombre}${b.tipo==='tercero'?' (tercero)':''}</option>`)
+    .join('')
+
+  let listaHtml
+  if (!lista.length) {
+    listaHtml = `<div class="empty">Sin transferencias con estos filtros.</div>`
+  } else if (agrupar) {
+    const grupos = new Map()
+    for (const t of lista) {
+      const k = t.beneficiario_id || '__sin__'
+      if (!grupos.has(k)) grupos.set(k, [])
+      grupos.get(k).push(t)
+    }
+    listaHtml = [...grupos.entries()].map(([k, arr]) => {
+      const nombre = k === '__sin__' ? 'Sin beneficiario asignado' : benefNombre(k)
+      const totalG = arr.reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
+      return `<div class="group-hdr"><span>${nombre} · ${arr.length}</span><span class="group-total">${ars(totalG)}</span></div>
+              ${arr.map(renderRow).join('')}`
+    }).join('')
+  } else {
+    listaHtml = lista.map(renderRow).join('')
+  }
+
   el.innerHTML = `
     <div class="hdr">
       <div class="brand"><span class="crown">&#9818;</span>
@@ -157,71 +283,168 @@ function render() {
         <input type="date" value="${desde}" onchange="window._setDesde(this.value)">
         <input type="date" value="${hasta}" onchange="window._setHasta(this.value)">
       </div>
+      <div class="filters-row2">
+        <select class="field" onchange="window._setBeneFiltro(this.value)" style="height:38px">
+          <option value="todos" ${beneFiltro==='todos'?'selected':''}>Todos los beneficiarios</option>
+          <option value="sin-asignar" ${beneFiltro==='sin-asignar'?'selected':''}>⚠ Sin asignar (${tot.sinAsig})</option>
+          ${benOptions}
+        </select>
+        <input type="text" inputmode="numeric" placeholder="Nº op" value="${nroOpBusq}"
+          oninput="window._setNroBusq(this.value)">
+      </div>
       <div class="chips">
         <div class="chip ${filtro==='pendientes'?'active':''}" onclick="window._setFiltro('pendientes')">Pendientes</div>
         <div class="chip ${filtro==='conciliadas'?'active':''}" onclick="window._setFiltro('conciliadas')">Conciliadas</div>
         <div class="chip ${filtro==='todas'?'active':''}" onclick="window._setFiltro('todas')">Todas</div>
+        <div class="chip ${agrupar?'active':''}" onclick="window._setAgrupar(!${agrupar})">👥 Agrupar</div>
+      </div>
+      <div class="actions-inline">
+        <button class="lnk" onclick="window._openBenef()">⚙ Beneficiarios</button>
+        ${lista.length ? `<button class="lnk" onclick="window._selVisibles()">Seleccionar visibles (${lista.length})</button>` : ''}
       </div>
     </div>
     <div class="kpis">
       <div class="kpi amber"><div class="num">${ars(tot.pend)}</div><div class="lbl">Pendientes de conciliar</div></div>
       <div class="kpi green"><div class="num">${ars(tot.conc)}</div><div class="lbl">Ya conciliado</div></div>
     </div>
-    <div class="list">
-      ${!lista.length ? `<div class="empty">Sin transferencias en este período.</div>` :
-        lista.map(t => {
-          const cls = t.conciliado ? 'conciliada' : 'pendiente'
-          const cli = t.clientes?.nombre || '(sin cliente)'
-          const monto = Math.abs(Number(t.monto))
-          const thumb = t.comprobante_url
-            ? `style="background-image:url('${t.comprobante_url}')"`
-            : ''
-          return `<div class="tr-card ${cls}" onclick="window._verDetalle('${t.id}')">
-            <div class="tr-thumb" ${thumb}>${t.comprobante_url ? '' : '📄'}</div>
-            <div class="tr-info">
-              <div class="tr-cli">${cli}${t.conciliado ? '<span class="badge conc">conciliada</span>' : '<span class="badge pend">pendiente</span>'}</div>
-              <div class="tr-meta">${fmtFecha(t.fecha)}${t.referencia_externa ? ' · ' + t.referencia_externa : ''}</div>
-            </div>
-            <div class="tr-monto">${ars(monto)}</div>
-          </div>`
-        }).join('')}
-    </div>`
+    <div class="list">${listaHtml}</div>`
+
+  actualizarBarra()
   if (detalle) renderDetalle()
+  if (benefPanelOpen) renderBenefPanel()
+}
+
+function actualizarBarra() {
+  const bar = document.getElementById('bar-bottom')
+  const info = document.getElementById('bar-info')
+  if (!bar || !info) return
+  if (!seleccionadas.size) { bar.classList.remove('show'); return }
+  const total = transferencias
+    .filter(t => seleccionadas.has(t.id))
+    .reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
+  info.textContent = `${seleccionadas.size} seleccionadas · ${ars(total)}`
+  bar.classList.add('show')
 }
 
 function renderDetalle() {
   const t = transferencias.find(x => x.id === detalle); if (!t) return
   const monto = Math.abs(Number(t.monto))
+  const benOptions = beneficiarios
+    .filter(b => b.activo || b.id === t.beneficiario_id)
+    .map(b => `<option value="${b.id}" ${t.beneficiario_id===b.id?'selected':''}>${b.nombre}${b.tipo==='tercero'?' (tercero)':''}</option>`)
+    .join('')
   const ov = document.createElement('div')
   ov.className = 'overlay'
   ov.onclick = e => { if (e.target === ov) window._cerrar() }
   ov.innerHTML = `<div class="panel">
     <div class="handle"></div>
-    <h3>${t.clientes?.nombre || '(sin cliente)'}</h3>
-    <div class="meta">${fmtFecha(t.fecha)} · ${t.usuarios?.nombre || '—'}</div>
+    <h3>#${t.nro_operacion_interna || '-'} · ${t.clientes?.nombre || '(sin cliente)'}</h3>
+    <div class="meta">${fmtFecha(t.fecha)} · Registró: ${t.usuarios?.nombre || '—'}</div>
     ${t.comprobante_url
       ? `<img src="${t.comprobante_url}" alt="Comprobante" onclick="window.open('${t.comprobante_url}','_blank')">`
       : `<div style="background:var(--line-soft);padding:30px;text-align:center;color:var(--ink-soft);border-radius:10px;margin:8px 0 12px">Sin foto de comprobante</div>`}
     <div class="det-row"><span class="k">Monto</span><span class="v" style="color:var(--green-tx);font-size:18px">${ars(monto)}</span></div>
-    ${t.referencia_externa ? `<div class="det-row"><span class="k">Referencia</span><span class="v">${t.referencia_externa}</span></div>` : ''}
+    <div class="det-row"><span class="k">Nº operación interna</span><span class="v">#${t.nro_operacion_interna || '-'}</span></div>
+    ${t.referencia_externa ? `<div class="det-row"><span class="k">Referencia externa</span><span class="v">${t.referencia_externa}</span></div>` : ''}
     ${t.clientes?.telefono ? `<div class="det-row"><span class="k">Teléfono</span><span class="v">${t.clientes.telefono}</span></div>` : ''}
     <div class="det-row"><span class="k">Estado</span><span class="v">${t.conciliado ? '🟢 Conciliada' : '🟡 Pendiente'}</span></div>
     ${t.conciliado && t.conciliado_en ? `<div class="det-row"><span class="k">Conciliado</span><span class="v">${fmtFecha(t.conciliado_en)}${t.conciliador?.nombre ? ' · ' + t.conciliador.nombre : ''}</span></div>` : ''}
+    <div class="det-row"><span class="k">Enviada al beneficiario</span><span class="v">${t.enviado_al_beneficiario ? '✓ ' + (t.enviado_en?fmtFechaCorta(t.enviado_en):'sí') : 'No'}</span></div>
+
+    <label class="fl">Beneficiario</label>
+    <select class="field" onchange="window._setBenef('${t.id}', this.value)">
+      <option value="">— Sin asignar —</option>
+      ${benOptions}
+    </select>
+
     <div class="btns">
       ${t.conciliado
         ? `<button class="btn-ghost" onclick="window._toggleConciliado('${t.id}', false)" ${guardando?'disabled':''}>↺ Marcar pendiente</button>`
         : `<button class="btn-green" onclick="window._toggleConciliado('${t.id}', true)" ${guardando?'disabled':''}>${guardando?'Guardando…':'✓ Marcar conciliada'}</button>`}
+      <button class="${t.enviado_al_beneficiario?'btn-ghost':'btn-blue'}"
+        onclick="window._toggleEnviado('${t.id}', ${!t.enviado_al_beneficiario})" ${guardando?'disabled':''}>
+        ${t.enviado_al_beneficiario ? '↺ Marcar no enviada' : '📤 Marcar enviada'}
+      </button>
+    </div>
+    <div class="btns" style="margin-top:8px">
       <button class="btn-ghost" onclick="window._cerrar()">Cerrar</button>
     </div>
   </div>`
   document.getElementById('root').appendChild(ov)
 }
 
-window._setDesde = v => { desde = v; cargar() }
-window._setHasta = v => { hasta = v; cargar() }
+function renderBenefPanel() {
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = e => { if (e.target === ov) window._cerrarBenef() }
+  const b = benefEditando || { nombre:'', alias_cbu:'', tipo:'propio', activo:true }
+  const enEdicion = benefEditando !== null
+  ov.innerHTML = `<div class="panel">
+    <div class="handle"></div>
+    <h3>Beneficiarios de transferencia</h3>
+    <div class="meta">Cuentas propias o de terceros donde se reciben las transferencias.</div>
+
+    <div>
+      ${beneficiarios.length ? beneficiarios.map(x => `
+        <div class="ben-item ${x.activo?'':'inactivo'}">
+          <div style="flex:1;min-width:0">
+            <div class="ben-nom">${x.nombre}<span class="ben-tag ${x.tipo}">${x.tipo}</span></div>
+            <div class="ben-sub">${x.alias_cbu || '—'}${!x.activo?' · inactivo':''}</div>
+          </div>
+          <button class="lnk" onclick="window._editBenef('${x.id}')">✏</button>
+          <button class="btn-danger" onclick="window._delBenef('${x.id}')">Eliminar</button>
+        </div>`).join('') : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0">Sin beneficiarios todavía.</div>`}
+    </div>
+
+    <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">${enEdicion ? 'Editar' : 'Nuevo'}</div>
+      <label class="fl">Nombre</label>
+      <input class="field" placeholder="Ej: Mi cuenta Santander, Juan Pérez"
+        value="${b.nombre}" oninput="window._setBenefField('nombre', this.value)">
+      <label class="fl">Alias / CBU (opcional)</label>
+      <input class="field" placeholder="Ej: elrey.mp o 000123..."
+        value="${b.alias_cbu || ''}" oninput="window._setBenefField('alias_cbu', this.value)">
+      <label class="fl">Tipo</label>
+      <select class="field" onchange="window._setBenefField('tipo', this.value)">
+        <option value="propio"  ${b.tipo==='propio'?'selected':''}>Propio</option>
+        <option value="tercero" ${b.tipo==='tercero'?'selected':''}>Tercero</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;cursor:pointer">
+        <input type="checkbox" ${b.activo?'checked':''} onchange="window._setBenefField('activo', this.checked)"
+          style="width:18px;height:18px;accent-color:var(--gold)">
+        Activo (visible al registrar transferencias)
+      </label>
+
+      <div class="btns">
+        <button class="btn-ghost" onclick="window._cerrarBenef()">Cerrar</button>
+        <button class="btn-gold" onclick="window._guardarBenef()">${enEdicion?'Guardar':'Agregar'}</button>
+      </div>
+    </div>
+  </div>`
+  document.getElementById('root').appendChild(ov)
+}
+
+// ── ACCIONES ───────────────────────────────────────────────────────────────
+window._setDesde  = v => { desde = v; cargar() }
+window._setHasta  = v => { hasta = v; cargar() }
 window._setFiltro = v => { filtro = v; render() }
+window._setBeneFiltro = v => { beneFiltro = v; render() }
+window._setNroBusq = v => { nroOpBusq = v; render() }
+window._setAgrupar = v => { agrupar = !!v; render() }
 window._verDetalle = id => { detalle = id; render() }
 window._cerrar = () => { detalle = null; render() }
+window._togSel = id => {
+  if (seleccionadas.has(id)) seleccionadas.delete(id); else seleccionadas.add(id)
+  actualizarBarra()
+  // sólo actualiza la fila afectada
+  render()
+}
+window._limpiarSel = () => { seleccionadas = new Set(); render() }
+window._selVisibles = () => {
+  listaFiltrada().forEach(t => seleccionadas.add(t.id))
+  render()
+}
+
 window._toggleConciliado = async (id, val) => {
   guardando = true; render()
   const upd = val
@@ -232,6 +455,168 @@ window._toggleConciliado = async (id, val) => {
   if (error) { alert('Error: ' + error.message); render(); return }
   await cargar()
   detalle = null; render()
+}
+
+window._toggleEnviado = async (id, val) => {
+  guardando = true; render()
+  const upd = val
+    ? { enviado_al_beneficiario: true,  enviado_en: new Date().toISOString() }
+    : { enviado_al_beneficiario: false, enviado_en: null }
+  const { error } = await supabase.from('mov_cuenta').update(upd).eq('id', id)
+  guardando = false
+  if (error) { alert('Error: ' + error.message); render(); return }
+  await cargar(); render()
+}
+
+window._setBenef = async (movId, val) => {
+  const { error } = await supabase.from('mov_cuenta').update({ beneficiario_id: val || null }).eq('id', movId)
+  if (error) { alert('Error: ' + error.message); return }
+  await cargar()
+}
+
+// ── CRUD BENEFICIARIOS ─────────────────────────────────────────────────────
+window._openBenef = () => { benefPanelOpen = true; benefEditando = null; render() }
+window._cerrarBenef = () => { benefPanelOpen = false; benefEditando = null; render() }
+window._editBenef = id => {
+  const b = beneficiarios.find(x => x.id === id); if (!b) return
+  benefEditando = { ...b }
+  render()
+}
+window._setBenefField = (k, v) => {
+  if (!benefEditando) benefEditando = { nombre:'', alias_cbu:'', tipo:'propio', activo:true }
+  benefEditando[k] = v
+}
+window._guardarBenef = async () => {
+  const b = benefEditando; if (!b) return
+  if (!b.nombre || !b.nombre.trim()) { alert('Falta el nombre.'); return }
+  const payload = { nombre: b.nombre.trim(), alias_cbu: b.alias_cbu?.trim() || null, tipo: b.tipo || 'propio', activo: !!b.activo }
+  let error
+  if (b.id) {
+    ({ error } = await supabase.from('beneficiarios_transferencia').update(payload).eq('id', b.id))
+  } else {
+    ({ error } = await supabase.from('beneficiarios_transferencia').insert({ ...payload, empresa_id: usuario.empresa_id }))
+  }
+  if (error) { alert('Error: ' + error.message); return }
+  benefEditando = null
+  await cargar()
+}
+window._delBenef = async id => {
+  const b = beneficiarios.find(x => x.id === id); if (!b) return
+  const cnt = transferencias.filter(t => t.beneficiario_id === id).length
+  const msg = cnt
+    ? `Este beneficiario tiene ${cnt} transferencia${cnt===1?'':'s'} asignada${cnt===1?'':'s'}. Se recomienda desactivarlo en vez de eliminarlo. ¿Eliminar igual?`
+    : `¿Eliminar "${b.nombre}"?`
+  if (!confirm(msg)) return
+  const { error } = await supabase.from('beneficiarios_transferencia').delete().eq('id', id)
+  if (error) { alert('Error: ' + error.message); return }
+  await cargar()
+}
+
+// ── EXPORTAR PDF ───────────────────────────────────────────────────────────
+window._exportarSel = async () => {
+  const sel = transferencias.filter(t => seleccionadas.has(t.id))
+  if (!sel.length) return
+  // agrupar por beneficiario (o "sin asignar")
+  const gruposMap = new Map()
+  for (const t of sel) {
+    const k = t.beneficiario_id || '__sin__'
+    if (!gruposMap.has(k)) gruposMap.set(k, [])
+    gruposMap.get(k).push(t)
+  }
+  const bloques = [...gruposMap.entries()].map(([k, arr]) => ({
+    nombre: k === '__sin__' ? 'Sin beneficiario asignado' : benefNombre(k),
+    tipo: k === '__sin__' ? null : benefTipo(k),
+    items: arr.sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    total: arr.reduce((s, t) => s + Math.abs(Number(t.monto)), 0),
+  }))
+  const totalGeneral = sel.reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
+
+  const html = generarHtmlExport(bloques, totalGeneral, desde, hasta)
+  const win = window.open('', '_blank')
+  if (!win) { alert('No se pudo abrir la ventana. Habilitá los pop-ups para este sitio.'); return }
+  win.document.open()
+  win.document.write(html)
+  win.document.close()
+
+  // Marcar como enviadas después de que confirme
+  if (confirm(`Se abrió el PDF. ¿Marcar las ${sel.length} como "enviadas al beneficiario"?`)) {
+    const ids = sel.map(t => t.id)
+    const { error } = await supabase.from('mov_cuenta')
+      .update({ enviado_al_beneficiario: true, enviado_en: new Date().toISOString() })
+      .in('id', ids)
+    if (error) { alert('Error al marcar como enviadas: ' + error.message); return }
+    seleccionadas = new Set()
+    await cargar()
+  }
+}
+
+function generarHtmlExport(bloques, totalGeneral, d1, d2) {
+  const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+  const filas = b => b.items.map(t => `
+    <tr>
+      <td>#${t.nro_operacion_interna ?? '-'}</td>
+      <td>${escape(fmtFechaCorta(t.fecha))}</td>
+      <td class="r">${ars(Math.abs(Number(t.monto)))}</td>
+      <td>${escape(t.referencia_externa || '-')}</td>
+      <td>${t.conciliado ? 'Sí' : 'No'}</td>
+    </tr>`).join('')
+  const bloquesHtml = bloques.map(b => `
+    <section class="benef-section">
+      <h2>${escape(b.nombre)}${b.tipo ? ` <span class="tag">${b.tipo}</span>` : ''}</h2>
+      <table>
+        <thead><tr><th>Nº op.</th><th>Fecha</th><th class="r">Monto</th><th>Ref. externa</th><th>Concil.</th></tr></thead>
+        <tbody>${filas(b)}</tbody>
+        <tfoot><tr><td colspan="2" class="ftot">Subtotal (${b.items.length})</td><td class="r ftot">${ars(b.total)}</td><td colspan="2"></td></tr></tfoot>
+      </table>
+      <div class="comprobantes">
+        ${b.items.filter(t => t.comprobante_url).map(t => `
+          <figure>
+            <img src="${t.comprobante_url}" alt="Comprobante #${t.nro_operacion_interna}">
+            <figcaption>#${t.nro_operacion_interna ?? '-'} · ${escape(fmtFechaCorta(t.fecha))} · ${ars(Math.abs(Number(t.monto)))}${t.referencia_externa ? ' · ' + escape(t.referencia_externa) : ''}</figcaption>
+          </figure>`).join('')}
+      </div>
+    </section>`).join('')
+  return `<!DOCTYPE html><html lang="es-AR"><head><meta charset="UTF-8">
+<title>Transferencias — El Rey</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#1C2B27;background:#fff;margin:0;padding:24px;font-size:12px;line-height:1.4}
+  h1{font-size:20px;margin:0 0 4px}
+  h2{font-size:15px;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ccc}
+  .tag{font-size:10px;background:#EEEADD;color:#5B665F;padding:2px 6px;border-radius:4px;margin-left:6px;text-transform:uppercase}
+  .meta{color:#5B665F;font-size:12px;margin-bottom:14px}
+  .kpis{display:flex;gap:14px;margin:12px 0 4px}
+  .kpi{border:1px solid #ccc;padding:8px 12px;border-radius:8px;min-width:130px}
+  .kpi .n{font-size:16px;font-weight:700}
+  .kpi .l{font-size:10px;color:#5B665F;text-transform:uppercase}
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th,td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;text-align:left}
+  th{font-size:10px;text-transform:uppercase;color:#5B665F;font-weight:700;letter-spacing:.03em}
+  .r{text-align:right}
+  .ftot{font-weight:700;border-top:2px solid #333;border-bottom:none;padding-top:6px}
+  .comprobantes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;page-break-before:auto}
+  figure{margin:0;border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center;break-inside:avoid}
+  figure img{width:100%;max-height:420px;object-fit:contain;background:#f6f6f6}
+  figcaption{font-size:10px;color:#5B665F;margin-top:4px}
+  .benef-section{break-inside:avoid-page}
+  @media print{
+    body{padding:12px}
+    .no-print{display:none}
+  }
+</style></head>
+<body>
+  <div class="no-print" style="text-align:right;margin-bottom:10px">
+    <button onclick="window.print()" style="padding:8px 14px;border:none;background:#A9760E;color:#fff;border-radius:6px;font-weight:600;cursor:pointer">🖨 Imprimir / guardar como PDF</button>
+  </div>
+  <h1>Distribuidora El Rey — Transferencias</h1>
+  <div class="meta">Período: ${d1} a ${d2} · Generado: ${new Date().toLocaleString('es-AR')}</div>
+  <div class="kpis">
+    <div class="kpi"><div class="n">${bloques.reduce((s,b)=>s+b.items.length,0)}</div><div class="l">Movimientos</div></div>
+    <div class="kpi"><div class="n">${ars(totalGeneral)}</div><div class="l">Total</div></div>
+    <div class="kpi"><div class="n">${bloques.length}</div><div class="l">Beneficiarios</div></div>
+  </div>
+  ${bloquesHtml}
+  <script>setTimeout(()=>window.print(),400);<\/script>
+</body></html>`
 }
 
 await cargar()

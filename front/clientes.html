@@ -180,6 +180,8 @@ let cobroFormaPago = 'efectivo';
 let cobroFotoFile = null;     // File seleccionado para subir como comprobante
 let cobroFotoPreview = '';    // dataURL para preview local
 let cobroRef = '';            // referencia externa (Nº op, banco, etc)
+let cobroBeneficiario = '';   // id del beneficiario elegido (obligatorio si forma=transferencia)
+let beneficiariosList = [];   // [{id, nombre, tipo, activo}]
 let cobroTipo = 'pago';      // 'pago' = ingreso de dinero, 'cargo' = registrar deuda
 let cobroMotivo = '';
 
@@ -222,6 +224,15 @@ function descripcionMov(m){
 }
 
 // ── DATOS ─────────────────────────────────────────────────────────────
+async function cargarBeneficiarios(){
+  const { data } = await supabase.from('beneficiarios_transferencia')
+    .select('id, nombre, tipo, activo')
+    .eq('empresa_id', usuarioActual.empresa_id)
+    .eq('activo', true)
+    .order('nombre');
+  beneficiariosList = data || [];
+}
+
 async function cargarClientes(){
   cargando = true;
   const hace180 = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
@@ -282,7 +293,7 @@ let editandoMovId = null;
 async function cargarMovimientos(cliId){
   const { data, error } = await supabase
     .from('mov_cuenta')
-    .select('id, tipo, monto, forma_pago, referencia_tipo, fecha')
+    .select('id, tipo, monto, forma_pago, referencia_tipo, fecha, beneficiario_id')
     .eq('cliente_id', cliId)
     .order('fecha', { ascending: false })
     .limit(100);
@@ -309,6 +320,7 @@ window.setFotoCobro = (file) => {
 };
 window.limpiarFotoCobro = () => { cobroFotoFile = null; cobroFotoPreview = ''; render(); };
 window.setCobroMotivo = (v) => { cobroMotivo = v; };
+window.setCobroBeneficiario = (v) => { cobroBeneficiario = v; };
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────
 function render(){
@@ -554,7 +566,12 @@ function renderCobro(){
         </div>
         ${cobroFormaPago === 'transferencia' ? `
           <div style="background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:12px;margin-bottom:14px">
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px">Comprobante (opcional)</div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px">Beneficiario (obligatorio)</div>
+            <select class="field" onchange="window.setCobroBeneficiario(this.value)" style="margin-bottom:10px">
+              <option value="">— Elegir beneficiario —</option>
+              ${beneficiariosList.map(b => `<option value="${b.id}" ${cobroBeneficiario===b.id?'selected':''}>${b.nombre}${b.tipo==='tercero'?' (tercero)':''}</option>`).join('')}
+            </select>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px">Comprobante (obligatorio)</div>
             ${cobroFotoPreview ? `
               <img src="${cobroFotoPreview}" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;background:var(--line-soft);margin-bottom:8px">
               <button onclick="window.limpiarFotoCobro()" style="width:100%;padding:8px;border:1px solid var(--red-tx);background:var(--red-bg);color:var(--red-tx);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">Quitar foto</button>
@@ -564,7 +581,7 @@ function renderCobro(){
                 <input type="file" accept="image/*" style="display:none"
                   onchange="window.setFotoCobro(this.files[0])">
               </label>`}
-            <input class="field" placeholder="N° de operación o banco (opcional)"
+            <input class="field" placeholder="Referencia (opcional)"
               value="${cobroRef}" oninput="window.setCobroRef(this.value)" style="font-size:14px">
           </div>` : ''}
       `}
@@ -582,12 +599,13 @@ function renderCobro(){
 function abrirCobro(tipo='pago'){
   editandoMovId=null; cobroOpen=true; cobroTipo=tipo;
   cobroMonto=''; cobroMotivo=''; cobroFormaPago='efectivo';
-  cobroFotoFile=null; cobroFotoPreview=''; cobroRef='';
+  cobroFotoFile=null; cobroFotoPreview=''; cobroRef=''; cobroBeneficiario='';
+  cobroBeneficiario='';
   render();
 }
 function cerrarCobro(){
   cobroOpen=false; editandoMovId=null;
-  cobroFotoFile=null; cobroFotoPreview=''; cobroRef='';
+  cobroFotoFile=null; cobroFotoPreview=''; cobroRef=''; cobroBeneficiario='';
   render();
 }
 
@@ -652,6 +670,7 @@ window.editarMov = (movId) => {
   cobroMonto = String(Math.abs(Number(m.monto) || 0));
   cobroFormaPago = (m.forma_pago && m.forma_pago !== 'cuenta_corriente') ? m.forma_pago : 'efectivo';
   cobroMotivo = '';
+  cobroBeneficiario = m.beneficiario_id || '';
   cobroOpen = true;
   render();
 };
@@ -682,6 +701,12 @@ async function confirmarCobro(){
   const monto = esCargo ? n : -n;
   const forma = esCargo ? 'cuenta_corriente' : cobroFormaPago;
 
+  // Beneficiario OBLIGATORIO para transferencias.
+  if (!esCargo && forma === 'transferencia' && !cobroBeneficiario) {
+    btn.disabled = false; btn.textContent = editandoMovId ? 'Guardar' : 'Confirmar cobro';
+    if (errEl) { errEl.textContent = 'Elegí el beneficiario de la transferencia.'; errEl.style.display='block'; }
+    return;
+  }
   // Foto de comprobante OBLIGATORIA para transferencias nuevas.
   if (!esCargo && forma === 'transferencia' && !editandoMovId && !cobroFotoFile) {
     btn.disabled = false; btn.textContent = 'Confirmar cobro';
@@ -707,11 +732,13 @@ async function confirmarCobro(){
   }
   const referencia_externa = (forma === 'transferencia' && cobroRef.trim()) ? cobroRef.trim() : null;
 
+  const beneficiario_id = (forma === 'transferencia' && cobroBeneficiario) ? cobroBeneficiario : null;
   let error;
   if (editandoMovId) {
     const upd = { monto, forma_pago: forma };
     if (comprobante_url) upd.comprobante_url = comprobante_url;
     if (referencia_externa) upd.referencia_externa = referencia_externa;
+    if (beneficiario_id) upd.beneficiario_id = beneficiario_id;
     ({ error } = await supabase.from('mov_cuenta').update(upd).eq('id', editandoMovId));
   } else {
     const { data: { user } } = await supabase.auth.getUser();
@@ -727,6 +754,7 @@ async function confirmarCobro(){
       usuario_id: usr.id,
       comprobante_url,
       referencia_externa,
+      beneficiario_id,
     }));
   }
 
@@ -738,7 +766,7 @@ async function confirmarCobro(){
 
   await Promise.all([cargarClientes(), cargarMovimientos(cliSelId)]);
   cobroOpen=false; editandoMovId=null; cobroMonto='';
-  cobroFotoFile=null; cobroFotoPreview=''; cobroRef='';
+  cobroFotoFile=null; cobroFotoPreview=''; cobroRef=''; cobroBeneficiario='';
   render();
 }
 
@@ -900,7 +928,7 @@ async function arrancar(){
   if (!tienePermiso('clientes')) { location.href = './login_home.html'; return; }
   usuarioActual = getUsuario();
   render();   // muestra "Cargando…"
-  await cargarClientes();
+  await Promise.all([cargarClientes(), cargarBeneficiarios()]);
   render();
 }
 arrancar();
