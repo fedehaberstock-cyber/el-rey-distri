@@ -367,6 +367,45 @@ async function guardarEdicion() {
 window._guardarEdicion = guardarEdicion;
 window._setEdit = (k, v) => { if (edit) edit[k] = v; };
 
+// Alta de producto nuevo
+window._nuevoProducto = () => {
+  if (!puedeAjustar) return;
+  edit = {
+    nombre: '', categoria: '', subcategoria: '',
+    proveedor_id: '', costo: 0, precio: 0,
+    u_bulto: 1, desc_bulto: 0, activo: true,
+  };
+  panelOpen = 'nuevo';
+  pInput.prodId = '';
+  render();
+};
+
+async function crearProducto() {
+  if (!edit) return;
+  const nombre = (edit.nombre || '').trim();
+  if (!nombre) { alert('El nombre es obligatorio.'); return; }
+  const payload = {
+    empresa_id: usuario.empresa_id,
+    nombre,
+    categoria: (edit.categoria || '').trim() || null,
+    subcategoria: (edit.subcategoria || '').trim() || null,
+    proveedor_id: edit.proveedor_id || null,
+    costo: Number(edit.costo) || 0,
+    precio: Number(edit.precio) || 0,
+    u_bulto: Math.max(1, parseInt(edit.u_bulto) || 1),
+    desc_bulto: Math.min(100, Math.max(0, Number(edit.desc_bulto) || 0)),
+    activo: true,
+  };
+  const { data, error } = await supabase.from('productos').insert(payload).select('id').single();
+  if (error) { alert('Error: ' + error.message); return; }
+  panelOpen = null; edit = null;
+  await cargarTodo();
+  // Abrir el detalle del producto recién creado
+  if (data?.id) { prodSelId = data.id; vista = 'detalle'; movs = []; render(); await cargarMovs(data.id); }
+  render();
+}
+window._crearProducto = crearProducto;
+
 async function cargarMovs(prodId) {
   const { data, error } = await supabase
     .from('mov_stock')
@@ -424,8 +463,14 @@ function renderTabStock(el) {
       <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
         <div class="chip ${agrupar==='cat'?'active':''}" onclick="window._setAgrupar('cat')">Por categoría</div>
         <div class="chip ${agrupar==='prov'?'active':''}" onclick="window._setAgrupar('prov')">Por proveedor</div>
-        <button onclick="window._abrirListaPrecios()"
+        ${puedeAjustar ? `<button onclick="window._nuevoProducto()"
           style="margin-left:auto;padding:6px 12px;border:1px solid var(--gold);border-radius:999px;
+            background:var(--gold);color:#fff;font-size:13px;font-weight:600;
+            cursor:pointer;font-family:inherit;white-space:nowrap">
+          ＋ Nuevo producto
+        </button>` : ''}
+        <button onclick="window._abrirListaPrecios()"
+          style="${puedeAjustar?'':'margin-left:auto;'}padding:6px 12px;border:1px solid var(--gold);border-radius:999px;
             background:var(--gold-lt);color:var(--gold-dk);font-size:13px;font-weight:600;
             cursor:pointer;font-family:inherit;white-space:nowrap">
           📋 Compartir lista
@@ -632,7 +677,7 @@ function renderDetalle() {
 
 // ── PANEL INGRESO / AJUSTE / EDITAR ────────────────────────────────────────
 function renderPanel() {
-  if (panelOpen === 'editar') { renderPanelEditar(); return; }
+  if (panelOpen === 'editar' || panelOpen === 'nuevo') { renderPanelEditar(); return; }
   const esIngreso = panelOpen === 'ingreso';
   const prodPrefill = pInput.prodId ? productos.find(p => p.id === pInput.prodId) : null;
   const busqMatch = pInput.busq.trim().length > 1
@@ -687,17 +732,23 @@ function renderPbusqResults() {
 
 function renderPanelEditar() {
   if (!edit) return;
+  const esNuevo = panelOpen === 'nuevo';
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.onclick = e => { if (e.target === ov) window._cerrarPanel(); };
   ov.innerHTML = `
     <div class="panel" style="max-height:85vh;overflow-y:auto">
-      <h3>Editar producto</h3>
+      <h3>${esNuevo ? 'Nuevo producto' : 'Editar producto'}</h3>
+      ${esNuevo ? '<p class="sub" style="font-size:13px;color:var(--ink-soft);margin:-2px 0 12px">Arranca con stock 0. Registrá el ingreso después.</p>' : ''}
       <label class="fl">Nombre</label>
-      <input class="field" value="${edit.nombre}" oninput="window._setEdit('nombre', this.value)">
+      <input class="field" value="${edit.nombre || ''}" oninput="window._setEdit('nombre', this.value)" placeholder="${esNuevo?'Ej: Ibuprofeno 400mg':''}">
 
-      <label class="fl">Categoría</label>
-      <input class="field" value="${edit.categoria}" oninput="window._setEdit('categoria', this.value)" placeholder="Ej: Bebidas">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label class="fl">Categoría</label>
+          <input class="field" value="${edit.categoria || ''}" oninput="window._setEdit('categoria', this.value)" placeholder="Ej: Analgésicos"></div>
+        <div><label class="fl">Subcategoría</label>
+          <input class="field" value="${edit.subcategoria || ''}" oninput="window._setEdit('subcategoria', this.value)" placeholder="Opcional"></div>
+      </div>
 
       <label class="fl">Proveedor</label>
       <select class="field" onchange="window._setEdit('proveedor_id', this.value)">
@@ -719,22 +770,24 @@ function renderPanelEditar() {
           <input class="field" type="number" min="0" max="100" value="${edit.desc_bulto}" oninput="window._setEdit('desc_bulto', this.value)"></div>
       </div>
 
+      ${!esNuevo ? `
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;cursor:pointer">
         <input type="checkbox" ${edit.activo?'checked':''} onchange="window._setEdit('activo', this.checked)"
           style="width:18px;height:18px;accent-color:var(--gold)">
         Activo (visible en pedidos)
-      </label>
+      </label>` : ''}
 
       <div class="panel-btns" style="margin-top:16px">
         <button class="cancel" onclick="window._cerrarPanel()">Cancelar</button>
-        <button class="bar-btn" onclick="window._guardarEdicion()">Guardar</button>
+        <button class="bar-btn" onclick="${esNuevo ? 'window._crearProducto()' : 'window._guardarEdicion()'}">${esNuevo ? 'Crear producto' : 'Guardar'}</button>
       </div>
+      ${!esNuevo ? `
       <button onclick="window._eliminarProducto()"
         style="width:100%;margin-top:10px;padding:13px;border:1px solid var(--red-tx);
           border-radius:12px;background:transparent;color:var(--red-tx);font-size:14px;
           font-weight:600;cursor:pointer;font-family:inherit">
         🗑 Eliminar producto
-      </button>
+      </button>` : ''}
     </div>`;
   document.getElementById('root').appendChild(ov);
 }
