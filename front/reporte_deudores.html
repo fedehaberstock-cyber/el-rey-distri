@@ -155,7 +155,13 @@ if (!tienePermiso('deudores')) { location.href = './login_home.html'; }
 const HOY = new Date();
 const isoHoy = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date());
 const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 0;
-const fmtF = s => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+// Acepta fecha ISO ('2026-06-15T14:56:04+00:00') o fecha corta ('2026-06-15').
+// Antes se usaba split('-') sobre el string completo → devolvía '15T14:56.../06/2026'.
+const fmtF = s => {
+  if (!s) return '';
+  const [y, m, d] = s.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+};
 const ars = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(Math.abs(n));
 
 // ── ESTADO ─────────────────────────────────────────────────────────────────
