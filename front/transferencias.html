@@ -150,6 +150,7 @@ let beneficiarios = []
 let desde = isoOffset(-30)
 let hasta = isoOffset(0)
 let filtro = 'pendientes'  // 'pendientes' | 'conciliadas' | 'todas'
+let filtroEnvio = 'todos'  // 'todos' | 'no-enviadas' | 'enviadas'
 let beneFiltro = 'todos'   // id o 'todos' o 'sin-asignar'
 let nroOpBusq = ''
 let agrupar = false
@@ -202,6 +203,8 @@ function listaFiltrada() {
   let l = transferencias
   if (filtro === 'pendientes') l = l.filter(t => !t.conciliado)
   else if (filtro === 'conciliadas') l = l.filter(t => t.conciliado)
+  if (filtroEnvio === 'no-enviadas') l = l.filter(t => !t.enviado_al_beneficiario)
+  else if (filtroEnvio === 'enviadas') l = l.filter(t => t.enviado_al_beneficiario)
   if (beneFiltro === 'sin-asignar') l = l.filter(t => !t.beneficiario_id)
   else if (beneFiltro !== 'todos') l = l.filter(t => t.beneficiario_id === beneFiltro)
   if (nroOpBusq.trim()) {
@@ -297,6 +300,12 @@ function render() {
         <div class="chip ${filtro==='conciliadas'?'active':''}" onclick="window._setFiltro('conciliadas')">Conciliadas</div>
         <div class="chip ${filtro==='todas'?'active':''}" onclick="window._setFiltro('todas')">Todas</div>
         <div class="chip ${agrupar?'active':''}" onclick="window._setAgrupar(!${agrupar})">👥 Agrupar</div>
+      </div>
+      <div class="chips" style="margin-top:6px">
+        <span style="font-size:11px;color:var(--ink-soft);align-self:center;margin-right:2px">Envío:</span>
+        <div class="chip ${filtroEnvio==='todos'?'active':''}" onclick="window._setFiltroEnvio('todos')">Todas</div>
+        <div class="chip ${filtroEnvio==='no-enviadas'?'active':''}" onclick="window._setFiltroEnvio('no-enviadas')">📤 A enviar</div>
+        <div class="chip ${filtroEnvio==='enviadas'?'active':''}" onclick="window._setFiltroEnvio('enviadas')">✓ Enviadas</div>
       </div>
       <div class="actions-inline">
         <button class="lnk" onclick="window._openBenef()">⚙ Beneficiarios</button>
@@ -428,6 +437,7 @@ function renderBenefPanel() {
 window._setDesde  = v => { desde = v; cargar() }
 window._setHasta  = v => { hasta = v; cargar() }
 window._setFiltro = v => { filtro = v; render() }
+window._setFiltroEnvio = v => { filtroEnvio = v; render() }
 window._setBeneFiltro = v => { beneFiltro = v; render() }
 window._setNroBusq = v => { nroOpBusq = v; render() }
 window._setAgrupar = v => { agrupar = !!v; render() }
@@ -465,7 +475,19 @@ window._toggleEnviado = async (id, val) => {
   const { error } = await supabase.from('mov_cuenta').update(upd).eq('id', id)
   guardando = false
   if (error) { alert('Error: ' + error.message); render(); return }
-  await cargar(); render()
+  await cargar()
+  detalle = null; render()
+  mostrarToast(val ? '📤 Marcada como enviada' : '↺ Marcada como pendiente de envío')
+}
+
+function mostrarToast(msg) {
+  const t = document.createElement('div')
+  t.textContent = msg
+  t.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%);'
+    + 'background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;'
+    + 'font-size:13px;font-weight:600;z-index:60;max-width:90%'
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 2000)
 }
 
 window._setBenef = async (movId, val) => {

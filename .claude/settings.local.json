@@ -23,7 +23,10 @@
       "Bash(curl -s -o /dev/null -w \"src/supabase.js: HTTP %{http_code}\\\\n\" \"http://localhost:5500/src/supabase.js\")",
       "Bash(curl -s -o /dev/null -w \"src/auth.js: HTTP %{http_code}\\\\n\" \"http://localhost:5500/src/auth.js\")",
       "Bash(curl -s -o /dev/null -w \"src/utils.js: HTTP %{http_code}\\\\n\" \"http://localhost:5500/src/utils.js\")",
-      "Bash(ls ~/.claude/projects/ 2>/dev/null | head -20)"
+      "Bash(ls ~/.claude/projects/ 2>/dev/null | head -20)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
