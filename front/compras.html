@@ -503,6 +503,31 @@ async function cancelarOrden(ordenId) {
 }
 
 // ── HISTORICO ──────────────────────────────────────────────────────────────
+let ingresosCache = null       // [{id, fecha, numero_boleta, total_declarado, total_calculado, cargos_aplicados, proveedor_id, proveedores, usuarios}]
+let ingresoItemsCache = {}     // ingreso_id -> [items]
+let ingresoDetalle = null      // ingreso_id abierto
+
+async function cargarUltimosIngresos() {
+  if (ingresosCache) return
+  const hace365 = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
+  const { data } = await supabase.from('ingresos')
+    .select('id, fecha, numero_boleta, total_declarado, total_calculado, cargos_aplicados, proveedor_id, proveedores(nombre), usuarios:usuario_id(nombre)')
+    .eq('empresa_id', usuario.empresa_id)
+    .gte('fecha', hace365)
+    .order('fecha', { ascending: false })
+    .limit(200)
+  ingresosCache = data || []
+}
+
+async function cargarItemsIngreso(id) {
+  if (ingresoItemsCache[id]) return
+  const { data } = await supabase.from('ingreso_items')
+    .select('bultos, u_por_bulto, cantidad, costo_unit_neto, costo_unit_final, productos(nombre)')
+    .eq('ingreso_id', id)
+    .order('id')
+  ingresoItemsCache[id] = data || []
+}
+
 async function cargarHistorico() {
   if (historicoCache) return
   const hoy = new Date()
@@ -752,9 +777,11 @@ function renderPendientes() {
 async function renderHistorico() {
   const box = document.getElementById('body')
   box.innerHTML = `<section><div class="loading">Cargando histórico…</div></section>`
-  await cargarHistorico()
+  await Promise.all([cargarHistorico(), cargarUltimosIngresos()])
   const h = historicoCache
   if (!h) return
+  const ings = ingresosCache || []
+  const fmtF = s => s ? s.slice(0,10).split('-').reverse().join('/') : ''
   box.innerHTML = `<section>
     <div class="stats">
       <div class="stat"><div class="nro">${ars(h.mes)}</div><div class="desc">Último mes</div></div>
@@ -771,7 +798,83 @@ async function renderHistorico() {
           <div style="font-size:15px;font-weight:700;color:var(--gold-dk)">${ars(p.anio)}</div>
         </div>
       </div></div>`).join('')}
+
+    <div class="lbl" style="margin-top:18px">Boletas de ingreso recibidas (último año)</div>
+    ${!ings.length ? `<div class="empty">Sin ingresos registrados.</div>` :
+      ings.map(i => {
+        const decl = Number(i.total_declarado) || 0
+        const calc = Number(i.total_calculado) || 0
+        const diff = Math.abs(decl - calc)
+        const diffOk = diff < 1
+        const cargos = Array.isArray(i.cargos_aplicados) ? i.cargos_aplicados : []
+        const totCargo = cargos.reduce((s, c) => s + (Number(c.pct) || 0), 0)
+        return `<div class="prov-card" style="cursor:pointer" onclick="window._verIngreso('${i.id}')">
+          <div class="prov-hdr"><div class="top">
+            <div style="flex:1">
+              <div class="nm">${i.proveedores?.nombre || 'Sin proveedor'}${i.numero_boleta?` <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· N° ${i.numero_boleta}</span>`:''}</div>
+              <div class="meta">${fmtF(i.fecha)}${i.usuarios?.nombre?' · '+i.usuarios.nombre:''}${totCargo?' · cargos +'+totCargo.toFixed(1)+'%':''}</div>
+            </div>
+            <div style="text-align:right;white-space:nowrap">
+              <div style="font-size:15px;font-weight:700;color:var(--gold-dk)">${ars(decl)}</div>
+              <div style="font-size:11px;font-weight:700;color:${diffOk?'var(--green-tx)':'var(--red-tx)'}">${diffOk?'✓ coincide':'Δ '+ars(diff)}</div>
+            </div>
+          </div></div>
+        </div>`
+      }).join('')}
   </section>`
+  if (ingresoDetalle) renderIngresoDetalle()
+}
+
+function renderIngresoDetalle() {
+  const i = (ingresosCache || []).find(x => x.id === ingresoDetalle); if (!i) return
+  const items = ingresoItemsCache[i.id]
+  const cargos = Array.isArray(i.cargos_aplicados) ? i.cargos_aplicados : []
+  const decl = Number(i.total_declarado) || 0
+  const totCalc = items ? items.reduce((s, it) => s + (Number(it.cantidad)||0) * (Number(it.costo_unit_final)||0), 0) : 0
+  const diff = decl - totCalc
+  const fmtF = s => s ? s.slice(0,10).split('-').reverse().join('/') : ''
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = e => { if (e.target === ov) window._cerrarIngreso() }
+  ov.innerHTML = `<div class="panel" style="max-height:88vh;overflow-y:auto">
+    <h3 style="font-size:17px;font-weight:700">${i.proveedores?.nombre || 'Sin proveedor'}${i.numero_boleta?' · N° '+i.numero_boleta:''}</h3>
+    <div style="font-size:13px;color:var(--ink-soft);margin:2px 0 12px">${fmtF(i.fecha)}${i.usuarios?.nombre?' · '+i.usuarios.nombre:''}</div>
+    ${cargos.length ? `<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px"><b>Cargos aplicados:</b> ${cargos.map(c => `${c.nombre} ${c.pct}%`).join(' · ')}</div>` : ''}
+    ${items === undefined
+      ? `<div class="loading">Cargando items…</div>`
+      : items.length ? `
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr>
+            <th style="text-align:left;padding:7px 6px;font-size:11px;color:var(--ink-soft);text-transform:uppercase;border-bottom:1px solid var(--line)">Producto</th>
+            <th style="text-align:right;padding:7px 6px;font-size:11px;color:var(--ink-soft);text-transform:uppercase;border-bottom:1px solid var(--line)">Cant.</th>
+            <th style="text-align:right;padding:7px 6px;font-size:11px;color:var(--ink-soft);text-transform:uppercase;border-bottom:1px solid var(--line)">Neto</th>
+            <th style="text-align:right;padding:7px 6px;font-size:11px;color:var(--ink-soft);text-transform:uppercase;border-bottom:1px solid var(--line)">Final</th>
+            <th style="text-align:right;padding:7px 6px;font-size:11px;color:var(--ink-soft);text-transform:uppercase;border-bottom:1px solid var(--line)">Total</th>
+          </tr></thead>
+          <tbody>
+            ${items.map(it => {
+              const cant = Number(it.cantidad) || 0
+              const cn = Number(it.costo_unit_neto) || 0
+              const cf = Number(it.costo_unit_final) || 0
+              return `<tr>
+                <td style="padding:7px 6px;border-bottom:1px solid var(--line-soft)">${it.productos?.nombre || '?'}${(it.u_por_bulto>1)?`<div style="font-size:11px;color:var(--ink-soft)">${it.bultos} × ${it.u_por_bulto}u</div>`:''}</td>
+                <td style="padding:7px 6px;text-align:right;border-bottom:1px solid var(--line-soft)">${cant}</td>
+                <td style="padding:7px 6px;text-align:right;border-bottom:1px solid var(--line-soft)">${ars(cn)}</td>
+                <td style="padding:7px 6px;text-align:right;border-bottom:1px solid var(--line-soft)">${ars(cf)}</td>
+                <td style="padding:7px 6px;text-align:right;border-bottom:1px solid var(--line-soft)"><b>${ars(cant*cf)}</b></td>
+              </tr>`
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="4" style="text-align:right;padding:8px 6px;font-weight:700">Total calculado</td><td style="text-align:right;padding:8px 6px;font-weight:700">${ars(totCalc)}</td></tr>
+            <tr><td colspan="4" style="text-align:right;padding:4px 6px;color:var(--ink-soft)">Total declarado</td><td style="text-align:right;padding:4px 6px;color:var(--ink-soft)">${ars(decl)}</td></tr>
+            ${Math.abs(diff) >= 1 ? `<tr><td colspan="4" style="text-align:right;padding:4px 6px;color:var(--red-tx);font-weight:700">Diferencia</td><td style="text-align:right;padding:4px 6px;color:var(--red-tx);font-weight:700">${ars(diff)}</td></tr>` : ''}
+          </tfoot>
+        </table>`
+      : `<div class="empty">Sin items en este ingreso.</div>`}
+    <button class="cancel-btn" style="width:100%;margin-top:14px" onclick="window._cerrarIngreso()">Cerrar</button>
+  </div>`
+  document.getElementById('root').appendChild(ov)
 }
 
 function renderPanelBuscador() {
@@ -816,6 +919,11 @@ function renderPanelNotas() {
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
 window._setTab = v => { tab = v; render() }
+window._verIngreso = async id => {
+  ingresoDetalle = id; renderHistorico()
+  await cargarItemsIngreso(id); renderHistorico()
+}
+window._cerrarIngreso = () => { ingresoDetalle = null; document.querySelector('.overlay')?.remove() }
 window._setVista = v => { vista = v; render() }
 window._setHorizonte = v => { horizonte = v; render() }
 window._setBusq = v => { busqueda = v; renderListaSugeridos() }
