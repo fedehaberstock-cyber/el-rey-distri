@@ -110,8 +110,18 @@ const diasA = s => { if (!s) return null; const t = new Date(s + 'T00:00:00').ge
 let ofertas = []
 let productos = []
 let panelId = null
-let form = { producto_id: null, producto_nombre: '', descripcion: '', precio_oferta: '', vigente_desde: hoyIso(), vigente_hasta: '', prioridad: 0, activa: true }
+let form = {
+  producto_id: null, producto_nombre: '',
+  descripcion: '', precio_oferta: '',
+  cantidad_min: 1,
+  aplica_desc_bulto: false,
+  regalo_producto_id: null, regalo_producto_nombre: '', regalo_cantidad: '',
+  stock_maximo: '',
+  vigente_desde: hoyIso(), vigente_hasta: '',
+  prioridad: 0, activa: true,
+}
 let busqProd = ''
+let busqRegalo = ''
 let errMsg = ''
 let saving = false
 
@@ -119,7 +129,10 @@ async function cargar() {
   const [ofRes, prodRes] = await Promise.all([
     supabase.from('ofertas')
       .select(`id, producto_id, descripcion, precio_oferta, vigente_desde, vigente_hasta, prioridad, activa,
-               productos(nombre, precio)`)
+               cantidad_min, aplica_desc_bulto, regalo_producto_id, regalo_cantidad,
+               stock_maximo, stock_vendido,
+               productos:producto_id(nombre, precio, u_bulto, desc_bulto),
+               regalo:regalo_producto_id(nombre)`)
       .eq('empresa_id', usuario.empresa_id)
       .order('activa', { ascending: false })
       .order('prioridad', { ascending: false })
@@ -170,11 +183,19 @@ function render() {
             const pNorm = Number(o.productos?.precio || 0)
             const pOf = Number(o.precio_oferta || 0)
             const desc = pNorm > 0 && pOf > 0 && pOf < pNorm ? Math.round((1 - pOf / pNorm) * 100) : null
+            const extras = []
+            if (o.cantidad_min && o.cantidad_min > 1) extras.push(`Mín ${o.cantidad_min}u`)
+            if (o.regalo?.nombre) extras.push(`+ ${o.regalo_cantidad}u ${o.regalo.nombre} regalo`)
+            if (o.stock_maximo != null) {
+              const rest = Math.max(0, (o.stock_maximo || 0) - (o.stock_vendido || 0))
+              extras.push(`${rest}u restantes`)
+            }
             return `<div class="of-card ${est.cardCls}" onclick="window._editar('${o.id}')">
               <div class="of-icon">🔥</div>
               <div class="of-info">
                 <div class="nm">${o.productos?.nombre || '(sin producto)'}</div>
                 <div class="desc">${o.descripcion}${desc ? ` <span style="color:var(--green-tx);font-weight:700">−${desc}%</span>` : ''}</div>
+                ${extras.length ? `<div class="sub" style="color:var(--gold-dk);font-weight:600">${extras.join(' · ')}</div>` : ''}
                 <div class="sub">${o.vigente_desde}${o.vigente_hasta ? ' → ' + o.vigente_hasta : ' · sin vencimiento'}<span class="badge ${est.cls}">${est.txt}</span></div>
               </div>
               <div class="of-arr">›</div>
@@ -189,36 +210,71 @@ function renderPanel() {
   const ov = document.createElement('div')
   ov.className = 'overlay'
   ov.onclick = e => { if (e.target === ov) window._cerrar() }
-  const q = busqProd.trim().toLowerCase()
-  const lista = !form.producto_id && q.length > 1
-    ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 12)
-    : []
+  const prodPrinc = productos.find(p => p.id === form.producto_id)
+  const uBulto = prodPrinc?.u_bulto || 1
+  const descBultoTexto = prodPrinc && uBulto > 1 && prodPrinc.desc_bulto
+    ? `Aplicar también el descuento de bulto (${prodPrinc.desc_bulto}%)`
+    : 'Aplicar también el descuento de bulto del producto'
   ov.innerHTML = `
     <div class="panel">
       <div class="handle"></div>
       <h3>${esNuevo ? 'Nueva oferta' : 'Editar oferta'}</h3>
 
-      <label class="fl">Producto</label>
+      <label class="fl">Producto principal</label>
       ${form.producto_id ? `
         <div class="sel-prod">
-          <span>${form.producto_nombre}</span>
+          <span>${form.producto_nombre}${uBulto>1?` · bulto ${uBulto}u`:''}</span>
           ${esNuevo ? `<button onclick="window._limpiarProd()">✕</button>` : ''}
         </div>` : `
-        <input class="field" placeholder="Buscar producto…" value="${busqProd}"
-          oninput="window._setBusqProd(this.value)" autofocus>
-        ${lista.length ? `<div class="results">${lista.map(p =>
-          `<div class="r" onclick="window._selProd('${p.id}','${(p.nombre || '').replace(/'/g, '&apos;')}')">${p.nombre} · ${ars(p.precio)}</div>`
-        ).join('')}</div>` : ''}`}
+        <input id="of-busq-prod" class="field" placeholder="Buscar producto…" value="${busqProd}"
+          oninput="window._setBusqProd(this.value)">
+        <div id="of-res-prod"></div>`}
+
+      <label class="fl">Cantidad requerida</label>
+      <input class="field" type="number" min="1" value="${form.cantidad_min}"
+        oninput="window._setForm('cantidad_min', this.value)" inputmode="numeric">
+      <div class="help-small">Unidades del producto principal que debe llevar el cliente para que aplique la oferta.${uBulto>1?` (1 bulto = ${uBulto}u)`:''}</div>
+
+      ${prodPrinc && uBulto > 1 ? `
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;cursor:pointer">
+          <input type="checkbox" ${form.aplica_desc_bulto?'checked':''}
+            onchange="window._setForm('aplica_desc_bulto', this.checked)"
+            style="width:18px;height:18px;accent-color:var(--gold)">
+          ${descBultoTexto}
+        </label>
+        <div class="help-small">Si está tildado, además del regalo se aplica el % de bulto del producto.</div>` : ''}
 
       <label class="fl">Descripción</label>
       <input class="field" type="text" value="${form.descripcion}" placeholder="Ej: −15%, llevá 2 pagá 1, $X especial"
         oninput="window._setForm('descripcion', this.value)">
-      <div class="help-small">Lo que va a leer el preventista. Tipo "−15% hasta el viernes" o "Pack 6 a $X".</div>
+      <div class="help-small">Lo que va a leer el preventista.</div>
 
       <label class="fl">Precio en oferta (opcional)</label>
       <input class="field" type="number" min="0" step="0.01" value="${form.precio_oferta}"
         placeholder="Dejar vacío si no aplica" inputmode="numeric"
         oninput="window._setForm('precio_oferta', this.value)">
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        <label class="fl" style="margin-top:0">Producto de regalo (opcional)</label>
+        ${form.regalo_producto_id ? `
+          <div class="sel-prod">
+            <span>${form.regalo_producto_nombre}</span>
+            <button onclick="window._limpiarRegalo()">✕</button>
+          </div>` : `
+          <input id="of-busq-reg" class="field" placeholder="Buscar producto de regalo…" value="${busqRegalo}"
+            oninput="window._setBusqRegalo(this.value)">
+          <div id="of-res-reg"></div>`}
+        ${form.regalo_producto_id ? `
+          <label class="fl" style="margin-top:10px">Cantidad de regalo</label>
+          <input class="field" type="number" min="1" value="${form.regalo_cantidad}"
+            oninput="window._setForm('regalo_cantidad', this.value)" inputmode="numeric">` : ''}
+      </div>
+
+      <label class="fl">Stock máximo para la promo (opcional)</label>
+      <input class="field" type="number" min="0" value="${form.stock_maximo}"
+        placeholder="Dejar vacío = sin límite" inputmode="numeric"
+        oninput="window._setForm('stock_maximo', this.value)">
+      <div class="help-small">Unidades del principal disponibles para la oferta. La oferta se apaga sola al alcanzar el límite.</div>
 
       <div class="row2">
         <div>
@@ -257,6 +313,35 @@ function renderPanel() {
       ${!esNuevo ? `<button class="del-btn" onclick="window._eliminar()">Eliminar oferta</button>` : ''}
     </div>`
   document.getElementById('root').appendChild(ov)
+  // Poblar resultados sin re-renderizar el panel (preserva foco/teclado)
+  renderResultadosProd()
+  renderResultadosRegalo()
+  setTimeout(() => {
+    if (!form.producto_id) document.getElementById('of-busq-prod')?.focus()
+  }, 40)
+}
+
+function renderResultadosProd() {
+  const box = document.getElementById('of-res-prod')
+  if (!box) return
+  const q = busqProd.trim().toLowerCase()
+  const lista = q.length > 1 ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 12) : []
+  box.innerHTML = lista.length
+    ? `<div class="results">${lista.map(p =>
+        `<div class="r" onclick="window._selProd('${p.id}','${(p.nombre || '').replace(/'/g, "&apos;")}')">${p.nombre} · ${ars(p.precio)}</div>`
+      ).join('')}</div>`
+    : ''
+}
+function renderResultadosRegalo() {
+  const box = document.getElementById('of-res-reg')
+  if (!box) return
+  const q = busqRegalo.trim().toLowerCase()
+  const lista = q.length > 1 ? productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 12) : []
+  box.innerHTML = lista.length
+    ? `<div class="results">${lista.map(p =>
+        `<div class="r" onclick="window._selRegalo('${p.id}','${(p.nombre || '').replace(/'/g, "&apos;")}')">${p.nombre} · ${ars(p.precio)}</div>`
+      ).join('')}</div>`
+    : ''
 }
 
 async function guardar() {
@@ -267,10 +352,17 @@ async function guardar() {
     errMsg = 'La fecha "hasta" no puede ser anterior a "desde".'; render(); return
   }
   saving = true; errMsg = ''; render()
+  const regaloOK = !form.regalo_producto_id || (parseInt(form.regalo_cantidad) > 0)
+  if (!regaloOK) { errMsg = 'Poné la cantidad de regalo.'; render(); return }
   const payload = {
     producto_id: form.producto_id,
     descripcion: form.descripcion.trim(),
     precio_oferta: form.precio_oferta === '' ? null : parseFloat(form.precio_oferta),
+    cantidad_min: Math.max(1, parseInt(form.cantidad_min) || 1),
+    aplica_desc_bulto: !!form.aplica_desc_bulto,
+    regalo_producto_id: form.regalo_producto_id || null,
+    regalo_cantidad: form.regalo_producto_id ? Math.max(1, parseInt(form.regalo_cantidad) || 1) : null,
+    stock_maximo: form.stock_maximo === '' ? null : Math.max(0, parseInt(form.stock_maximo) || 0),
     vigente_desde: form.vigente_desde,
     vigente_hasta: form.vigente_hasta || null,
     prioridad: parseInt(form.prioridad) || 0,
@@ -297,8 +389,16 @@ async function eliminar() {
 }
 
 window._nuevo = () => {
-  form = { producto_id: null, producto_nombre: '', descripcion: '', precio_oferta: '', vigente_desde: hoyIso(), vigente_hasta: '', prioridad: 0, activa: true }
-  busqProd = ''; errMsg = ''; panelId = 'nuevo'; render()
+  form = {
+    producto_id: null, producto_nombre: '',
+    descripcion: '', precio_oferta: '',
+    cantidad_min: 1, aplica_desc_bulto: false,
+    regalo_producto_id: null, regalo_producto_nombre: '', regalo_cantidad: '',
+    stock_maximo: '',
+    vigente_desde: hoyIso(), vigente_hasta: '',
+    prioridad: 0, activa: true,
+  }
+  busqProd = ''; busqRegalo = ''; errMsg = ''; panelId = 'nuevo'; render()
 }
 window._editar = id => {
   const o = ofertas.find(x => x.id === id); if (!o) return
@@ -307,18 +407,27 @@ window._editar = id => {
     producto_nombre: o.productos?.nombre || '(sin producto)',
     descripcion: o.descripcion,
     precio_oferta: o.precio_oferta != null ? o.precio_oferta : '',
+    cantidad_min: o.cantidad_min ?? 1,
+    aplica_desc_bulto: !!o.aplica_desc_bulto,
+    regalo_producto_id: o.regalo_producto_id || null,
+    regalo_producto_nombre: o.regalo?.nombre || '',
+    regalo_cantidad: o.regalo_cantidad ?? '',
+    stock_maximo: o.stock_maximo ?? '',
     vigente_desde: o.vigente_desde,
     vigente_hasta: o.vigente_hasta || '',
     prioridad: o.prioridad,
     activa: o.activa,
   }
-  errMsg = ''; panelId = id; render()
+  busqProd = ''; busqRegalo = ''; errMsg = ''; panelId = id; render()
 }
 window._cerrar = () => { panelId = null; render() }
-window._setForm = (k, v) => { form[k] = v }
-window._setBusqProd = v => { busqProd = v; render() }
+window._setForm = (k, v) => { form[k] = v; if (k === 'aplica_desc_bulto') render() }
+window._setBusqProd = v => { busqProd = v; renderResultadosProd() }
+window._setBusqRegalo = v => { busqRegalo = v; renderResultadosRegalo() }
 window._selProd = (id, nombre) => { form.producto_id = id; form.producto_nombre = nombre; busqProd = ''; render() }
+window._selRegalo = (id, nombre) => { form.regalo_producto_id = id; form.regalo_producto_nombre = nombre; busqRegalo = ''; render() }
 window._limpiarProd = () => { form.producto_id = null; form.producto_nombre = ''; render() }
+window._limpiarRegalo = () => { form.regalo_producto_id = null; form.regalo_producto_nombre = ''; form.regalo_cantidad = ''; render() }
 window._guardar = () => guardar()
 window._eliminar = () => eliminar()
 
