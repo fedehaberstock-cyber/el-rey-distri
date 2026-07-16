@@ -250,14 +250,11 @@ async function cargarTodo() {
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
     supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('velocidad_venta').select('producto_id, unidades_por_dia'),
-    (() => {
-      const hace65 = new Date(Date.now() - 65 * 86400000).toISOString().slice(0, 10);
-      return supabase.from('mov_stock')
-        .select('producto_id, fecha')
-        .eq('tipo', 'venta')
-        .gte('fecha', hace65)
-        .limit(50000);
-    })(),
+    // Última venta por producto — calculada server-side en la vista
+    // ultima_venta_producto (evita el limite 1000/50000 de PostgREST).
+    supabase.from('ultima_venta_producto')
+      .select('producto_id, ultima_venta')
+      .eq('empresa_id', usuario.empresa_id),
   ]);
   const { data: provProds } = await supabase.from('producto_proveedor')
     .select('id, producto_id, proveedor_id, costo, observaciones, actualizado_en, proveedores(nombre)')
@@ -270,8 +267,7 @@ async function cargarTodo() {
 
   const ultVentaMap = {};
   for (const v of (ventas || [])) {
-    if (!ultVentaMap[v.producto_id] || v.fecha > ultVentaMap[v.producto_id])
-      ultVentaMap[v.producto_id] = v.fecha;
+    ultVentaMap[v.producto_id] = v.ultima_venta;
   }
 
   if (errP) {
