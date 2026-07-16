@@ -540,7 +540,11 @@ function renderItems() {
       <div class="ctrls">
         <div class="stepper">
           <button onclick="setBultos(${i},-1)">&minus;</button>
-          <span class="qty">${it.bultos}</span>
+          <input class="qty" type="number" min="1" inputmode="numeric"
+            value="${it.bultos}"
+            onfocus="this.select()"
+            onchange="window.setBultosDirecto(${i}, this.value)"
+            style="width:50px;text-align:center;border:none;background:transparent;font-weight:600;font-size:15px;font-family:inherit;color:var(--ink);padding:0">
           <button onclick="setBultos(${i},1)">+</button>
         </div>
         ${esBulto ? `<span class="bulto-mult">bultos × <input type="number" min="1"
@@ -725,6 +729,11 @@ function confirmarPanelItem() {
 }
 
 function setBultos(i, d) { items[i].bultos = Math.max(1, items[i].bultos + d); render() }
+function setBultosDirecto(i, v) {
+  const n = Math.max(1, parseInt(v) || 1);
+  items[i].bultos = n; render();
+}
+window.setBultosDirecto = setBultosDirecto;
 function setUporBulto(i, v) { const n = parseInt(v); items[i].uPorBulto = (!n||n<1) ? 1 : n; render() }
 function setCosto(i, v) { const n = parseFloat(v); items[i].costo = (!n||n<0) ? 0 : n; render() }
 function quitar(i) { items.splice(i, 1); render() }
