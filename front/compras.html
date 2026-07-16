@@ -735,15 +735,21 @@ function renderGrupo(g) {
   </section>`
 }
 
-// Productos donde este proveedor es alternativo (no preferido) y todavía no
-// están en ningún renglón de esta OC. Se listan al final de su grupo para que
-// puedas sumarlos con un tap sin abrir el buscador.
+// Productos donde este proveedor es alternativo (no preferido). Se muestran al
+// final de su grupo. Excluye los que ya están ASIGNADOS a este proveedor en la
+// OC actual (sugerencia o manual). Si un producto está en otra sugerencia, al
+// tocarlo se lo reasigna a este proveedor.
 function renderAlternativos(provId) {
   if (!provId || provId === 'sin') return ''
-  const yaEnItems = new Set(todosLosItems().map(s => s.producto_id))
+  // producto_id -> proveedor efectivo actual en la OC (sug + manual + reasignaciones)
+  const asignaciones = new Map()
+  for (const s of todosLosItems()) {
+    const eff = s.reasignado_a || s.proveedor_id || 'sin'
+    asignaciones.set(s.producto_id, eff)
+  }
   const alts = catalogoProds.filter(p => {
-    if (yaEnItems.has(p.id)) return false
-    if (p.proveedor_id === provId) return false   // ya es preferido, va en items
+    if (asignaciones.get(p.id) === provId) return false  // ya en este grupo
+    if (p.proveedor_id === provId) return false          // preferido → arriba
     return (productoProveedores[p.id] || []).some(x => x.proveedor_id === provId)
   })
   if (!alts.length) return ''
@@ -753,10 +759,16 @@ function renderAlternativos(provId) {
       ${alts.slice(0, 40).map(p => {
         const alt = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provId)
         const costo = alt ? alt.costo : p.costo
+        const enOtro = asignaciones.has(p.id)
+        // Si ya tiene sugerencia en otro proveedor, reasignamos; si no, alta manual
+        const action = enOtro
+          ? `window._reasignar('${p.id}','${provId}')`
+          : `window._agregarProd('${p.id}','${provId}')`
+        const nota = enOtro ? ` <span style="font-size:10px;color:var(--ink-soft);font-weight:500">(mover desde ${proveedoresInfo[asignaciones.get(p.id)]?.nombre || 'otro'})</span>` : ''
         return `<div class="pres" style="border:1px solid var(--line);border-radius:8px;margin:0 4px 6px;padding:8px 10px;cursor:pointer"
-          onclick="window._agregarProd('${p.id}','${provId}')">
+          onclick="${action}">
           <div class="pn" style="font-weight:600;font-size:13px">${p.nombre}
-            <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">alternativo</span>
+            <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">alternativo</span>${nota}
           </div>
           <div class="ps" style="font-size:11px;color:var(--ink-soft)">${p.categoria || '—'} · costo ${ars(costo)}</div>
         </div>`

@@ -29,7 +29,8 @@
       "Bash(git push *)",
       "Bash(curl -s \"https://el-rey-distri.pages.dev/compras.html\")",
       "Bash(curl -sI \"https://el-rey-distri.pages.dev/compras.html\")",
-      "Bash(curl -s \"https://el-rey-distri.pages.dev/compras\")"
+      "Bash(curl -s \"https://el-rey-distri.pages.dev/compras\")",
+      "Bash(curl -sI \"https://el-rey-distri.pages.dev/service-worker.js\")"
     ]
   }
 }
