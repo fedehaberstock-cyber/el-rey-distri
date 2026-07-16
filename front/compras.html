@@ -884,19 +884,34 @@ function renderPanelBuscador() {
   ov.onclick = e => { if (e.target === ov) window._cerrarBuscador() }
   const provFiltrado = panelProd.provId === 'sin' ? null : panelProd.provId
   const q = (window._busqProd || '').toLowerCase().trim()
+  // Producto matchea al proveedor si es su preferido (productos.proveedor_id)
+  // o si tiene una entrada como proveedor alternativo (producto_proveedor).
+  const matchProv = p => !provFiltrado
+    || p.proveedor_id === provFiltrado
+    || (productoProveedores[p.id] || []).some(x => x.proveedor_id === provFiltrado)
+  // Costo mostrado: el de este proveedor específico si existe, si no el default
+  const costoParaProv = p => {
+    if (!provFiltrado) return p.costo
+    const alt = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provFiltrado)
+    return alt ? alt.costo : p.costo
+  }
   const lista = catalogoProds
-    .filter(p => !provFiltrado || p.proveedor_id === provFiltrado)
+    .filter(matchProv)
     .filter(p => !q || p.nombre.toLowerCase().includes(q))
     .filter(p => !todosLosItems().some(s => s.producto_id === p.id))
     .slice(0, 30)
   ov.innerHTML = `<div class="panel">
     <h3>Agregar producto</h3>
     <input class="search-prod" placeholder="Buscar…" value="${window._busqProd || ''}" oninput="window._setBusqProd(this.value)" autofocus>
-    ${lista.length ? lista.map(p => `
+    ${lista.length ? lista.map(p => {
+      const esAlt = provFiltrado && p.proveedor_id !== provFiltrado
+      const costo = costoParaProv(p)
+      return `
       <div class="pres" onclick="window._agregarProd('${p.id}','${panelProd.provId}')">
-        <div class="pn">${p.nombre}</div>
-        <div class="ps">${p.categoria || '—'} · costo ${ars(p.costo)}</div>
-      </div>`).join('') : '<div class="empty">Sin coincidencias.</div>'}
+        <div class="pn">${p.nombre}${esAlt?' <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">alternativo</span>':''}</div>
+        <div class="ps">${p.categoria || '—'} · costo ${ars(costo)}</div>
+      </div>`
+    }).join('') : '<div class="empty">Sin coincidencias.</div>'}
     <button class="cancel-btn" onclick="window._cerrarBuscador()">Cancelar</button>
   </div>`
   root.appendChild(ov)
