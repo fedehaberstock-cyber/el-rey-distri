@@ -680,6 +680,30 @@ function renderListaSugeridos() {
     .filter(g => !filtroProv || g.proveedor_id === filtroProv)
     .map(g => ({ ...g, items: filtroBusqueda(g.items) }))
     .filter(g => g.items.length)
+
+  // También agregar grupos "vacíos" para proveedores que solo tienen productos
+  // alternativos (sin sugerencia), así se ven al final.
+  const idsConGrupo = new Set(grupos.map(g => g.proveedor_id))
+  const provsConAlts = new Set()
+  for (const [prodId, arr] of Object.entries(productoProveedores)) {
+    const prod = catalogoProds.find(p => p.id === prodId)
+    if (!prod) continue
+    for (const alt of arr) {
+      if (alt.proveedor_id !== prod.proveedor_id) provsConAlts.add(alt.proveedor_id)
+    }
+  }
+  for (const pid of provsConAlts) {
+    if (idsConGrupo.has(pid)) continue
+    if (filtroProv && filtroProv !== pid) continue
+    const info = proveedoresInfo[pid]
+    grupos.push({
+      proveedor_id: pid,
+      nombre: info?.nombre || 'Sin nombre',
+      items: [],
+      dias_credito: info?.dias_credito || 0,
+    })
+  }
+
   lista.innerHTML = grupos.length
     ? grupos.map(g => renderGrupo(g)).join('')
     : `<div class="empty">Sin resultados.</div>`
