@@ -117,7 +117,7 @@ begin
 
   -- ═══ OFERTAS con campos nuevos ═══════════════════════════════════════════
   select coalesce(jsonb_agg(jsonb_build_object(
-    'id',                 t.id,
+    'oferta_id',          t.id,
     'producto_id',        t.producto_id,
     'nombre',             t.nombre,
     'categoria',          t.categoria,

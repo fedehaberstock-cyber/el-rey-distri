@@ -612,7 +612,7 @@ function aplicarOferta(oferta) {
     disc: descTotal, discAuto: false,
     esBulto: false, uPorBulto: 1,
     precioOverride: precioNormal,  // guardamos el precio normal, el desc hace el resto
-    esOferta: true, ofertaId: oferta.id,
+    esOferta: true, ofertaId: oferta.oferta_id || oferta.id,
   });
   // Agregar regalo si aplica
   if (oferta.regalo_producto_id && oferta.regalo_cantidad > 0) {
@@ -628,7 +628,7 @@ function aplicarOferta(oferta) {
           productoId: oferta.regalo_producto_id, cant: oferta.regalo_cantidad,
           disc: 100, discAuto: false,
           esBulto: false, uPorBulto: 1,
-          esOferta: true, ofertaId: oferta.id, esRegalo: true,
+          esOferta: true, ofertaId: oferta.oferta_id || oferta.id, esRegalo: true,
         });
       }
     }
@@ -848,11 +848,11 @@ function renderSugOfertas(items) {
     const sinStock = (it.stock || 0) <= 0;
     // Guardamos la oferta en un slot global para poder recuperarla por índice
     window._ofertasCache ||= {};
-    window._ofertasCache[it.id] = it;
+    window._ofertasCache[it.oferta_id] = it;
     const nombre = cantReq > 1 ? `${cantReq}u ${it.nombre}` : it.nombre;
     return `<div class="sug-row ${sinStock?'sinstock':''}"
       onpointerdown="event.preventDefault();this.dataset.sy=event.clientY"
-      onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.aplicarOfertaId('${it.id}')">
+      onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.aplicarOfertaId('${it.oferta_id}')">
       <div class="sug-nm">${nombre}${badge}</div>
       ${sub ? `<div class="sug-sub">${sub}</div>` : ''}
       ${sinStock ? `<div class="sug-sub" style="color:var(--red-tx)">Sin stock</div>` : ''}
