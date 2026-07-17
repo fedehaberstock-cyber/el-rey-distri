@@ -303,6 +303,10 @@ Object.assign(window, {
   toggleSug: id => { sugSec[id] = !sugSec[id]; renderSugerencias(); },
   toggleGap: clave => { gapAbierto = gapAbierto === clave ? null : clave; renderSugerencias(); },
   addProdCant: (id, cant) => addProductoCant(id, cant),
+  aplicarOfertaId: id => {
+    const of = window._ofertasCache?.[id];
+    if (of) aplicarOferta(of);
+  },
   setBusqueda: v => { busqueda = v; expandido = null; renderResults(); renderSugerencias(); },
   setBusqFocus: v => { buscadorFocus = !!v; renderSugerencias(); },
   setObservaciones: v => { observaciones = v; },
@@ -441,7 +445,7 @@ Object.assign(window, {
 });
 
 const prod = id => productos.find(p => p.id === id);
-const lineTotal = it => it.cant * prod(it.productoId).precio * (1 - it.disc/100);
+const lineTotal = it => it.cant * (it.precioOverride ?? prod(it.productoId).precio) * (1 - it.disc/100);
 const subtotal  = () => orden.reduce((s, it) => s + lineTotal(it), 0);
 const total     = () => subtotal() * (1 - descGeneral/100);
 
@@ -577,6 +581,61 @@ function addProductoCant(id, cant) {
   renderSugerencias();
   // Toast de feedback rapido
   mostrarToast(`✓ ${cant}u ${p?.nombre || ''}`);
+}
+
+// Aplicar una oferta: agrega N unidades del principal con precio de oferta
+// (y % de bulto si aplica) + M unidades del regalo con descuento 100%.
+function aplicarOferta(oferta) {
+  const p = prod(oferta.producto_id);
+  if (!p) { alert('Producto no disponible.'); return; }
+  const cantReq = Math.max(1, parseInt(oferta.cantidad_min) || 1);
+  const disp = disponible(oferta.producto_id);
+  if (disp < cantReq) { alert(`Stock insuficiente. Disponible: ${disp} u, requiere ${cantReq} u.`); return; }
+  const precioOferta = oferta.precio_oferta != null ? Number(oferta.precio_oferta) : null;
+  const precioNormal = Number(oferta.precio_normal) || p.precio;
+  // Descuento equivalente al precio de oferta
+  let descTotal = 0;
+  if (precioOferta && precioNormal > 0 && precioOferta < precioNormal) {
+    descTotal = Math.round((1 - precioOferta / precioNormal) * 100);
+  }
+  // Sumar desc de bulto si corresponde
+  if (oferta.aplica_desc_bulto && oferta.u_bulto > 1 && cantReq >= oferta.u_bulto) {
+    // Aplicamos multiplicativamente para respetar el matemático real:
+    // combinado% = 1 − (1−a)(1−b)
+    const a = descTotal / 100;
+    const b = (Number(oferta.desc_bulto) || 0) / 100;
+    descTotal = Math.round((1 - (1 - a) * (1 - b)) * 100);
+  }
+  // Agregar producto principal (siempre nueva línea para distinguir la oferta)
+  orden.push({
+    productoId: oferta.producto_id, cant: cantReq,
+    disc: descTotal, discAuto: false,
+    esBulto: false, uPorBulto: 1,
+    precioOverride: precioNormal,  // guardamos el precio normal, el desc hace el resto
+    esOferta: true, ofertaId: oferta.id,
+  });
+  // Agregar regalo si aplica
+  if (oferta.regalo_producto_id && oferta.regalo_cantidad > 0) {
+    const pr = prod(oferta.regalo_producto_id);
+    if (!pr) {
+      alert('El producto de regalo no está cargado en el catálogo. Se agregó solo el principal.');
+    } else {
+      const dispR = disponible(oferta.regalo_producto_id);
+      if (dispR < oferta.regalo_cantidad) {
+        alert(`Sin stock del regalo (${oferta.regalo_nombre || 'regalo'}). Se agregó solo el principal.`);
+      } else {
+        orden.push({
+          productoId: oferta.regalo_producto_id, cant: oferta.regalo_cantidad,
+          disc: 100, discAuto: false,
+          esBulto: false, uPorBulto: 1,
+          esOferta: true, ofertaId: oferta.id, esRegalo: true,
+        });
+      }
+    }
+  }
+  refrescarItems();
+  renderSugerencias();
+  mostrarToast(`✓ Oferta aplicada — ${cantReq}u ${p.nombre}${oferta.regalo_producto_id?' + regalo':''}`);
 }
 
 function mostrarToast(msg) {
@@ -770,12 +829,34 @@ function renderSugSiempre(items) {
 }
 
 function renderSugOfertas(items) {
-  return items.map(it => {
+  return items.map((it, i) => {
     const ahorroPct = (it.precio_normal && it.precio_oferta && it.precio_oferta < it.precio_normal)
       ? Math.round((1 - it.precio_oferta / it.precio_normal) * 100) : null;
     const badge = ahorroPct ? ` <span class="sug-tag oferta">−${ahorroPct}%</span>` : ' <span class="sug-tag oferta">OFERTA</span>';
-    const sub = it.descripcion + (it.vigente_hasta ? ` · hasta ${it.vigente_hasta}` : '');
-    return sugRow(it.producto_id, 1, it.nombre, sub, badge, (it.stock || 0) <= 0);
+    const cantReq = it.cantidad_min || 1;
+    const partes = [];
+    if (cantReq > 1) partes.push(`Llevá ${cantReq}u`);
+    if (it.regalo_producto_id && it.regalo_cantidad) partes.push(`+ ${it.regalo_cantidad}u ${it.regalo_nombre || 'regalo'} gratis`);
+    if (it.aplica_desc_bulto && it.u_bulto > 1) partes.push(`incluye desc. bulto ${it.desc_bulto || 0}%`);
+    if (it.descripcion) partes.push(it.descripcion);
+    if (it.vigente_hasta) partes.push(`hasta ${it.vigente_hasta}`);
+    if (it.stock_maximo != null) {
+      const rest = Math.max(0, (it.stock_maximo || 0) - (it.stock_vendido || 0));
+      partes.push(`${rest}u restantes de la promo`);
+    }
+    const sub = partes.join(' · ');
+    const sinStock = (it.stock || 0) <= 0;
+    // Guardamos la oferta en un slot global para poder recuperarla por índice
+    window._ofertasCache ||= {};
+    window._ofertasCache[it.id] = it;
+    const nombre = cantReq > 1 ? `${cantReq}u ${it.nombre}` : it.nombre;
+    return `<div class="sug-row ${sinStock?'sinstock':''}"
+      onpointerdown="event.preventDefault();this.dataset.sy=event.clientY"
+      onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.aplicarOfertaId('${it.id}')">
+      <div class="sug-nm">${nombre}${badge}</div>
+      ${sub ? `<div class="sug-sub">${sub}</div>` : ''}
+      ${sinStock ? `<div class="sug-sub" style="color:var(--red-tx)">Sin stock</div>` : ''}
+    </div>`;
   }).join('');
 }
 
@@ -860,7 +941,7 @@ async function confirmar(){
     items: orden.map(it => ({
       producto_id: it.productoId,
       cantidad: it.cant,
-      precio_unit: prod(it.productoId).precio,
+      precio_unit: it.precioOverride ?? prod(it.productoId).precio,
       descuento: it.disc,
       es_bulto: it.esBulto,
       u_por_bulto: it.uPorBulto,
