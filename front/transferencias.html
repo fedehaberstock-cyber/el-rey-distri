@@ -129,7 +129,8 @@
 <div id="bar-bottom" class="bar-bottom">
   <div class="sel-info" id="bar-info"></div>
   <button class="clr" onclick="window._limpiarSel()">Limpiar</button>
-  <button class="exp" onclick="window._exportarSel()">📄 Exportar</button>
+  <button class="clr" onclick="window._exportarSel('zip')">📦 ZIP</button>
+  <button class="exp" onclick="window._exportarSel('pdf')">📄 PDF</button>
 </div>
 
 <script type="module">
@@ -534,11 +535,10 @@ window._delBenef = async id => {
   await cargar()
 }
 
-// ── EXPORTAR PDF ───────────────────────────────────────────────────────────
-window._exportarSel = async () => {
+// ── EXPORTAR PDF o ZIP ─────────────────────────────────────────────────────
+window._exportarSel = async (formato = 'pdf') => {
   const sel = transferencias.filter(t => seleccionadas.has(t.id))
   if (!sel.length) return
-  // agrupar por beneficiario (o "sin asignar")
   const gruposMap = new Map()
   for (const t of sel) {
     const k = t.beneficiario_id || '__sin__'
@@ -553,22 +553,112 @@ window._exportarSel = async () => {
   }))
   const totalGeneral = sel.reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
 
-  const html = generarHtmlExport(bloques, totalGeneral, desde, hasta)
-  const win = window.open('', '_blank')
-  if (!win) { alert('No se pudo abrir la ventana. Habilitá los pop-ups para este sitio.'); return }
-  win.document.open()
-  win.document.write(html)
-  win.document.close()
+  if (formato === 'zip') {
+    await exportarZip(bloques, totalGeneral, sel)
+  } else {
+    const html = generarHtmlExport(bloques, totalGeneral, desde, hasta)
+    const win = window.open('', '_blank')
+    if (!win) { alert('No se pudo abrir la ventana. Habilitá los pop-ups para este sitio.'); return }
+    win.document.open(); win.document.write(html); win.document.close()
+    if (confirm(`Se abrió el PDF. ¿Marcar las ${sel.length} como "enviadas al beneficiario"?`)) {
+      await marcarEnviadas(sel.map(t => t.id))
+    }
+  }
+}
 
-  // Marcar como enviadas después de que confirme
-  if (confirm(`Se abrió el PDF. ¿Marcar las ${sel.length} como "enviadas al beneficiario"?`)) {
-    const ids = sel.map(t => t.id)
-    const { error } = await supabase.from('mov_cuenta')
-      .update({ enviado_al_beneficiario: true, enviado_en: new Date().toISOString() })
-      .in('id', ids)
-    if (error) { alert('Error al marcar como enviadas: ' + error.message); return }
-    seleccionadas = new Set()
-    await cargar()
+async function marcarEnviadas(ids) {
+  const { error } = await supabase.from('mov_cuenta')
+    .update({ enviado_al_beneficiario: true, enviado_en: new Date().toISOString() })
+    .in('id', ids)
+  if (error) { alert('Error al marcar como enviadas: ' + error.message); return }
+  seleccionadas = new Set()
+  await cargar()
+}
+
+async function exportarZip(bloques, totalGeneral, sel) {
+  mostrarToast('Generando ZIP…')
+  let JSZip
+  try {
+    ({ default: JSZip } = await import('https://esm.sh/jszip@3.10.1'))
+  } catch (e) {
+    alert('No se pudo cargar la librería de ZIP: ' + (e.message || e))
+    return
+  }
+  const zip = new JSZip()
+
+  // 1) Resumen en TXT (sin nombre de cliente, según pediste)
+  let resumen = `EL REY — Transferencias\n`
+  resumen += `Período: ${desde} a ${hasta}\n`
+  resumen += `Generado: ${new Date().toLocaleString('es-AR')}\n`
+  resumen += `Movimientos: ${sel.length}\n`
+  resumen += `Total: ${ars(totalGeneral)}\n`
+  resumen += `Beneficiarios: ${bloques.length}\n`
+  resumen += `\n${'='.repeat(60)}\n\n`
+  for (const b of bloques) {
+    resumen += `${b.nombre}${b.tipo ? ' ('+b.tipo+')' : ''}\n`
+    resumen += `Subtotal: ${ars(b.total)} · ${b.items.length} mov.\n`
+    resumen += `${'-'.repeat(60)}\n`
+    for (const t of b.items) {
+      const nro = t.nro_operacion_interna ? `#${t.nro_operacion_interna}` : '(sin nº)'
+      const ref = t.referencia_externa ? ` · ref ${t.referencia_externa}` : ''
+      const con = t.conciliado ? ' · conciliada' : ''
+      resumen += `  ${nro.padEnd(6)}  ${fmtFechaCorta(t.fecha).padEnd(12)}  ${ars(Math.abs(Number(t.monto))).padStart(12)}${ref}${con}\n`
+    }
+    resumen += `\n`
+  }
+  zip.file('_resumen.txt', resumen)
+
+  // 2) CSV para importar en Excel
+  const csvHeader = 'nro_op;fecha;beneficiario;monto;referencia;conciliada\n'
+  const csvRows = []
+  for (const b of bloques) {
+    for (const t of b.items) {
+      csvRows.push([
+        t.nro_operacion_interna ?? '',
+        fmtFechaCorta(t.fecha),
+        b.nombre,
+        Math.abs(Number(t.monto)),
+        (t.referencia_externa || '').replace(/;/g, ','),
+        t.conciliado ? 'si' : 'no',
+      ].join(';'))
+    }
+  }
+  zip.file('_detalle.csv', csvHeader + csvRows.join('\n'))
+
+  // 3) Comprobantes — descargar cada imagen y agregar al zip
+  //    Organizados en carpetas por beneficiario, nombre: NroOp_fecha.ext
+  let bajadas = 0
+  const total = bloques.reduce((s, b) => s + b.items.filter(t => t.comprobante_url).length, 0)
+  const slug = s => (s || 'sin_asignar').replace(/[^\w\- ]+/g, '').replace(/\s+/g, '_').slice(0, 40)
+  for (const b of bloques) {
+    const carpeta = zip.folder(slug(b.nombre))
+    for (const t of b.items) {
+      if (!t.comprobante_url) continue
+      try {
+        const resp = await fetch(t.comprobante_url)
+        if (!resp.ok) continue
+        const blob = await resp.blob()
+        const ext = (t.comprobante_url.split('.').pop() || 'jpg').split('?')[0].toLowerCase()
+        const filename = `${String(t.nro_operacion_interna || '00').padStart(4,'0')}_${(fmtFechaCorta(t.fecha).replace(/\//g,'-'))}.${ext}`
+        carpeta.file(filename, blob)
+        bajadas++
+      } catch (e) { console.warn('No se pudo bajar comprobante:', e) }
+    }
+  }
+
+  // 4) Generar y descargar
+  const contentBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+  const url = URL.createObjectURL(contentBlob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `transferencias_${desde}_${hasta}.zip`
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 30000)
+
+  mostrarToast(`✓ ZIP listo (${bajadas}/${total} comprobantes)`)
+
+  if (confirm(`ZIP descargado. ¿Marcar las ${sel.length} como "enviadas al beneficiario"?`)) {
+    await marcarEnviadas(sel.map(t => t.id))
   }
 }
 
