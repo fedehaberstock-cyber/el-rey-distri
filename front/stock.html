@@ -244,7 +244,7 @@ async function cargarTodo() {
     { data: ventas },
   ] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, costo, precio, updated_at, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
+      .select('id, nombre, categoria, subcategoria, costo, precio, updated_at, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
@@ -290,6 +290,7 @@ async function cargarTodo() {
     id: p.id,
     nombre: p.nombre,
     cat: p.categoria || 'Sin categoría',
+    subcategoria: p.subcategoria || '',
     prov: p.proveedores?.nombre || 'Sin proveedor',
     proveedor_id: p.proveedor_id || null,
     costo: p.costo || 0,
@@ -332,6 +333,7 @@ window._editarProducto = (id) => {
   const p = productos.find(x => x.id === id); if (!p) return;
   edit = {
     nombre: p.nombre, categoria: p.cat === 'Sin categoría' ? '' : p.cat,
+    subcategoria: p.subcategoria || '',
     proveedor_id: p.proveedor_id || '',
     costo: p.costo, precio: p.precio,
     u_bulto: p.u_bulto, desc_bulto: p.desc_bulto,
@@ -347,6 +349,7 @@ async function guardarEdicion() {
   const payload = {
     nombre: edit.nombre.trim(),
     categoria: edit.categoria.trim() || null,
+    subcategoria: (edit.subcategoria || '').trim() || null,
     proveedor_id: edit.proveedor_id || null,
     costo: Number(edit.costo) || 0,
     precio: Number(edit.precio) || 0,
@@ -741,9 +744,19 @@ function renderPanelEditar() {
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div><label class="fl">Categoría</label>
-          <input class="field" value="${edit.categoria || ''}" oninput="window._setEdit('categoria', this.value)" placeholder="Ej: Analgésicos"></div>
+          <input class="field" list="cat-opts" autocomplete="off"
+            value="${edit.categoria || ''}" oninput="window._setEdit('categoria', this.value)" placeholder="Ej: Analgésicos">
+          <datalist id="cat-opts">
+            ${[...new Set(productos.map(x => x.cat).filter(c => c && c !== 'Sin categoría'))].sort()
+              .map(c => `<option value="${c}">`).join('')}
+          </datalist></div>
         <div><label class="fl">Subcategoría</label>
-          <input class="field" value="${edit.subcategoria || ''}" oninput="window._setEdit('subcategoria', this.value)" placeholder="Opcional"></div>
+          <input class="field" list="sub-opts" autocomplete="off"
+            value="${edit.subcategoria || ''}" oninput="window._setEdit('subcategoria', this.value)" placeholder="Opcional">
+          <datalist id="sub-opts">
+            ${[...new Set(productos.map(x => x.subcategoria).filter(Boolean))].sort()
+              .map(s => `<option value="${s}">`).join('')}
+          </datalist></div>
       </div>
 
       <label class="fl">Proveedor</label>
