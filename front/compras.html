@@ -227,7 +227,7 @@ async function cargar() {
       .select('producto_id, proveedor_id, costo, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id),
     supabase.from('ordenes_compra')
-      .select('id, proveedor_id, estado, fecha_enviada, fecha_estimada_llegada, total_estimado, observaciones, proveedores(nombre, dias_credito)')
+      .select('id, proveedor_id, estado, fecha_enviada, fecha_estimada_llegada, total_estimado, observaciones, proveedores(nombre, dias_credito, telefono)')
       .eq('empresa_id', usuario.empresa_id)
       .in('estado', ['enviada','recibida_parcial'])
       .order('fecha_enviada', { ascending: false }),
@@ -852,6 +852,8 @@ function renderPendientes() {
         <div class="acciones">
           <button class="recv" onclick="window._recibir('${o.id}')">📥 Recibí esto</button>
           <button class="alt" onclick="window._editarOrden('${o.id}')" style="background:var(--card);border:1px solid var(--gold);color:var(--gold-dk);padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">✏ Editar</button>
+          <button class="alt" onclick="window._waOrden('${o.id}')" style="background:#25D366;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">📤 WhatsApp${o.proveedores?.telefono?'':' (sin tel)'}</button>
+          <button class="alt" onclick="window._copiarOrden('${o.id}')" style="background:var(--card);border:1px solid var(--line);color:var(--ink);padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">📋 Copiar</button>
           <button class="cancel" onclick="window._cancelar('${o.id}')">Cancelar</button>
         </div>
       </div>`
@@ -1226,6 +1228,42 @@ window._imprimirProv = id => {
 window._enviarTodo = () => enviarTodo()
 window._recibir = id => abrirRecepcion(id)
 window._cancelar = id => cancelarOrden(id)
+
+// Texto del pedido a partir de una OC ya persistida
+function mensajeOrden(orden) {
+  const items = (orden.items || [])
+  if (!items.length) return null
+  const lineas = items.map(it => {
+    const rest = (it.cantidad || 0) - (it.cantidad_recibida || 0)
+    const q = rest > 0 ? rest : it.cantidad
+    return `${q}u  ${it.productos?.nombre || '?'}`
+  })
+  const totalRest = items.reduce((s, it) => {
+    const rest = (it.cantidad || 0) - (it.cantidad_recibida || 0)
+    const q = rest > 0 ? rest : it.cantidad
+    return s + q * Number(it.costo_unit_estimado || 0)
+  }, 0)
+  const nombreProv = orden.proveedores?.nombre || 'Proveedor'
+  return `Buen día!\nPedido para ${nombreProv}:\n\n${lineas.join('\n')}\n\nTotal estimado: ${ars(totalRest)}`
+}
+
+window._copiarOrden = id => {
+  const o = ordenesAbiertas.find(x => x.id === id); if (!o) return
+  const txt = mensajeOrden(o); if (!txt) { alert('Sin items'); return }
+  navigator.clipboard.writeText(txt)
+    .then(() => toast('✓ Copiado'))
+    .catch(() => alert(txt))
+}
+window._waOrden = id => {
+  const o = ordenesAbiertas.find(x => x.id === id); if (!o) return
+  const txt = mensajeOrden(o); if (!txt) { alert('Sin items'); return }
+  const tel = (o.proveedores?.telefono || '').replace(/[^0-9]/g, '')
+  const url = tel
+    ? `https://wa.me/${tel}?text=${encodeURIComponent(txt)}`
+    : `https://wa.me/?text=${encodeURIComponent(txt)}`
+  window.open(url, '_blank')
+  if (!tel) toast('Sin teléfono — elegí destinatario en WhatsApp')
+}
 window._abrirBuscador = provId => { panelProd = { provId, mode: 'sug' }; window._busqProd = ''; render() }
 window._abrirBuscadorEdit = () => {
   if (!editingOrden) return
