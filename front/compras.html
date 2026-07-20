@@ -185,7 +185,9 @@ let horizonte = HORIZONTE_DEFAULT  // null | 7 | 14 | 30 | 45
 let borrador = cargarBorrador()
 let agregadosManual = []      // [{producto_id, proveedor_id, nombre, categoria, costo, unidad_compra}]
 let historicoCache = null     // {total, mes, trim, anio, porProveedor: [...]}
-let panelProd = null          // {provId} para buscador de productos
+let panelProd = null          // {provId, mode:'sug'|'edit'} para buscador de productos
+let editingOrden = null       // {id, proveedor_id, proveedor_nombre, fecha_estimada_llegada, observaciones, items:[{id?, producto_id, nombre, cantidad, costo_unit_estimado, cantidad_recibida}], removedIds:[]}
+let savingOrden = false
 let editandoNotas = null      // producto_id
 
 // ── HELPERS DE BORRADOR ────────────────────────────────────────────────────
@@ -599,6 +601,7 @@ function render() {
 
   if (panelProd) renderPanelBuscador()
   if (editandoNotas) renderPanelNotas()
+  if (editingOrden) renderEditarOrden()
 }
 
 function renderSugeridos() {
@@ -833,6 +836,7 @@ function renderPendientes() {
         <div class="items">${itemsTxt || '(sin items)'}</div>
         <div class="acciones">
           <button class="recv" onclick="window._recibir('${o.id}')">📥 Recibí esto</button>
+          <button class="alt" onclick="window._editarOrden('${o.id}')" style="background:var(--card);border:1px solid var(--gold);color:var(--gold-dk);padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">✏ Editar</button>
           <button class="cancel" onclick="window._cancelar('${o.id}')">Cancelar</button>
         </div>
       </div>`
@@ -950,20 +954,104 @@ function renderPanelBuscador() {
   ov.onclick = e => { if (e.target === ov) window._cerrarBuscador() }
   const provFiltrado = panelProd.provId === 'sin' ? null : panelProd.provId
   const q = (window._busqProd || '').toLowerCase().trim()
-  const lista = catalogoProds
-    .filter(p => !provFiltrado || p.proveedor_id === provFiltrado)
+  // Mostrar TODOS los productos — no filtramos por proveedor. Si el proveedor
+  // no era preferido ni alternativo, al recibir la boleta confirmar_ingreso
+  // hace el upsert en producto_proveedor y queda registrada la relación.
+  const listaTodos = catalogoProds
     .filter(p => !q || p.nombre.toLowerCase().includes(q))
     .filter(p => !todosLosItems().some(s => s.producto_id === p.id))
-    .slice(0, 30)
+  // Ordenar: preferido del proveedor primero, después alternativos, después el resto
+  const rank = p => {
+    if (!provFiltrado) return 2
+    if (p.proveedor_id === provFiltrado) return 0
+    if ((productoProveedores[p.id] || []).some(x => x.proveedor_id === provFiltrado)) return 1
+    return 2
+  }
+  const lista = listaTodos.sort((a, b) => rank(a) - rank(b) || a.nombre.localeCompare(b.nombre)).slice(0, 40)
+  const costoParaProv = p => {
+    if (!provFiltrado) return p.costo
+    const alt = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provFiltrado)
+    return alt ? alt.costo : p.costo
+  }
+  const badgeParaProv = p => {
+    if (!provFiltrado) return ''
+    if (p.proveedor_id === provFiltrado)
+      return ' <span style="font-size:10px;font-weight:700;background:var(--gold);color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px">preferido</span>'
+    if ((productoProveedores[p.id] || []).some(x => x.proveedor_id === provFiltrado))
+      return ' <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">alternativo</span>'
+    return ' <span style="font-size:10px;font-weight:700;background:#EEEADD;color:#5B665F;padding:1px 6px;border-radius:4px;margin-left:4px">nuevo p/ este prov</span>'
+  }
   ov.innerHTML = `<div class="panel">
     <h3>Agregar producto</h3>
     <input class="search-prod" placeholder="Buscar…" value="${window._busqProd || ''}" oninput="window._setBusqProd(this.value)" autofocus>
     ${lista.length ? lista.map(p => `
       <div class="pres" onclick="window._agregarProd('${p.id}','${panelProd.provId}')">
-        <div class="pn">${p.nombre}</div>
-        <div class="ps">${p.categoria || '—'} · costo ${ars(p.costo)}</div>
+        <div class="pn">${p.nombre}${badgeParaProv(p)}</div>
+        <div class="ps">${p.categoria || '—'} · costo ${ars(costoParaProv(p))}</div>
       </div>`).join('') : '<div class="empty">Sin coincidencias.</div>'}
     <button class="cancel-btn" onclick="window._cerrarBuscador()">Cancelar</button>
+  </div>`
+  root.appendChild(ov)
+}
+
+function renderEditarOrden() {
+  const root = document.getElementById('root')
+  const e = editingOrden
+  const total = e.items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costo_unit_estimado) || 0), 0)
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = ev => { if (ev.target === ov) window._cerrarEditar() }
+  ov.innerHTML = `<div class="panel" style="max-height:90vh;overflow-y:auto">
+    <h3>Editar orden · ${e.proveedor_nombre}</h3>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">
+      Podés cambiar cantidades, costos, quitar items o agregar nuevos.
+      ${e.items.some(it => (it.cantidad_recibida||0) > 0) ? '<br><b style="color:var(--amber-tx)">⚠ Esta orden tiene recepción parcial — los items ya recibidos no se pueden reducir por debajo de lo recibido.</b>' : ''}
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${e.items.length ? e.items.map((it, i) => `
+        <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+            <div style="font-weight:600;flex:1;min-width:0">${it.nombre}${it.isNew?' <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">nuevo</span>':''}</div>
+            <button onclick="window._quitarItemEdit(${i})" style="background:none;border:none;color:var(--red-tx);font-size:20px;line-height:1;cursor:pointer;padding:0 4px">×</button>
+          </div>
+          ${(it.cantidad_recibida||0) > 0 ? `<div style="font-size:11px;color:var(--amber-tx);margin-bottom:6px">Ya recibidas: ${it.cantidad_recibida}u</div>` : ''}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+            <div>
+              <label style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px">Cantidad</label>
+              <input type="number" min="${it.cantidad_recibida||1}" value="${it.cantidad}"
+                oninput="window._setItemCant(${i}, this.value)" onfocus="this.select()"
+                style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;text-align:right">
+            </div>
+            <div>
+              <label style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px">Costo unit</label>
+              <input type="number" min="0" step="0.01" value="${it.costo_unit_estimado}"
+                oninput="window._setItemCosto(${i}, this.value)" onfocus="this.select()"
+                style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;text-align:right">
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;text-align:right">
+            Subtotal <b style="color:var(--ink)">${ars((Number(it.cantidad)||0) * (Number(it.costo_unit_estimado)||0))}</b>
+          </div>
+        </div>`).join('') : `<div class="empty">Sin items. Agregá al menos uno.</div>`}
+    </div>
+
+    <button onclick="window._abrirBuscadorEdit()"
+      style="width:100%;margin-top:10px;padding:11px;border:1px dashed var(--gold);border-radius:10px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600;cursor:pointer;font-family:inherit;font-size:14px">
+      ＋ Agregar producto
+    </button>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:12px;border-top:2px solid var(--line)">
+      <span style="font-weight:600">Total</span>
+      <span style="font-weight:700;font-size:16px;color:var(--gold-dk)">${ars(total)}</span>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="cancel-btn" style="flex:1" onclick="window._cerrarEditar()">Cancelar</button>
+      <button style="flex:2;padding:13px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px" ${savingOrden?'disabled':''} onclick="window._guardarEditar()">
+        ${savingOrden?'Guardando…':'Guardar cambios'}
+      </button>
+    </div>
   </div>`
   root.appendChild(ov)
 }
@@ -1041,12 +1129,32 @@ window._imprimirProv = id => {
 window._enviarTodo = () => enviarTodo()
 window._recibir = id => abrirRecepcion(id)
 window._cancelar = id => cancelarOrden(id)
-window._abrirBuscador = provId => { panelProd = { provId }; window._busqProd = ''; render() }
+window._abrirBuscador = provId => { panelProd = { provId, mode: 'sug' }; window._busqProd = ''; render() }
+window._abrirBuscadorEdit = () => {
+  if (!editingOrden) return
+  panelProd = { provId: editingOrden.proveedor_id, mode: 'edit' }
+  window._busqProd = ''
+  render()
+}
 window._cerrarBuscador = () => { panelProd = null; window._busqProd = ''; render() }
 window._setBusqProd = v => { window._busqProd = v; render() }
 window._agregarProd = (prodId, provId) => {
   const p = catalogoProds.find(x => x.id === prodId)
   if (!p) return
+  const modo = panelProd?.mode || 'sug'
+  if (modo === 'edit' && editingOrden) {
+    // agregar item al editingOrden
+    const altCosto = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provId)?.costo
+    editingOrden.items.push({
+      producto_id: p.id, nombre: p.nombre,
+      cantidad: p.unidad_compra || 1,
+      costo_unit_estimado: altCosto ?? p.costo ?? 0,
+      cantidad_recibida: 0,
+      isNew: true,
+    })
+    panelProd = null; render()
+    return
+  }
   agregadosManual.push({
     producto_id: p.id, nombre: p.nombre, categoria: p.categoria,
     proveedor_id: provId === 'sin' ? null : provId,
@@ -1057,6 +1165,96 @@ window._agregarProd = (prodId, provId) => {
     notas_compra: p.notas_compra,
   })
   panelProd = null; render()
+}
+
+// ── EDIT ORDEN ─────────────────────────────────────────────────────────────
+window._editarOrden = id => {
+  const o = ordenesAbiertas.find(x => x.id === id); if (!o) return
+  editingOrden = {
+    id: o.id,
+    proveedor_id: o.proveedor_id,
+    proveedor_nombre: o.proveedores?.nombre || 'Sin proveedor',
+    items: (o.items || []).map(it => ({
+      id: it.id,
+      producto_id: it.producto_id,
+      nombre: it.productos?.nombre || '?',
+      cantidad: it.cantidad,
+      costo_unit_estimado: Number(it.costo_unit_estimado) || 0,
+      cantidad_recibida: Number(it.cantidad_recibida) || 0,
+    })),
+    removedIds: [],
+  }
+  render()
+}
+window._cerrarEditar = () => { editingOrden = null; savingOrden = false; render() }
+window._setItemCant  = (i, v) => {
+  if (!editingOrden) return
+  const it = editingOrden.items[i]
+  const n = Math.max(it.cantidad_recibida || 1, parseInt(v) || 0)
+  it.cantidad = n
+  // rerender solo el subtotal / total (simple: full render)
+  render()
+}
+window._setItemCosto = (i, v) => {
+  if (!editingOrden) return
+  editingOrden.items[i].costo_unit_estimado = Math.max(0, Number(v) || 0)
+  render()
+}
+window._quitarItemEdit = i => {
+  if (!editingOrden) return
+  const it = editingOrden.items[i]
+  if ((it.cantidad_recibida || 0) > 0) {
+    alert('Este item ya tiene recepción parcial. No se puede quitar; solo ajustar cantidad al mínimo recibido.')
+    return
+  }
+  if (it.id) editingOrden.removedIds.push(it.id)
+  editingOrden.items.splice(i, 1)
+  render()
+}
+window._guardarEditar = async () => {
+  if (!editingOrden || savingOrden) return
+  if (!editingOrden.items.length) { alert('La orden debe tener al menos un item.'); return }
+  savingOrden = true; render()
+  try {
+    // 1) DELETE items removidos
+    if (editingOrden.removedIds.length) {
+      const { error } = await supabase.from('orden_compra_items')
+        .delete().in('id', editingOrden.removedIds)
+      if (error) throw error
+    }
+    // 2) UPDATE items existentes
+    for (const it of editingOrden.items.filter(x => x.id)) {
+      const { error } = await supabase.from('orden_compra_items')
+        .update({ cantidad: it.cantidad, costo_unit_estimado: it.costo_unit_estimado })
+        .eq('id', it.id)
+      if (error) throw error
+    }
+    // 3) INSERT items nuevos
+    const nuevos = editingOrden.items.filter(x => x.isNew)
+    if (nuevos.length) {
+      const { error } = await supabase.from('orden_compra_items').insert(
+        nuevos.map(it => ({
+          empresa_id: usuario.empresa_id,
+          orden_id: editingOrden.id,
+          producto_id: it.producto_id,
+          cantidad: it.cantidad,
+          costo_unit_estimado: it.costo_unit_estimado,
+          cantidad_recibida: 0,
+        })))
+      if (error) throw error
+    }
+    // 4) Recalcular total y actualizar orden
+    const totNuevo = editingOrden.items.reduce((s, it) => s + it.cantidad * it.costo_unit_estimado, 0)
+    const { error: eOrd } = await supabase.from('ordenes_compra')
+      .update({ total_estimado: totNuevo })
+      .eq('id', editingOrden.id)
+    if (eOrd) throw eOrd
+    editingOrden = null; savingOrden = false
+    await cargar()
+  } catch (e) {
+    alert('Error al guardar: ' + (e.message || e))
+    savingOrden = false; render()
+  }
 }
 window._editarNotas = id => { editandoNotas = id; render() }
 window._cerrarNotas = () => { editandoNotas = null; render() }
