@@ -599,9 +599,10 @@ function render() {
   else if (tab === 'pendientes') renderPendientes()
   else                       renderHistorico()
 
-  if (panelProd) renderPanelBuscador()
-  if (editandoNotas) renderPanelNotas()
+  // Orden: primero paneles base, después buscador para que quede arriba
   if (editingOrden) renderEditarOrden()
+  if (editandoNotas) renderPanelNotas()
+  if (panelProd) renderPanelBuscador()
 }
 
 function renderSugeridos() {
@@ -983,15 +984,49 @@ function renderPanelBuscador() {
   }
   ov.innerHTML = `<div class="panel">
     <h3>Agregar producto</h3>
-    <input class="search-prod" placeholder="Buscar…" value="${window._busqProd || ''}" oninput="window._setBusqProd(this.value)" autofocus>
-    ${lista.length ? lista.map(p => `
-      <div class="pres" onclick="window._agregarProd('${p.id}','${panelProd.provId}')">
-        <div class="pn">${p.nombre}${badgeParaProv(p)}</div>
-        <div class="ps">${p.categoria || '—'} · costo ${ars(costoParaProv(p))}</div>
-      </div>`).join('') : '<div class="empty">Sin coincidencias.</div>'}
+    <input id="busq-prod-input" class="search-prod" placeholder="Buscar…" value="${window._busqProd || ''}" oninput="window._setBusqProd(this.value)" autofocus>
+    <div id="busq-prod-res"></div>
     <button class="cancel-btn" onclick="window._cerrarBuscador()">Cancelar</button>
   </div>`
   root.appendChild(ov)
+  renderBusqProdResultados()
+  setTimeout(() => document.getElementById('busq-prod-input')?.focus(), 30)
+}
+
+// Renderiza solo los resultados sin re-crear el overlay (preserva foco/teclado)
+function renderBusqProdResultados() {
+  const box = document.getElementById('busq-prod-res')
+  if (!box || !panelProd) return
+  const provFiltrado = panelProd.provId === 'sin' ? null : panelProd.provId
+  const q = (window._busqProd || '').toLowerCase().trim()
+  const listaTodos = catalogoProds
+    .filter(p => !q || p.nombre.toLowerCase().includes(q))
+    .filter(p => !todosLosItems().some(s => s.producto_id === p.id))
+  const rank = p => {
+    if (!provFiltrado) return 2
+    if (p.proveedor_id === provFiltrado) return 0
+    if ((productoProveedores[p.id] || []).some(x => x.proveedor_id === provFiltrado)) return 1
+    return 2
+  }
+  const lista = listaTodos.sort((a, b) => rank(a) - rank(b) || a.nombre.localeCompare(b.nombre)).slice(0, 40)
+  const costoParaProv = p => {
+    if (!provFiltrado) return p.costo
+    const alt = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provFiltrado)
+    return alt ? alt.costo : p.costo
+  }
+  const badgeParaProv = p => {
+    if (!provFiltrado) return ''
+    if (p.proveedor_id === provFiltrado)
+      return ' <span style="font-size:10px;font-weight:700;background:var(--gold);color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px">preferido</span>'
+    if ((productoProveedores[p.id] || []).some(x => x.proveedor_id === provFiltrado))
+      return ' <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">alternativo</span>'
+    return ' <span style="font-size:10px;font-weight:700;background:#EEEADD;color:#5B665F;padding:1px 6px;border-radius:4px;margin-left:4px">nuevo p/ este prov</span>'
+  }
+  box.innerHTML = lista.length ? lista.map(p => `
+    <div class="pres" onclick="window._agregarProd('${p.id}','${panelProd.provId}')">
+      <div class="pn">${p.nombre}${badgeParaProv(p)}</div>
+      <div class="ps">${p.categoria || '—'} · costo ${ars(costoParaProv(p))}</div>
+    </div>`).join('') : '<div class="empty">Sin coincidencias.</div>'
 }
 
 function renderEditarOrden() {
@@ -1137,7 +1172,7 @@ window._abrirBuscadorEdit = () => {
   render()
 }
 window._cerrarBuscador = () => { panelProd = null; window._busqProd = ''; render() }
-window._setBusqProd = v => { window._busqProd = v; render() }
+window._setBusqProd = v => { window._busqProd = v; renderBusqProdResultados() }
 window._agregarProd = (prodId, provId) => {
   const p = catalogoProds.find(x => x.id === prodId)
   if (!p) return
