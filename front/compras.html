@@ -581,6 +581,9 @@ function toast(msg) {
 }
 
 function render() {
+  // Preservar scroll de overlay abierto (panel de editar OC, buscador, notas)
+  const _prevPanelScroll = document.querySelector('.overlay .panel')?.scrollTop
+  const _prevWinScroll = window.scrollY
   const el = document.getElementById('root')
   el.innerHTML = `
     <div class="hdr">
@@ -603,6 +606,14 @@ function render() {
   if (editingOrden) renderEditarOrden()
   if (editandoNotas) renderPanelNotas()
   if (panelProd) renderPanelBuscador()
+
+  // Restaurar scroll para que las mutaciones (agregar item, cambiar cant/costo)
+  // no tiren la vista al tope del panel.
+  requestAnimationFrame(() => {
+    const p = document.querySelector('.overlay .panel')
+    if (p && _prevPanelScroll != null) p.scrollTop = _prevPanelScroll
+    if (_prevWinScroll) window.scrollTo(0, _prevWinScroll)
+  })
 }
 
 function renderSugeridos() {
@@ -1055,17 +1066,17 @@ function renderEditarOrden() {
             <div>
               <label style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px">Cantidad</label>
               <input type="number" min="${it.cantidad_recibida||1}" value="${it.cantidad}"
-                oninput="window._setItemCant(${i}, this.value)" onfocus="this.select()"
+                onchange="window._setItemCant(${i}, this.value)" onfocus="this.select()"
                 style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;text-align:right">
             </div>
             <div>
               <label style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px">Costo unit</label>
               <input type="number" min="0" step="0.01" value="${it.costo_unit_estimado}"
-                oninput="window._setItemCosto(${i}, this.value)" onfocus="this.select()"
+                onchange="window._setItemCosto(${i}, this.value)" onfocus="this.select()"
                 style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;text-align:right">
             </div>
           </div>
-          <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;text-align:right">
+          <div class="edit-subtot" style="font-size:12px;color:var(--ink-soft);margin-top:6px;text-align:right">
             Subtotal <b style="color:var(--ink)">${ars((Number(it.cantidad)||0) * (Number(it.costo_unit_estimado)||0))}</b>
           </div>
         </div>`).join('') : `<div class="empty">Sin items. Agregá al menos uno.</div>`}
