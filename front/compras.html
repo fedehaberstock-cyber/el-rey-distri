@@ -186,7 +186,7 @@ let borrador = cargarBorrador()
 let agregadosManual = []      // [{producto_id, proveedor_id, nombre, categoria, costo, unidad_compra}]
 let historicoCache = null     // {total, mes, trim, anio, porProveedor: [...]}
 let panelProd = null          // {provId, mode:'sug'|'edit'} para buscador de productos
-let editingOrden = null       // {id, proveedor_id, proveedor_nombre, fecha_estimada_llegada, observaciones, items:[{id?, producto_id, nombre, cantidad, costo_unit_estimado, cantidad_recibida}], removedIds:[]}
+let editingOrden = null       // {id, proveedor_id, proveedor_nombre, items:[...], removedIds:[], buscadorAbierto, busqEdit}
 let savingOrden = false
 let editandoNotas = null      // producto_id
 
@@ -1071,10 +1071,19 @@ function renderEditarOrden() {
         </div>`).join('') : `<div class="empty">Sin items. Agregá al menos uno.</div>`}
     </div>
 
-    <button onclick="window._abrirBuscadorEdit()"
-      style="width:100%;margin-top:10px;padding:11px;border:1px dashed var(--gold);border-radius:10px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600;cursor:pointer;font-family:inherit;font-size:14px">
-      ＋ Agregar producto
-    </button>
+    ${e.buscadorAbierto ? `
+      <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
+        <input id="edit-busq" placeholder="Buscar producto…" value="${e.busqEdit || ''}"
+          oninput="window._setBusqEdit(this.value)" autocomplete="off"
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;margin-bottom:8px">
+        <div id="edit-busq-res" style="max-height:260px;overflow-y:auto"></div>
+        <button onclick="window._toggleBuscadorEdit()"
+          style="width:100%;padding:8px;margin-top:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-weight:600;cursor:pointer;font-family:inherit;font-size:12px">Cancelar búsqueda</button>
+      </div>` : `
+      <button onclick="window._toggleBuscadorEdit()"
+        style="width:100%;margin-top:10px;padding:11px;border:1px dashed var(--gold);border-radius:10px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600;cursor:pointer;font-family:inherit;font-size:14px">
+        ＋ Agregar producto
+      </button>`}
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:12px;border-top:2px solid var(--line)">
       <span style="font-weight:600">Total</span>
@@ -1089,6 +1098,45 @@ function renderEditarOrden() {
     </div>
   </div>`
   root.appendChild(ov)
+  if (e.buscadorAbierto) {
+    renderEditBusqResultados()
+    setTimeout(() => document.getElementById('edit-busq')?.focus(), 30)
+  }
+}
+
+function renderEditBusqResultados() {
+  const box = document.getElementById('edit-busq-res')
+  if (!box || !editingOrden) return
+  const provId = editingOrden.proveedor_id
+  const q = (editingOrden.busqEdit || '').toLowerCase().trim()
+  const yaEn = new Set(editingOrden.items.map(x => x.producto_id))
+  const lista = catalogoProds
+    .filter(p => !yaEn.has(p.id))
+    .filter(p => !q || p.nombre.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const ra = a.proveedor_id === provId ? 0
+               : (productoProveedores[a.id] || []).some(x => x.proveedor_id === provId) ? 1 : 2
+      const rb = b.proveedor_id === provId ? 0
+               : (productoProveedores[b.id] || []).some(x => x.proveedor_id === provId) ? 1 : 2
+      return ra - rb || a.nombre.localeCompare(b.nombre)
+    })
+    .slice(0, 40)
+  const costoDe = p => {
+    const alt = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provId)
+    return alt ? alt.costo : p.costo
+  }
+  const badgeDe = p => {
+    if (p.proveedor_id === provId)
+      return ' <span style="font-size:10px;font-weight:700;background:var(--gold);color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px">preferido</span>'
+    if ((productoProveedores[p.id] || []).some(x => x.proveedor_id === provId))
+      return ' <span style="font-size:10px;font-weight:700;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px">alternativo</span>'
+    return ' <span style="font-size:10px;font-weight:700;background:#EEEADD;color:#5B665F;padding:1px 6px;border-radius:4px;margin-left:4px">nuevo p/ este prov</span>'
+  }
+  box.innerHTML = lista.length ? lista.map(p => `
+    <div class="pres" onclick="window._agregarProdEdit('${p.id}')">
+      <div class="pn">${p.nombre}${badgeDe(p)}</div>
+      <div class="ps">${p.categoria || '—'} · costo ${ars(costoDe(p))}</div>
+    </div>`).join('') : '<div class="empty">Sin coincidencias.</div>'
 }
 
 function renderPanelNotas() {
@@ -1218,10 +1266,38 @@ window._editarOrden = id => {
       cantidad_recibida: Number(it.cantidad_recibida) || 0,
     })),
     removedIds: [],
+    buscadorAbierto: false,
+    busqEdit: '',
   }
   render()
 }
 window._cerrarEditar = () => { editingOrden = null; savingOrden = false; render() }
+window._toggleBuscadorEdit = () => {
+  if (!editingOrden) return
+  editingOrden.buscadorAbierto = !editingOrden.buscadorAbierto
+  editingOrden.busqEdit = ''
+  render()
+}
+window._setBusqEdit = v => {
+  if (!editingOrden) return
+  editingOrden.busqEdit = v
+  renderEditBusqResultados()   // solo actualiza resultados — preserva foco
+}
+window._agregarProdEdit = prodId => {
+  if (!editingOrden) return
+  const p = catalogoProds.find(x => x.id === prodId); if (!p) return
+  const altCosto = (productoProveedores[p.id] || []).find(x => x.proveedor_id === editingOrden.proveedor_id)?.costo
+  editingOrden.items.push({
+    producto_id: p.id, nombre: p.nombre,
+    cantidad: p.unidad_compra || 1,
+    costo_unit_estimado: altCosto ?? p.costo ?? 0,
+    cantidad_recibida: 0,
+    isNew: true,
+  })
+  editingOrden.buscadorAbierto = false
+  editingOrden.busqEdit = ''
+  render()
+}
 window._setItemCant  = (i, v) => {
   if (!editingOrden) return
   const it = editingOrden.items[i]
