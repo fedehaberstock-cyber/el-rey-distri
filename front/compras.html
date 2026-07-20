@@ -607,13 +607,16 @@ function render() {
   if (editandoNotas) renderPanelNotas()
   if (panelProd) renderPanelBuscador()
 
-  // Restaurar scroll para que las mutaciones (agregar item, cambiar cant/costo)
-  // no tiren la vista al tope del panel.
-  requestAnimationFrame(() => {
+  // Restaurar scroll para que las mutaciones (agregar item, cambiar cant/costo,
+  // agregar producto desde el buscador de sugeridos) no tiren la vista al tope.
+  // Doble restore: sync (antes del paint) + rAF (por si algo lo movió después).
+  const restoreScroll = () => {
+    if (_prevWinScroll) window.scrollTo(0, _prevWinScroll)
     const p = document.querySelector('.overlay .panel')
     if (p && _prevPanelScroll != null) p.scrollTop = _prevPanelScroll
-    if (_prevWinScroll) window.scrollTo(0, _prevWinScroll)
-  })
+  }
+  restoreScroll()
+  requestAnimationFrame(restoreScroll)
 }
 
 function renderSugeridos() {
