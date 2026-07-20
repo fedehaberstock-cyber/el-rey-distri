@@ -84,29 +84,35 @@ const _fmtArg = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argen
 const isoHoy = () => _fmtArg(new Date())
 const isoOffset = (days) => _fmtArg(new Date(Date.now() + days * 86400000))
 
-let pedidos = []      // pedidos del rango con items + categoria + subcategoria
+let pedidos = []      // pedidos del rango con items + categoria + subcategoria + proveedor
 let categorias = []   // lista de categorias presentes
+let proveedores = []  // [{id, nombre}]
 let agrupar = 'sub'   // 'sub' | 'cat' | 'prod'
 let expandido = null  // key (nombre) del grupo expandido
 let desde = isoOffset(-90)
 let hasta = isoHoy()
 let excluidas = new Set()  // categorias excluidas
+let filtroProv = 'todos'   // id o 'todos' o 'sin' (sin proveedor)
 
 async function cargar() {
-  const { data, error } = await supabase
-    .from('pedidos')
-    .select(`id, fecha, descuento, estado,
-      pedido_items(cantidad, precio_unit, descuento,
-        productos(nombre, categoria, subcategoria))`)
-    .eq('empresa_id', usuario.empresa_id)
-    .in('estado', ['confirmado','entregado'])
-    .gte('fecha', desde)
-    .lte('fecha', hasta + 'T23:59:59')
+  const [{ data, error }, { data: provs }] = await Promise.all([
+    supabase.from('pedidos')
+      .select(`id, fecha, descuento, estado,
+        pedido_items(cantidad, precio_unit, descuento,
+          productos(nombre, categoria, subcategoria, proveedor_id, proveedores(nombre)))`)
+      .eq('empresa_id', usuario.empresa_id)
+      .in('estado', ['confirmado','entregado'])
+      .gte('fecha', desde)
+      .lte('fecha', hasta + 'T23:59:59'),
+    supabase.from('proveedores').select('id, nombre')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ])
   if (error) {
     document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`
     return
   }
   pedidos = data || []
+  proveedores = provs || []
   const cats = new Set()
   for (const p of pedidos)
     for (const it of (p.pedido_items || []))
@@ -123,6 +129,10 @@ function calcular() {
     for (const it of (p.pedido_items || [])) {
       const cat = it.productos?.categoria || 'Sin categoría'
       if (excluidas.has(cat)) continue
+      // Filtro por proveedor
+      const provId = it.productos?.proveedor_id || null
+      if (filtroProv === 'sin' && provId) continue
+      if (filtroProv !== 'todos' && filtroProv !== 'sin' && provId !== filtroProv) continue
       const subOrig = (it.productos?.subcategoria || '').trim()
       const nomProd = it.productos?.nombre || '(sin nombre)'
       const key = agrupar === 'prod' ? nomProd
@@ -184,6 +194,15 @@ function render() {
         <div class="chip ${agrupar==='sub'?'active':''}" onclick="window._setAgrupar('sub')">Por subcategoría</div>
         <div class="chip ${agrupar==='cat'?'active':''}" onclick="window._setAgrupar('cat')">Por categoría</div>
         <div class="chip ${agrupar==='prod'?'active':''}" onclick="window._setAgrupar('prod')">Por producto</div>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;font-weight:600;margin-bottom:3px">Proveedor</div>
+        <select onchange="window._setProv(this.value)"
+          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;background:var(--card)">
+          <option value="todos" ${filtroProv==='todos'?'selected':''}>Todos los proveedores</option>
+          <option value="sin"   ${filtroProv==='sin'?'selected':''}>Sin proveedor</option>
+          ${proveedores.map(p => `<option value="${p.id}" ${filtroProv===p.id?'selected':''}>${p.nombre}</option>`).join('')}
+        </select>
       </div>
       ${categorias.length ? `
         <div class="lbl">Excluir categorías</div>
@@ -253,6 +272,7 @@ window._toggleExp = (nombre) => { expandido = expandido === nombre ? null : nomb
 window._setDesde = v => { desde = v; expandido = null; cargar() }
 window._setHasta = v => { hasta = v; expandido = null; cargar() }
 window._setAgrupar = v => { agrupar = v; expandido = null; render() }
+window._setProv = v => { filtroProv = v; expandido = null; render() }
 window._toggleCat = c => {
   if (excluidas.has(c)) excluidas.delete(c); else excluidas.add(c)
   expandido = null
