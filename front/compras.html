@@ -974,9 +974,13 @@ function renderPanelBuscador() {
   // Mostrar TODOS los productos — no filtramos por proveedor. Si el proveedor
   // no era preferido ni alternativo, al recibir la boleta confirmar_ingreso
   // hace el upsert en producto_proveedor y queda registrada la relación.
+  // Mostrar todos los productos (excluyendo solo los ya agregados manualmente a
+  // este proveedor). Si el producto ya está en sugerencias de otro proveedor,
+  // al seleccionarlo se reasigna, no se duplica.
+  const yaManual = new Set(agregadosManual.filter(a => a.proveedor_id === panelProd.provId).map(a => a.producto_id))
   const listaTodos = catalogoProds
     .filter(p => !q || p.nombre.toLowerCase().includes(q))
-    .filter(p => !todosLosItems().some(s => s.producto_id === p.id))
+    .filter(p => !yaManual.has(p.id))
   // Ordenar: preferido del proveedor primero, después alternativos, después el resto
   const rank = p => {
     if (!provFiltrado) return 2
@@ -1015,9 +1019,13 @@ function renderBusqProdResultados() {
   if (!box || !panelProd) return
   const provFiltrado = panelProd.provId === 'sin' ? null : panelProd.provId
   const q = (window._busqProd || '').toLowerCase().trim()
+  // Mostrar todos los productos (excluyendo solo los ya agregados manualmente a
+  // este proveedor). Si el producto ya está en sugerencias de otro proveedor,
+  // al seleccionarlo se reasigna, no se duplica.
+  const yaManual = new Set(agregadosManual.filter(a => a.proveedor_id === panelProd.provId).map(a => a.producto_id))
   const listaTodos = catalogoProds
     .filter(p => !q || p.nombre.toLowerCase().includes(q))
-    .filter(p => !todosLosItems().some(s => s.producto_id === p.id))
+    .filter(p => !yaManual.has(p.id))
   const rank = p => {
     if (!provFiltrado) return 2
     if (p.proveedor_id === provFiltrado) return 0
@@ -1278,7 +1286,6 @@ window._agregarProd = (prodId, provId) => {
   if (!p) return
   const modo = panelProd?.mode || 'sug'
   if (modo === 'edit' && editingOrden) {
-    // agregar item al editingOrden
     const altCosto = (productoProveedores[p.id] || []).find(x => x.proveedor_id === provId)?.costo
     editingOrden.items.push({
       producto_id: p.id, nombre: p.nombre,
@@ -1287,6 +1294,21 @@ window._agregarProd = (prodId, provId) => {
       cantidad_recibida: 0,
       isNew: true,
     })
+    panelProd = null; render()
+    return
+  }
+  // Si ya está en sugerencias (de este u otro proveedor), reasignar en vez de duplicar
+  const enSug = sugerencias.find(s => s.producto_id === prodId)
+  if (enSug) {
+    window._reasignar(prodId, provId === 'sin' ? null : provId)
+    panelProd = null; render()
+    return
+  }
+  // Si ya está agregado manualmente a otro proveedor, mover
+  const enOtroManual = agregadosManual.find(s => s.producto_id === prodId)
+  if (enOtroManual) {
+    enOtroManual.proveedor_id = provId === 'sin' ? null : provId
+    enOtroManual.proveedor_nombre = proveedoresInfo[provId]?.nombre
     panelProd = null; render()
     return
   }
