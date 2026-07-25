@@ -244,7 +244,7 @@ async function cargarTodo() {
     { data: ventas },
   ] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, subcategoria, costo, precio, updated_at, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
+      .select('id, nombre, categoria, subcategoria, costo, precio, updated_at, ultimo_cambio_costo, ultimo_cambio_precio, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
@@ -301,7 +301,8 @@ async function cargarTodo() {
     velocidad: velMap[p.id] || 0,
     ultimo_ingreso: ingresoMap[p.id] || null,
     ultima_venta: ultVentaMap[p.id] || null,
-    ultimo_cambio_costo: p.updated_at ? p.updated_at.slice(0, 10) : null,
+    ultimo_cambio_costo: p.ultimo_cambio_costo || (p.updated_at ? p.updated_at.slice(0, 10) : null),
+    ultimo_cambio_precio: p.ultimo_cambio_precio || null,
   }));
 
   if (puedeAjustar) {
@@ -1174,8 +1175,8 @@ function _lpGenerarTexto() {
     if (_lpOpts.soloConStock && p.stock <= 0) return false;
     if (_lpOpts.excluidas.has(p.cat)) return false;
     if (_lpOpts.soloRec) {
-      if (!cutoff || !p.ultimo_cambio_costo) return false;
-      if (p.ultimo_cambio_costo < cutoff) return false;
+      if (!cutoff || !p.ultimo_cambio_precio) return false;
+      if (p.ultimo_cambio_precio < cutoff) return false;
     }
     return true;
   }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
@@ -1208,7 +1209,7 @@ function _lpGenerarTexto() {
       } else {
         precioFinal = p.precio;
       }
-      const marca = (!_lpOpts.soloRec && cutoff && p.ultimo_cambio_costo && p.ultimo_cambio_costo >= cutoff) ? '📈 ' : '';
+      const marca = (!_lpOpts.soloRec && cutoff && p.ultimo_cambio_precio && p.ultimo_cambio_precio >= cutoff) ? '📈 ' : '';
       txt += `• ${marca}${p.nombre}${sufijo} — ${ars(precioFinal)}\n`;
     }
   }

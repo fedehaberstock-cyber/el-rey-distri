@@ -274,7 +274,7 @@ let pendienteSync = false;     // true cuando confirmado offline y aún no se si
 // Sugerencias por cliente (RPC rpc_sugerencias_cliente)
 let sugerencias = null;
 let sugFetching = false;
-let sugSec = { ofertas: true, siempre: true, gap: false, novedades: false };
+let sugSec = { ofertas: true, siempre: false, gap: false, novedades: true };
 let gapAbierto = null;         // clave del gap expandido (productos visibles)
 let buscadorFocus = false;     // input de buscar producto enfocado (oculta sugerencias)
 
@@ -606,15 +606,23 @@ function aplicarOferta(oferta) {
     const b = (Number(oferta.desc_bulto) || 0) / 100;
     descTotal = Math.round((1 - (1 - a) * (1 - b)) * 100);
   }
-  // Agregar producto principal (siempre nueva línea para distinguir la oferta)
-  orden.push({
-    productoId: oferta.producto_id, cant: cantReq,
-    disc: descTotal, discAuto: false,
-    esBulto: false, uPorBulto: 1,
-    precioOverride: precioNormal,  // guardamos el precio normal, el desc hace el resto
-    esOferta: true, ofertaId: oferta.oferta_id || oferta.id,
-  });
-  // Agregar regalo si aplica
+  const ofId = oferta.oferta_id || oferta.id;
+  // Si esta oferta ya se aplicó, INCREMENTAR la cantidad en la línea existente
+  // en vez de crear otra. Cada tap = una promo más aplicada.
+  const exPrincipal = orden.find(o =>
+    o.productoId === oferta.producto_id && o.ofertaId === ofId && !o.esRegalo);
+  if (exPrincipal) {
+    exPrincipal.cant += cantReq;
+  } else {
+    orden.push({
+      productoId: oferta.producto_id, cant: cantReq,
+      disc: descTotal, discAuto: false,
+      esBulto: false, uPorBulto: 1,
+      precioOverride: precioNormal,
+      esOferta: true, ofertaId: ofId,
+    });
+  }
+  // Regalo
   if (oferta.regalo_producto_id && oferta.regalo_cantidad > 0) {
     const pr = prod(oferta.regalo_producto_id);
     if (!pr) {
@@ -624,12 +632,18 @@ function aplicarOferta(oferta) {
       if (dispR < oferta.regalo_cantidad) {
         alert(`Sin stock del regalo (${oferta.regalo_nombre || 'regalo'}). Se agregó solo el principal.`);
       } else {
-        orden.push({
-          productoId: oferta.regalo_producto_id, cant: oferta.regalo_cantidad,
-          disc: 100, discAuto: false,
-          esBulto: false, uPorBulto: 1,
-          esOferta: true, ofertaId: oferta.oferta_id || oferta.id, esRegalo: true,
-        });
+        const exRegalo = orden.find(o =>
+          o.productoId === oferta.regalo_producto_id && o.ofertaId === ofId && o.esRegalo);
+        if (exRegalo) {
+          exRegalo.cant += oferta.regalo_cantidad;
+        } else {
+          orden.push({
+            productoId: oferta.regalo_producto_id, cant: oferta.regalo_cantidad,
+            disc: 100, discAuto: false,
+            esBulto: false, uPorBulto: 1,
+            esOferta: true, ofertaId: ofId, esRegalo: true,
+          });
+        }
       }
     }
   }
@@ -862,7 +876,10 @@ function renderSugOfertas(items) {
 
 function renderSugNovedades(items) {
   return items.map(it => {
-    const badge = ' <span class="sug-tag nuevo">🆕</span>';
+    const esReingreso = it.tipo_novedad === 'reingreso';
+    const badge = esReingreso
+      ? ' <span class="sug-tag nuevo">🔁 reingreso</span>'
+      : ' <span class="sug-tag nuevo">🆕 nuevo</span>';
     const sub = `${it.subcategoria || it.categoria || ''} · ${ars(it.precio || 0)}`;
     return sugRow(it.producto_id, 1, it.nombre, sub, badge, (it.stock || 0) <= 0);
   }).join('');
