@@ -2,7 +2,7 @@
 // Espejo local de los datos necesarios para operar offline.
 // sync_pull popula estas tablas; sync_push drena op_queue.
 
-import Dexie from 'https://unpkg.com/dexie@3/dist/dexie.mjs';
+import Dexie from 'https://esm.sh/dexie@3.2.7';
 
 export const db = new Dexie('ElRey');
 
