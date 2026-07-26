@@ -106,7 +106,7 @@ let boleta = null
 let pedido = null
 let clientes = []
 let productos = []
-let items = []   // { producto_id, nombre, cantidad, precio_unit, descuento, es_bulto, u_por_bulto }
+let items = []   // { producto_id, nombre, cantidad, precio_unit, descuento, es_bulto, u_por_bulto, oferta_id, es_regalo }
 let cantOriginal = {} // producto_id → cantidad original al cargar (ya descontada del stock)
 let stockMap = {}     // producto_id → stock_actual
 let clienteId = ''
@@ -115,20 +115,31 @@ let fechaReparto = ''
 let guardando = false
 let pickerOpen = false
 let pickerSearch = ''
+let ofertas = []      // ofertas activas de la empresa
+let ofertaPickerOpen = false
 
 async function cargar() {
-  const [bResp, cResp, pResp, sResp] = await Promise.all([
+  const [bResp, cResp, pResp, sResp, oResp] = await Promise.all([
     supabase.from('boletas').select(`
       id, total, saldo_anterior,
       pedidos (
         id, descuento, fecha_reparto, observaciones, cliente_id, usuario_id, hoja_ruta_id,
-        pedido_items(producto_id, cantidad, precio_unit, descuento, es_bulto, u_por_bulto,
+        pedido_items(producto_id, cantidad, precio_unit, descuento, es_bulto, u_por_bulto, oferta_id,
           productos(nombre))
       )
     `).eq('id', boletaId).single(),
     supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('productos').select('id, nombre, precio, u_bulto, desc_bulto').eq('activo', true).order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
+    supabase.from('ofertas')
+      .select(`id, producto_id, descripcion, precio_oferta, vigente_desde, vigente_hasta,
+               cantidad_min, aplica_desc_bulto, regalo_producto_id, regalo_cantidad,
+               stock_maximo, stock_vendido, activa,
+               productos:producto_id(nombre, precio, u_bulto, desc_bulto),
+               regalo:regalo_producto_id(nombre)`)
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('activa', true)
+      .order('prioridad', { ascending: false }),
   ])
   if (bResp.error) throw bResp.error
   if (cResp.error) throw cResp.error
@@ -144,6 +155,7 @@ async function cargar() {
   clienteId = pedido.cliente_id
   descuento = Number(pedido.descuento || 0)
   fechaReparto = pedido.fecha_reparto
+  ofertas = oResp.data || []
   items = (pedido.pedido_items || []).map(it => ({
     producto_id: it.producto_id,
     nombre: it.productos?.nombre || '?',
@@ -152,6 +164,8 @@ async function cargar() {
     descuento: Number(it.descuento || 0),
     es_bulto: !!it.es_bulto,
     u_por_bulto: it.u_por_bulto || 1,
+    oferta_id: it.oferta_id || null,
+    es_regalo: it.oferta_id ? (Number(it.descuento || 0) === 100) : false,
   }))
   cantOriginal = {}
   items.forEach(it => { cantOriginal[it.producto_id] = (cantOriginal[it.producto_id]||0) + it.cantidad })
@@ -208,6 +222,7 @@ function render() {
       <div class="lbl">Items <span>${items.length}</span></div>
       <div id="items-box"></div>
       <button class="add-btn" onclick="window._openPicker()">+ Agregar producto</button>
+      ${ofertas.length ? `<button class="add-btn" style="background:var(--amber-bg);color:var(--amber-tx);border-color:var(--amber-tx);margin-top:6px" onclick="window._openOfertaPicker()">🔥 Aplicar oferta (${ofertas.length} activa${ofertas.length===1?'':'s'})</button>` : ''}
     </section>
 
     <div class="total-box"><span>Total</span><span>${ars(totalCalc())}</span></div>
@@ -221,6 +236,40 @@ function render() {
   `
   renderItems()
   if (pickerOpen) renderPicker()
+  if (ofertaPickerOpen) renderOfertaPicker()
+}
+
+function renderOfertaPicker() {
+  let ov = document.getElementById('oferta-ov')
+  if (!ov) {
+    ov = document.createElement('div')
+    ov.id = 'oferta-ov'
+    ov.className = 'picker-overlay'
+    ov.onclick = e => { if (e.target === ov) window._closeOfertaPicker() }
+    document.body.appendChild(ov)
+  }
+  ov.innerHTML = `
+    <div class="picker-box">
+      <div class="picker-search"><div style="font-weight:700;font-size:15px">🔥 Ofertas activas</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Tocá una para agregar sus productos al pedido.</div>
+      </div>
+      <div class="picker-list">
+        ${ofertas.map(o => {
+          const partes = []
+          if (o.cantidad_min > 1) partes.push(`Llevá ${o.cantidad_min}u`)
+          if (o.regalo_producto_id && o.regalo_cantidad) partes.push(`+ ${o.regalo_cantidad}u ${o.regalo?.nombre || 'regalo'} gratis`)
+          if (o.aplica_desc_bulto && o.productos?.u_bulto > 1) partes.push(`+ desc bulto ${o.productos?.desc_bulto || 0}%`)
+          if (o.descripcion) partes.push(o.descripcion)
+          return `<div class="picker-item" onclick="window._aplicarOferta('${o.id}')">
+            <div style="font-weight:600">${o.productos?.nombre || '?'}</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">${partes.join(' · ')}</div>
+          </div>`
+        }).join('')}
+      </div>
+      <div style="padding:10px 12px;border-top:1px solid var(--line)">
+        <button onclick="window._closeOfertaPicker()" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-weight:600;cursor:pointer;font-family:inherit">Cerrar</button>
+      </div>
+    </div>`
 }
 
 function renderItems() {
@@ -348,6 +397,68 @@ window._setD   = (i,v) => { items[i].descuento = Math.min(100, Math.max(0, +v||0
 window._rm     = i => { items.splice(i,1); render() }
 window._openPicker = () => { pickerOpen = true; pickerSearch = ''; render() }
 window._closePicker = () => { pickerOpen = false; document.getElementById('picker-ov')?.remove() }
+
+window._openOfertaPicker  = () => { ofertaPickerOpen = true; render() }
+window._closeOfertaPicker = () => { ofertaPickerOpen = false; document.getElementById('oferta-ov')?.remove() }
+window._aplicarOferta = (ofertaId) => {
+  const o = ofertas.find(x => x.id === ofertaId); if (!o) return
+  const p = productos.find(x => x.id === o.producto_id)
+  if (!p) { alert('Producto de la oferta no está en el catálogo.'); return }
+  const cantReq = Math.max(1, parseInt(o.cantidad_min) || 1)
+  const stock = stockMap[p.id] ?? 0
+  const orig = cantOriginal[p.id] || 0
+  const enItems = items.filter(x => x.producto_id === p.id).reduce((s,x)=>s+x.cantidad, 0)
+  const disponible = stock + orig - enItems
+  if (disponible < cantReq) { alert(`Stock insuficiente. Disponible ${Math.max(0,disponible)}u, requiere ${cantReq}u.`); return }
+  // Descuento equivalente al precio de oferta + bulto opcional
+  const precioNormal = Number(o.productos?.precio) || p.precio
+  const precioOferta = o.precio_oferta != null ? Number(o.precio_oferta) : null
+  let disc = 0
+  if (precioOferta && precioNormal > 0 && precioOferta < precioNormal) {
+    disc = Math.round((1 - precioOferta / precioNormal) * 100)
+  }
+  if (o.aplica_desc_bulto && (o.productos?.u_bulto || 1) > 1 && cantReq >= (o.productos?.u_bulto || 1)) {
+    const a = disc / 100, b = (Number(o.productos?.desc_bulto) || 0) / 100
+    disc = Math.round((1 - (1 - a) * (1 - b)) * 100)
+  }
+  // Si ya está la oferta aplicada, sumar cantidad
+  const ex = items.find(x => x.oferta_id === o.id && x.producto_id === p.id && !x.es_regalo)
+  if (ex) { ex.cantidad += cantReq }
+  else {
+    items.push({
+      producto_id: p.id, nombre: p.nombre, cantidad: cantReq,
+      precio_unit: precioNormal, descuento: disc,
+      es_bulto: false, u_por_bulto: 1,
+      oferta_id: o.id, es_regalo: false,
+    })
+  }
+  // Regalo
+  if (o.regalo_producto_id && o.regalo_cantidad > 0) {
+    const pr = productos.find(x => x.id === o.regalo_producto_id)
+    if (pr) {
+      const stockR = stockMap[pr.id] ?? 0
+      const origR = cantOriginal[pr.id] || 0
+      const enItemsR = items.filter(x => x.producto_id === pr.id).reduce((s,x)=>s+x.cantidad, 0)
+      const dispR = stockR + origR - enItemsR
+      if (dispR >= o.regalo_cantidad) {
+        const exR = items.find(x => x.oferta_id === o.id && x.producto_id === pr.id && x.es_regalo)
+        if (exR) { exR.cantidad += o.regalo_cantidad }
+        else {
+          items.push({
+            producto_id: pr.id, nombre: pr.nombre, cantidad: o.regalo_cantidad,
+            precio_unit: Number(pr.precio) || 0, descuento: 100,
+            es_bulto: false, u_por_bulto: 1,
+            oferta_id: o.id, es_regalo: true,
+          })
+        }
+      } else {
+        alert(`Sin stock del regalo (${o.regalo?.nombre || ''}). Se agregó solo el principal.`)
+      }
+    }
+  }
+  window._closeOfertaPicker()
+  render()
+}
 window._pickSearch = v => { pickerSearch = v; renderPickerList() }
 window._pickAdd = (id, esBulto) => {
   const p = productos.find(x => x.id === id)
@@ -393,6 +504,8 @@ window._guardar = async () => {
       descuento: it.descuento,
       es_bulto: it.es_bulto,
       u_por_bulto: it.u_por_bulto,
+      oferta_id: it.oferta_id || null,
+      es_regalo: !!it.es_regalo,
     })),
   }
   const { error } = await supabase.rpc('editar_boleta', { p_payload: payload })
