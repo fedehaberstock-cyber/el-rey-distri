@@ -148,36 +148,50 @@ begin
   -- ═══ NOVEDADES ═════════════════════════════════════════════════════════
   -- Combina:
   --   - Productos creados en los últimos 30 días (marca "nuevo")
-  --   - Productos con último ingreso en los últimos 7 días (marca "reingreso")
-  -- Excluye productos sin stock. Ordena: nuevos primero, luego por
-  -- fecha de novedad descendente.
-  with ult_ingreso as (
-    select producto_id, max(fecha)::date as fecha_ingreso
+  --   - Reingresos: producto con ingreso en los últimos 7 días DONDE el
+  --     stock estaba en 0 o menos antes de ese ingreso.
+  -- Excluye productos sin stock actual.
+  with recent_ingresos as (
+    select producto_id, max(fecha) as fecha_ingreso
       from mov_stock
      where tipo = 'ingreso'
+       and fecha >= (now() - interval '7 days')
      group by producto_id
   ),
+  reingresos as (
+    select ri.producto_id, ri.fecha_ingreso::date as fecha_novedad
+      from recent_ingresos ri
+     where coalesce(
+             (select sum(cantidad) from mov_stock
+               where producto_id = ri.producto_id
+                 and fecha < ri.fecha_ingreso), 0
+           ) <= 0
+  ),
   novedades_raw as (
+    -- Nuevos
     select pr.id, pr.nombre, pr.categoria, pr.subcategoria, pr.precio,
            coalesce(s.stock, 0) as stock,
-           case
-             when pr.created_at >= current_date - 30 then 'nuevo'
-             else 'reingreso'
-           end as tipo_novedad,
-           case
-             when pr.created_at >= current_date - 30 then pr.created_at::date
-             else ui.fecha_ingreso
-           end as fecha_novedad
+           'nuevo' as tipo_novedad,
+           pr.created_at::date as fecha_novedad
       from productos pr
       left join stock_actual s on s.producto_id = pr.id
-      left join ult_ingreso ui on ui.producto_id = pr.id
      where pr.empresa_id = v_emp
        and pr.activo = true
        and coalesce(s.stock, 0) > 0
-       and (
-         pr.created_at >= current_date - 30
-         or ui.fecha_ingreso >= current_date - 7
-       )
+       and pr.created_at >= current_date - 30
+    union all
+    -- Reingresos (que no estén ya como nuevos)
+    select pr.id, pr.nombre, pr.categoria, pr.subcategoria, pr.precio,
+           coalesce(s.stock, 0) as stock,
+           'reingreso' as tipo_novedad,
+           r.fecha_novedad
+      from reingresos r
+      join productos pr on pr.id = r.producto_id
+      left join stock_actual s on s.producto_id = pr.id
+     where pr.empresa_id = v_emp
+       and pr.activo = true
+       and coalesce(s.stock, 0) > 0
+       and pr.created_at < current_date - 30
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'producto_id',  id,
