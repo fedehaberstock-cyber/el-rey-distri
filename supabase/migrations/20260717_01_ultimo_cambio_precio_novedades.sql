@@ -12,6 +12,17 @@
 alter table public.productos
   add column if not exists ultimo_cambio_precio date;
 
+-- created_at: no existía, la agregamos para poder detectar productos "nuevos"
+-- (no basta con updated_at que se bumpea por ingresos).
+alter table public.productos
+  add column if not exists created_at timestamptz not null default now();
+
+-- Backfill: para los existentes, ponemos una fecha muy vieja para que no
+-- aparezcan como "nuevos" ahora.
+update public.productos
+   set created_at = '2020-01-01'::timestamptz
+ where created_at > now() - interval '1 minute';
+
 create or replace function public.set_ultimo_cambio_precio()
 returns trigger language plpgsql as $$
 begin
