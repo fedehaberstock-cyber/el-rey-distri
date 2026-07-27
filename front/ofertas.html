@@ -259,18 +259,34 @@ function renderStatsPanel() {
         Clientes que probaron gracias a la oferta (${(d.clientes_nuevos||[]).length})
       </div>
       ${(d.clientes_nuevos||[]).length
-        ? `<div style="max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:10px">
+        ? `<div style="max-height:180px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:12px">
             ${d.clientes_nuevos.map(c => `<div style="padding:8px 12px;border-bottom:1px solid var(--line-soft);font-size:13px">${c.nombre}</div>`).join('')}
           </div>`
-        : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0">Todos los que compraron ya habían llevado el producto antes.</div>`}
+        : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0;margin-bottom:8px">Todos los que compraron ya habían llevado el producto antes.</div>`}
+
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">
+        Clientes recurrentes (${(d.clientes_recurrentes||[]).length})
+      </div>
+      <div style="font-size:11px;color:var(--ink-soft);margin-bottom:6px">Ya habían comprado el producto en los 45 días previos.</div>
+      ${(d.clientes_recurrentes||[]).length
+        ? `<div style="max-height:180px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:10px">
+            ${d.clientes_recurrentes.map(c => `<div style="padding:8px 12px;border-bottom:1px solid var(--line-soft);font-size:13px">${c.nombre}</div>`).join('')}
+          </div>`
+        : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0">Ninguno — todos los compradores son nuevos para el producto.</div>`}
 
       <div style="font-size:11px;color:var(--ink-soft);margin-top:12px">
         Total de clientes que compraron con la oferta: <b style="color:var(--ink)">${(d.clientes_total||[]).length}</b>
       </div>
-      <button onclick="window._exportarStatsCSV('${statsPanel.ofertaId}')"
-        style="width:100%;margin-top:14px;padding:10px;border:1px solid var(--gold);background:var(--gold-lt);color:var(--gold-dk);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">
-        ⬇ CSV clientes nuevos
-      </button>`
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="window._exportarStatsCSV('${statsPanel.ofertaId}','nuevos')"
+          style="flex:1;padding:10px;border:1px solid var(--gold);background:var(--gold-lt);color:var(--gold-dk);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">
+          ⬇ CSV nuevos
+        </button>
+        <button onclick="window._exportarStatsCSV('${statsPanel.ofertaId}','recurrentes')"
+          style="flex:1;padding:10px;border:1px solid var(--ink-soft);background:var(--card);color:var(--ink);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">
+          ⬇ CSV recurrentes
+        </button>
+      </div>`
   ov.innerHTML = `
     <div class="panel" style="max-height:90vh;overflow-y:auto">
       <div class="handle"></div>
@@ -284,16 +300,17 @@ function renderStatsPanel() {
 
 window._verStats = id => cargarStats(id)
 window._cerrarStats = () => { statsPanel = null; render() }
-window._exportarStatsCSV = id => {
+window._exportarStatsCSV = (id, tipo = 'nuevos') => {
   const d = statsPanel?.data
   if (!d) return
+  const lista = tipo === 'recurrentes' ? (d.clientes_recurrentes || []) : (d.clientes_nuevos || [])
   const lineas = ['nombre']
-  for (const c of (d.clientes_nuevos || [])) lineas.push(`"${(c.nombre||'').replace(/"/g,'""')}"`)
+  for (const c of lista) lineas.push(`"${(c.nombre||'').replace(/"/g,'""')}"`)
   const blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `clientes_nuevos_oferta_${id.slice(0,8)}.csv`
+  a.download = `clientes_${tipo}_oferta_${id.slice(0,8)}.csv`
   document.body.appendChild(a); a.click(); a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
