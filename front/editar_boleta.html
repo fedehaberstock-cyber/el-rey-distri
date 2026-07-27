@@ -407,12 +407,22 @@ window._aplicarOferta = (ofertaId) => {
   const o = ofertas.find(x => x.id === ofertaId); if (!o) return
   const p = productos.find(x => x.id === o.producto_id)
   if (!p) { alert('Producto de la oferta no está en el catálogo.'); return }
-  const cantReq = Math.max(1, parseInt(o.cantidad_min) || 1)
+  const minReq = Math.max(1, parseInt(o.cantidad_min) || 1)
+  const estrictas = !!o.cantidades_estrictas
+  let cantReq = minReq
+  if (!estrictas) {
+    const resp = prompt(`¿Cuántas unidades de ${p.nombre} lleva? (mínimo ${minReq}u)`, String(minReq))
+    if (resp === null) return
+    const n = parseInt(resp) || 0
+    if (n < minReq) { alert(`Debe llevar al menos ${minReq}u.`); return }
+    cantReq = n
+  }
   const stock = stockMap[p.id] ?? 0
   const orig = cantOriginal[p.id] || 0
   const enItems = items.filter(x => x.producto_id === p.id).reduce((s,x)=>s+x.cantidad, 0)
   const disponible = stock + orig - enItems
   if (disponible < cantReq) { alert(`Stock insuficiente. Disponible ${Math.max(0,disponible)}u, requiere ${cantReq}u.`); return }
+  const packs = Math.floor(cantReq / minReq)
   // Descuento equivalente al precio de oferta + bulto opcional
   const precioNormal = Number(o.productos?.precio) || p.precio
   const precioOferta = o.precio_oferta != null ? Number(o.precio_oferta) : null
@@ -439,15 +449,20 @@ window._aplicarOferta = (ofertaId) => {
   if (o.regalo_producto_id && o.regalo_cantidad > 0) {
     const pr = productos.find(x => x.id === o.regalo_producto_id)
     if (pr) {
-      const maxVinc = o.regalo_cantidad
+      const maxVinc = packs * (parseInt(o.regalo_cantidad) || 0)
       const esGratis = o.regalo_precio == null
-      const promptTxt = esGratis
-        ? `¿Cuántas unidades de ${o.regalo?.nombre || 'vinculado'} lleva? (hasta ${maxVinc}u gratis)`
-        : `¿Cuántas unidades de ${o.regalo?.nombre || 'vinculado'} lleva? (hasta ${maxVinc}u a $${o.regalo_precio} c/u)`
-      const resp = prompt(promptTxt, String(maxVinc))
-      if (resp !== null) {
-        const cantVinc = Math.max(0, Math.min(maxVinc, parseInt(resp) || 0))
-        if (cantVinc > 0) {
+      let cantVinc
+      if (estrictas) {
+        cantVinc = maxVinc
+      } else {
+        const promptTxt = esGratis
+          ? `¿Cuántas unidades de ${o.regalo?.nombre || 'vinculado'} lleva? (hasta ${maxVinc}u gratis)`
+          : `¿Cuántas unidades de ${o.regalo?.nombre || 'vinculado'} lleva? (hasta ${maxVinc}u a $${o.regalo_precio} c/u)`
+        const resp = prompt(promptTxt, String(maxVinc))
+        cantVinc = resp === null ? 0 : Math.max(0, Math.min(maxVinc, parseInt(resp) || 0))
+      }
+      if (cantVinc > 0) {
+        {
           const stockR = stockMap[pr.id] ?? 0
           const origR = cantOriginal[pr.id] || 0
           const enItemsR = items.filter(x => x.producto_id === pr.id).reduce((s,x)=>s+x.cantidad, 0)

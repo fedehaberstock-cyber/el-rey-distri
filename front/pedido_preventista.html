@@ -588,24 +588,32 @@ function addProductoCant(id, cant) {
 function aplicarOferta(oferta) {
   const p = prod(oferta.producto_id);
   if (!p) { alert('Producto no disponible.'); return; }
-  const cantReq = Math.max(1, parseInt(oferta.cantidad_min) || 1);
+  const minReq = Math.max(1, parseInt(oferta.cantidad_min) || 1);
+  const estrictas = !!oferta.cantidades_estrictas;
+  let cantReq = minReq;
+  // Si no es estricta, preguntar cantidad del principal (mínimo minReq)
+  if (!estrictas) {
+    const resp = prompt(`¿Cuántas unidades de ${p.nombre} lleva? (mínimo ${minReq}u)`, String(minReq));
+    if (resp === null) return;
+    const n = parseInt(resp) || 0;
+    if (n < minReq) { alert(`Debe llevar al menos ${minReq}u.`); return; }
+    cantReq = n;
+  }
   const disp = disponible(oferta.producto_id);
   if (disp < cantReq) { alert(`Stock insuficiente. Disponible: ${disp} u, requiere ${cantReq} u.`); return; }
   const precioOferta = oferta.precio_oferta != null ? Number(oferta.precio_oferta) : null;
   const precioNormal = Number(oferta.precio_normal) || p.precio;
-  // Descuento equivalente al precio de oferta
   let descTotal = 0;
   if (precioOferta && precioNormal > 0 && precioOferta < precioNormal) {
     descTotal = Math.round((1 - precioOferta / precioNormal) * 100);
   }
-  // Sumar desc de bulto si corresponde
   if (oferta.aplica_desc_bulto && oferta.u_bulto > 1 && cantReq >= oferta.u_bulto) {
-    // Aplicamos multiplicativamente para respetar el matemático real:
-    // combinado% = 1 − (1−a)(1−b)
     const a = descTotal / 100;
     const b = (Number(oferta.desc_bulto) || 0) / 100;
     descTotal = Math.round((1 - (1 - a) * (1 - b)) * 100);
   }
+  // Multiplicador para el vinculado según cuántos "packs" del principal lleva
+  const packs = Math.floor(cantReq / minReq);
   const ofId = oferta.oferta_id || oferta.id;
   // Si esta oferta ya se aplicó, INCREMENTAR la cantidad en la línea existente
   // en vez de crear otra. Cada tap = una promo más aplicada.
@@ -629,15 +637,21 @@ function aplicarOferta(oferta) {
     if (!pr) {
       alert('El producto vinculado no está cargado en el catálogo. Se agregó solo el principal.');
     } else {
-      const maxVinc = oferta.regalo_cantidad;
+      const maxVinc = packs * (parseInt(oferta.regalo_cantidad) || 0);
       const esGratis = oferta.regalo_precio == null;
-      const promptTxt = esGratis
-        ? `¿Cuántas unidades de ${oferta.regalo_nombre || 'vinculado'} lleva? (hasta ${maxVinc}u gratis)`
-        : `¿Cuántas unidades de ${oferta.regalo_nombre || 'vinculado'} lleva? (hasta ${maxVinc}u a $${oferta.regalo_precio} c/u)`;
-      const resp = prompt(promptTxt, String(maxVinc));
-      if (resp !== null) {
-        const cantVinc = Math.max(0, Math.min(maxVinc, parseInt(resp) || 0));
-        if (cantVinc > 0) {
+      let cantVinc;
+      if (estrictas) {
+        cantVinc = maxVinc;
+      } else {
+        const promptTxt = esGratis
+          ? `¿Cuántas unidades de ${oferta.regalo_nombre || 'vinculado'} lleva? (hasta ${maxVinc}u gratis)`
+          : `¿Cuántas unidades de ${oferta.regalo_nombre || 'vinculado'} lleva? (hasta ${maxVinc}u a $${oferta.regalo_precio} c/u)`;
+        const resp = prompt(promptTxt, String(maxVinc));
+        if (resp === null) { cantVinc = 0; }
+        else { cantVinc = Math.max(0, Math.min(maxVinc, parseInt(resp) || 0)); }
+      }
+      if (cantVinc > 0) {
+        {
           const dispR = disponible(oferta.regalo_producto_id);
           if (dispR < cantVinc) {
             alert(`Sin stock suficiente del vinculado (${oferta.regalo_nombre || ''}). Disponible: ${dispR}u.`);
