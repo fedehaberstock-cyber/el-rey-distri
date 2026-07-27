@@ -124,6 +124,7 @@ let busqProd = ''
 let busqRegalo = ''
 let errMsg = ''
 let saving = false
+let statsPanel = null   // {ofertaId, data|null (cargando)}
 
 async function cargar() {
   const [ofRes, prodRes] = await Promise.all([
@@ -190,19 +191,108 @@ function render() {
               const rest = Math.max(0, (o.stock_maximo || 0) - (o.stock_vendido || 0))
               extras.push(`${rest}u restantes`)
             }
-            return `<div class="of-card ${est.cardCls}" onclick="window._editar('${o.id}')">
-              <div class="of-icon">🔥</div>
-              <div class="of-info">
+            return `<div class="of-card ${est.cardCls}">
+              <div class="of-icon" onclick="window._editar('${o.id}')" style="cursor:pointer">🔥</div>
+              <div class="of-info" onclick="window._editar('${o.id}')" style="cursor:pointer">
                 <div class="nm">${o.productos?.nombre || '(sin producto)'}</div>
                 <div class="desc">${o.descripcion}${desc ? ` <span style="color:var(--green-tx);font-weight:700">−${desc}%</span>` : ''}</div>
                 ${extras.length ? `<div class="sub" style="color:var(--gold-dk);font-weight:600">${extras.join(' · ')}</div>` : ''}
                 <div class="sub">${o.vigente_desde}${o.vigente_hasta ? ' → ' + o.vigente_hasta : ' · sin vencimiento'}<span class="badge ${est.cls}">${est.txt}</span></div>
               </div>
-              <div class="of-arr">›</div>
+              <button onclick="event.stopPropagation();window._verStats('${o.id}')"
+                style="background:none;border:1px solid var(--gold);color:var(--gold-dk);border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap">📊 Stats</button>
             </div>`
           }).join('')}
     </div>`
   if (panelId !== null) renderPanel()
+  if (statsPanel) renderStatsPanel()
+}
+
+async function cargarStats(ofertaId) {
+  statsPanel = { ofertaId, data: null }
+  render()
+  const { data, error } = await supabase.rpc('rpc_stats_oferta', { p_oferta_id: ofertaId })
+  if (error) { alert('Error: ' + error.message); statsPanel = null; render(); return }
+  statsPanel = { ofertaId, data }
+  render()
+}
+
+function renderStatsPanel() {
+  const o = ofertas.find(x => x.id === statsPanel.ofertaId)
+  const d = statsPanel.data
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.onclick = e => { if (e.target === ov) { statsPanel = null; render() } }
+  const body = !d
+    ? `<div class="loading" style="padding:40px 0">Calculando…</div>`
+    : `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+          <div style="font-size:20px;font-weight:700">${d.units_oferta} u</div>
+          <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase">Vendidas c/oferta</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+          <div style="font-size:20px;font-weight:700;color:var(--gold-dk)">${ars(Number(d.ventas_oferta)||0)}</div>
+          <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase">Facturado</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+          <div style="font-size:20px;font-weight:700">${d.promos_aplicadas}</div>
+          <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase">Promos aplicadas</div>
+        </div>
+        <div style="background:${d.multiplicador>=1.5?'var(--green-bg)':d.multiplicador>0?'var(--amber-bg)':'var(--red-bg)'};border:1px solid ${d.multiplicador>=1.5?'var(--green-tx)':d.multiplicador>0?'var(--amber-tx)':'var(--red-tx)'};border-radius:10px;padding:10px 12px">
+          <div style="font-size:20px;font-weight:700;color:${d.multiplicador>=1.5?'var(--green-tx)':d.multiplicador>0?'var(--amber-tx)':'var(--red-tx)'}">×${Number(d.multiplicador||0).toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase">Vs baseline 30d</div>
+        </div>
+      </div>
+
+      <div style="background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--ink-soft);line-height:1.5">
+        <b style="color:var(--ink)">Ventana oferta:</b> ${d.vigente_desde} → ${d.vigente_hasta} (${d.dias_oferta}d)<br>
+        <b style="color:var(--ink)">Baseline:</b> ${d.baseline_desde} → ${d.baseline_hasta} · ${d.dias_baseline}d con stock<br>
+        <b style="color:var(--ink)">Ventas baseline:</b> ${d.units_baseline}u
+        ${d.regalos_units > 0 ? `<br><b style="color:var(--ink)">Regalos entregados:</b> ${d.regalos_units}u` : ''}
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">
+        Clientes que probaron gracias a la oferta (${(d.clientes_nuevos||[]).length})
+      </div>
+      ${(d.clientes_nuevos||[]).length
+        ? `<div style="max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:10px">
+            ${d.clientes_nuevos.map(c => `<div style="padding:8px 12px;border-bottom:1px solid var(--line-soft);font-size:13px">${c.nombre}</div>`).join('')}
+          </div>`
+        : `<div style="color:var(--ink-soft);font-size:13px;padding:6px 0">Todos los que compraron ya habían llevado el producto antes.</div>`}
+
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:12px">
+        Total de clientes que compraron con la oferta: <b style="color:var(--ink)">${(d.clientes_total||[]).length}</b>
+      </div>
+      <button onclick="window._exportarStatsCSV('${statsPanel.ofertaId}')"
+        style="width:100%;margin-top:14px;padding:10px;border:1px solid var(--gold);background:var(--gold-lt);color:var(--gold-dk);border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">
+        ⬇ CSV clientes nuevos
+      </button>`
+  ov.innerHTML = `
+    <div class="panel" style="max-height:90vh;overflow-y:auto">
+      <div class="handle"></div>
+      <h3>📊 ${o?.productos?.nombre || 'Oferta'}</h3>
+      <p class="sub" style="font-size:13px;color:var(--ink-soft);margin:0 0 12px">${o?.descripcion || ''}</p>
+      ${body}
+      <button class="cancel" style="width:100%;margin-top:12px" onclick="window._cerrarStats()">Cerrar</button>
+    </div>`
+  document.getElementById('root').appendChild(ov)
+}
+
+window._verStats = id => cargarStats(id)
+window._cerrarStats = () => { statsPanel = null; render() }
+window._exportarStatsCSV = id => {
+  const d = statsPanel?.data
+  if (!d) return
+  const lineas = ['nombre']
+  for (const c of (d.clientes_nuevos || [])) lineas.push(`"${(c.nombre||'').replace(/"/g,'""')}"`)
+  const blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `clientes_nuevos_oferta_${id.slice(0,8)}.csv`
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
 
 function renderPanel() {
