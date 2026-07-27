@@ -622,34 +622,61 @@ function aplicarOferta(oferta) {
       esOferta: true, ofertaId: ofId,
     });
   }
-  // Regalo
+  // Producto vinculado (regalo o con precio promocional)
+  let vinculadoInfo = '';
   if (oferta.regalo_producto_id && oferta.regalo_cantidad > 0) {
     const pr = prod(oferta.regalo_producto_id);
     if (!pr) {
-      alert('El producto de regalo no está cargado en el catálogo. Se agregó solo el principal.');
+      alert('El producto vinculado no está cargado en el catálogo. Se agregó solo el principal.');
     } else {
-      const dispR = disponible(oferta.regalo_producto_id);
-      if (dispR < oferta.regalo_cantidad) {
-        alert(`Sin stock del regalo (${oferta.regalo_nombre || 'regalo'}). Se agregó solo el principal.`);
-      } else {
-        const exRegalo = orden.find(o =>
-          o.productoId === oferta.regalo_producto_id && o.ofertaId === ofId && o.esRegalo);
-        if (exRegalo) {
-          exRegalo.cant += oferta.regalo_cantidad;
-        } else {
-          orden.push({
-            productoId: oferta.regalo_producto_id, cant: oferta.regalo_cantidad,
-            disc: 100, discAuto: false,
-            esBulto: false, uPorBulto: 1,
-            esOferta: true, ofertaId: ofId, esRegalo: true,
-          });
+      const maxVinc = oferta.regalo_cantidad;
+      const esGratis = oferta.regalo_precio == null;
+      const promptTxt = esGratis
+        ? `¿Cuántas unidades de ${oferta.regalo_nombre || 'vinculado'} lleva? (hasta ${maxVinc}u gratis)`
+        : `¿Cuántas unidades de ${oferta.regalo_nombre || 'vinculado'} lleva? (hasta ${maxVinc}u a $${oferta.regalo_precio} c/u)`;
+      const resp = prompt(promptTxt, String(maxVinc));
+      if (resp !== null) {
+        const cantVinc = Math.max(0, Math.min(maxVinc, parseInt(resp) || 0));
+        if (cantVinc > 0) {
+          const dispR = disponible(oferta.regalo_producto_id);
+          if (dispR < cantVinc) {
+            alert(`Sin stock suficiente del vinculado (${oferta.regalo_nombre || ''}). Disponible: ${dispR}u.`);
+          } else {
+            // Calcular descuento del vinculado
+            let discVinc = 100;  // gratis por defecto
+            let precioVincOverride = Number(pr.precio) || 0;
+            if (!esGratis) {
+              const precioProm = Number(oferta.regalo_precio);
+              const precioNormalV = Number(oferta.regalo_precio_normal) || Number(pr.precio) || 0;
+              if (precioNormalV > 0 && precioProm < precioNormalV) {
+                discVinc = Math.round((1 - precioProm / precioNormalV) * 100);
+              } else {
+                discVinc = 0;
+              }
+              precioVincOverride = precioNormalV;
+            }
+            const exVinc = orden.find(o =>
+              o.productoId === oferta.regalo_producto_id && o.ofertaId === ofId && o.esRegalo);
+            if (exVinc) {
+              exVinc.cant += cantVinc;
+            } else {
+              orden.push({
+                productoId: oferta.regalo_producto_id, cant: cantVinc,
+                disc: discVinc, discAuto: false,
+                esBulto: false, uPorBulto: 1,
+                precioOverride: precioVincOverride,
+                esOferta: true, ofertaId: ofId, esRegalo: true,
+              });
+            }
+            vinculadoInfo = ` + ${cantVinc}u ${oferta.regalo_nombre || 'vinculado'}`;
+          }
         }
       }
     }
   }
   refrescarItems();
   renderSugerencias();
-  mostrarToast(`✓ Oferta aplicada — ${cantReq}u ${p.nombre}${oferta.regalo_producto_id?' + regalo':''}`);
+  mostrarToast(`✓ Oferta aplicada — ${cantReq}u ${p.nombre}${vinculadoInfo}`);
 }
 
 function mostrarToast(msg) {
@@ -850,7 +877,10 @@ function renderSugOfertas(items) {
     const cantReq = it.cantidad_min || 1;
     const partes = [];
     if (cantReq > 1) partes.push(`Llevá ${cantReq}u`);
-    if (it.regalo_producto_id && it.regalo_cantidad) partes.push(`+ ${it.regalo_cantidad}u ${it.regalo_nombre || 'regalo'} gratis`);
+    if (it.regalo_producto_id && it.regalo_cantidad) {
+      const precioTxt = it.regalo_precio != null ? `a $${it.regalo_precio}` : 'gratis';
+      partes.push(`+ hasta ${it.regalo_cantidad}u ${it.regalo_nombre || 'vinculado'} ${precioTxt}`);
+    }
     if (it.aplica_desc_bulto && it.u_bulto > 1) partes.push(`incluye desc. bulto ${it.desc_bulto || 0}%`);
     if (it.descripcion) partes.push(it.descripcion);
     if (it.vigente_hasta) partes.push(`hasta ${it.vigente_hasta}`);

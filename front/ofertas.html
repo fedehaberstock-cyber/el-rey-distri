@@ -115,7 +115,7 @@ let form = {
   descripcion: '', precio_oferta: '',
   cantidad_min: 1,
   aplica_desc_bulto: false,
-  regalo_producto_id: null, regalo_producto_nombre: '', regalo_cantidad: '',
+  regalo_producto_id: null, regalo_producto_nombre: '', regalo_cantidad: '', regalo_precio: '',
   stock_maximo: '',
   vigente_desde: hoyIso(), vigente_hasta: '',
   prioridad: 0, activa: true,
@@ -130,10 +130,10 @@ async function cargar() {
   const [ofRes, prodRes] = await Promise.all([
     supabase.from('ofertas')
       .select(`id, producto_id, descripcion, precio_oferta, vigente_desde, vigente_hasta, prioridad, activa,
-               cantidad_min, aplica_desc_bulto, regalo_producto_id, regalo_cantidad,
+               cantidad_min, aplica_desc_bulto, regalo_producto_id, regalo_cantidad, regalo_precio,
                stock_maximo, stock_vendido,
                productos:producto_id(nombre, precio, u_bulto, desc_bulto),
-               regalo:regalo_producto_id(nombre)`)
+               regalo:regalo_producto_id(nombre, precio)`)
       .eq('empresa_id', usuario.empresa_id)
       .order('activa', { ascending: false })
       .order('prioridad', { ascending: false })
@@ -186,7 +186,10 @@ function render() {
             const desc = pNorm > 0 && pOf > 0 && pOf < pNorm ? Math.round((1 - pOf / pNorm) * 100) : null
             const extras = []
             if (o.cantidad_min && o.cantidad_min > 1) extras.push(`Mín ${o.cantidad_min}u`)
-            if (o.regalo?.nombre) extras.push(`+ ${o.regalo_cantidad}u ${o.regalo.nombre} regalo`)
+            if (o.regalo?.nombre) {
+              const precioTxt = o.regalo_precio != null ? ` a $${o.regalo_precio}` : ' gratis'
+              extras.push(`+ hasta ${o.regalo_cantidad}u ${o.regalo.nombre}${precioTxt}`)
+            }
             if (o.stock_maximo != null) {
               const rest = Math.max(0, (o.stock_maximo || 0) - (o.stock_vendido || 0))
               extras.push(`${rest}u restantes`)
@@ -345,19 +348,25 @@ function renderPanel() {
         oninput="window._setForm('precio_oferta', this.value)">
 
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
-        <label class="fl" style="margin-top:0">Producto de regalo (opcional)</label>
+        <label class="fl" style="margin-top:0">Producto vinculado (opcional)</label>
+        <div class="help-small" style="margin-bottom:6px">Se puede llevar como regalo (dejar precio vacío) o a un precio promocional.</div>
         ${form.regalo_producto_id ? `
           <div class="sel-prod">
             <span>${form.regalo_producto_nombre}</span>
             <button onclick="window._limpiarRegalo()">✕</button>
           </div>` : `
-          <input id="of-busq-reg" class="field" placeholder="Buscar producto de regalo…" value="${busqRegalo}"
+          <input id="of-busq-reg" class="field" placeholder="Buscar producto vinculado…" value="${busqRegalo}"
             oninput="window._setBusqRegalo(this.value)">
           <div id="of-res-reg"></div>`}
         ${form.regalo_producto_id ? `
-          <label class="fl" style="margin-top:10px">Cantidad de regalo</label>
+          <label class="fl" style="margin-top:10px">Cantidad máxima (por cada unidad del principal)</label>
           <input class="field" type="number" min="1" value="${form.regalo_cantidad}"
-            oninput="window._setForm('regalo_cantidad', this.value)" inputmode="numeric">` : ''}
+            oninput="window._setForm('regalo_cantidad', this.value)" inputmode="numeric">
+          <div class="help-small">Ej: 6 → si el cliente lleva 2 del principal, hasta 12 del vinculado.</div>
+          <label class="fl" style="margin-top:10px">Precio promocional (opcional)</label>
+          <input class="field" type="number" min="0" step="0.01" value="${form.regalo_precio}"
+            placeholder="Dejar vacío = gratis" inputmode="numeric"
+            oninput="window._setForm('regalo_precio', this.value)">` : ''}
       </div>
 
       <label class="fl">Stock máximo para la promo (opcional)</label>
@@ -452,6 +461,7 @@ async function guardar() {
     aplica_desc_bulto: !!form.aplica_desc_bulto,
     regalo_producto_id: form.regalo_producto_id || null,
     regalo_cantidad: form.regalo_producto_id ? Math.max(1, parseInt(form.regalo_cantidad) || 1) : null,
+    regalo_precio: form.regalo_producto_id && form.regalo_precio !== '' ? Math.max(0, parseFloat(form.regalo_precio)) : null,
     stock_maximo: form.stock_maximo === '' ? null : Math.max(0, parseInt(form.stock_maximo) || 0),
     vigente_desde: form.vigente_desde,
     vigente_hasta: form.vigente_hasta || null,
@@ -483,7 +493,7 @@ window._nuevo = () => {
     producto_id: null, producto_nombre: '',
     descripcion: '', precio_oferta: '',
     cantidad_min: 1, aplica_desc_bulto: false,
-    regalo_producto_id: null, regalo_producto_nombre: '', regalo_cantidad: '',
+    regalo_producto_id: null, regalo_producto_nombre: '', regalo_cantidad: '', regalo_precio: '',
     stock_maximo: '',
     vigente_desde: hoyIso(), vigente_hasta: '',
     prioridad: 0, activa: true,
@@ -502,6 +512,7 @@ window._editar = id => {
     regalo_producto_id: o.regalo_producto_id || null,
     regalo_producto_nombre: o.regalo?.nombre || '',
     regalo_cantidad: o.regalo_cantidad ?? '',
+    regalo_precio: o.regalo_precio ?? '',
     stock_maximo: o.stock_maximo ?? '',
     vigente_desde: o.vigente_desde,
     vigente_hasta: o.vigente_hasta || '',
@@ -517,7 +528,7 @@ window._setBusqRegalo = v => { busqRegalo = v; renderResultadosRegalo() }
 window._selProd = (id, nombre) => { form.producto_id = id; form.producto_nombre = nombre; busqProd = ''; render() }
 window._selRegalo = (id, nombre) => { form.regalo_producto_id = id; form.regalo_producto_nombre = nombre; busqRegalo = ''; render() }
 window._limpiarProd = () => { form.producto_id = null; form.producto_nombre = ''; render() }
-window._limpiarRegalo = () => { form.regalo_producto_id = null; form.regalo_producto_nombre = ''; form.regalo_cantidad = ''; render() }
+window._limpiarRegalo = () => { form.regalo_producto_id = null; form.regalo_producto_nombre = ''; form.regalo_cantidad = ''; form.regalo_precio = ''; render() }
 window._guardar = () => guardar()
 window._eliminar = () => eliminar()
 

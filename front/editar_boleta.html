@@ -133,10 +133,10 @@ async function cargar() {
     supabase.from('stock_actual').select('producto_id, stock'),
     supabase.from('ofertas')
       .select(`id, producto_id, descripcion, precio_oferta, vigente_desde, vigente_hasta,
-               cantidad_min, aplica_desc_bulto, regalo_producto_id, regalo_cantidad,
+               cantidad_min, aplica_desc_bulto, regalo_producto_id, regalo_cantidad, regalo_precio,
                stock_maximo, stock_vendido, activa,
                productos:producto_id(nombre, precio, u_bulto, desc_bulto),
-               regalo:regalo_producto_id(nombre)`)
+               regalo:regalo_producto_id(nombre, precio)`)
       .eq('empresa_id', usuario.empresa_id)
       .eq('activa', true)
       .order('prioridad', { ascending: false }),
@@ -257,7 +257,10 @@ function renderOfertaPicker() {
         ${ofertas.map(o => {
           const partes = []
           if (o.cantidad_min > 1) partes.push(`Llevá ${o.cantidad_min}u`)
-          if (o.regalo_producto_id && o.regalo_cantidad) partes.push(`+ ${o.regalo_cantidad}u ${o.regalo?.nombre || 'regalo'} gratis`)
+          if (o.regalo_producto_id && o.regalo_cantidad) {
+            const precioTxt = o.regalo_precio != null ? `a $${o.regalo_precio}` : 'gratis'
+            partes.push(`+ hasta ${o.regalo_cantidad}u ${o.regalo?.nombre || 'vinculado'} ${precioTxt}`)
+          }
           if (o.aplica_desc_bulto && o.productos?.u_bulto > 1) partes.push(`+ desc bulto ${o.productos?.desc_bulto || 0}%`)
           if (o.descripcion) partes.push(o.descripcion)
           return `<div class="picker-item" onclick="window._aplicarOferta('${o.id}')">
@@ -432,27 +435,48 @@ window._aplicarOferta = (ofertaId) => {
       oferta_id: o.id, es_regalo: false,
     })
   }
-  // Regalo
+  // Producto vinculado (gratis o con precio promocional)
   if (o.regalo_producto_id && o.regalo_cantidad > 0) {
     const pr = productos.find(x => x.id === o.regalo_producto_id)
     if (pr) {
-      const stockR = stockMap[pr.id] ?? 0
-      const origR = cantOriginal[pr.id] || 0
-      const enItemsR = items.filter(x => x.producto_id === pr.id).reduce((s,x)=>s+x.cantidad, 0)
-      const dispR = stockR + origR - enItemsR
-      if (dispR >= o.regalo_cantidad) {
-        const exR = items.find(x => x.oferta_id === o.id && x.producto_id === pr.id && x.es_regalo)
-        if (exR) { exR.cantidad += o.regalo_cantidad }
-        else {
-          items.push({
-            producto_id: pr.id, nombre: pr.nombre, cantidad: o.regalo_cantidad,
-            precio_unit: Number(pr.precio) || 0, descuento: 100,
-            es_bulto: false, u_por_bulto: 1,
-            oferta_id: o.id, es_regalo: true,
-          })
+      const maxVinc = o.regalo_cantidad
+      const esGratis = o.regalo_precio == null
+      const promptTxt = esGratis
+        ? `¿Cuántas unidades de ${o.regalo?.nombre || 'vinculado'} lleva? (hasta ${maxVinc}u gratis)`
+        : `¿Cuántas unidades de ${o.regalo?.nombre || 'vinculado'} lleva? (hasta ${maxVinc}u a $${o.regalo_precio} c/u)`
+      const resp = prompt(promptTxt, String(maxVinc))
+      if (resp !== null) {
+        const cantVinc = Math.max(0, Math.min(maxVinc, parseInt(resp) || 0))
+        if (cantVinc > 0) {
+          const stockR = stockMap[pr.id] ?? 0
+          const origR = cantOriginal[pr.id] || 0
+          const enItemsR = items.filter(x => x.producto_id === pr.id).reduce((s,x)=>s+x.cantidad, 0)
+          const dispR = stockR + origR - enItemsR
+          if (dispR < cantVinc) {
+            alert(`Sin stock suficiente del vinculado (${o.regalo?.nombre || ''}). Disponible: ${Math.max(0,dispR)}u.`)
+          } else {
+            let discVinc = 100
+            let precioVinc = Number(pr.precio) || 0
+            if (!esGratis) {
+              const precioProm = Number(o.regalo_precio)
+              if (precioVinc > 0 && precioProm < precioVinc) {
+                discVinc = Math.round((1 - precioProm / precioVinc) * 100)
+              } else {
+                discVinc = 0
+              }
+            }
+            const exR = items.find(x => x.oferta_id === o.id && x.producto_id === pr.id && x.es_regalo)
+            if (exR) { exR.cantidad += cantVinc }
+            else {
+              items.push({
+                producto_id: pr.id, nombre: pr.nombre, cantidad: cantVinc,
+                precio_unit: precioVinc, descuento: discVinc,
+                es_bulto: false, u_por_bulto: 1,
+                oferta_id: o.id, es_regalo: true,
+              })
+            }
+          }
         }
-      } else {
-        alert(`Sin stock del regalo (${o.regalo?.nombre || ''}). Se agregó solo el principal.`)
       }
     }
   }

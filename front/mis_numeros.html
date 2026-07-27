@@ -152,7 +152,7 @@ async function cargar() {
     .from('pedidos')
     .select(`id, fecha, cliente_id, estado, descuento,
       clientes(nombre),
-      pedido_items(cantidad, precio_unit, descuento, es_bulto, productos(nombre, categoria))`)
+      pedido_items(cantidad, precio_unit, descuento, es_bulto, oferta_id, productos(nombre, categoria))`)
     .eq('empresa_id', usuario.empresa_id)
     .eq('usuario_id', usuarioId)
     .neq('estado', 'anulado')
@@ -280,6 +280,7 @@ function descuentosAplicados() {
     }
     for (const it of (p.pedido_items || [])) {
       if (it.es_bulto) continue                       // descuentos de bulto son automáticos
+      if (it.oferta_id) continue                      // descuentos de oferta también son automáticos
       const pct = Number(it.descuento || 0)
       if (pct <= 0) continue
       const bruto = Number(it.cantidad) * Number(it.precio_unit)
