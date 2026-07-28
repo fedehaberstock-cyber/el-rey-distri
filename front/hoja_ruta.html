@@ -214,9 +214,7 @@ import { ars, fechaCorta, mostrarError } from './src/utils.js?v=2'
 
 const { usuario } = await requireSession()
 if (!tienePermiso('hoja_ruta')) { location.href = './login_home.html'; throw new Error('sin permiso') }
-// puedeAdminCierre se calcula tras cargar la hoja:
-//   - cualquiera con permiso hoja_ruta puede cerrar mientras la fecha de la hoja sea hoy o futura
-//   - si la hoja es de un día pasado, solo admin
+// Cualquiera con permiso hoja_ruta puede cerrar, sin restricción por fecha.
 // ── DATOS ─────────────────────────────────────────────────────────────
 let pedidos  = []  // adaptados del mockup
 let hojaId   = null
@@ -380,16 +378,10 @@ async function cargarTodo() {
     }
   })
 
-  // permiso de cierre según fecha de la hoja
-  const hoyArg = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Cordoba'}).format(new Date())
-  const hojaPas = (typeof hojaFecha === 'string' ? hojaFecha : hoyArg).slice(0,10) < hoyArg
-  if (hojaPas) {
-    puedeAdminCierre = usuario.rol === 'admin'
-    _motivoBloqueo = 'Hoja vencida — solo admin'
-  } else {
-    puedeAdminCierre = true
-    _motivoBloqueo = ''
-  }
+  // Cualquiera con permiso hoja_ruta puede cerrar, sin importar la fecha
+  // ni si hay otra hoja posterior ya cerrada.
+  puedeAdminCierre = true
+  _motivoBloqueo = ''
 }
 
 // ── ESTADO ────────────────────────────────────────────────────────────
