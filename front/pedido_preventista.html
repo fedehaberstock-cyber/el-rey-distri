@@ -297,7 +297,7 @@ let cobroSaving = false;
 Object.assign(window, {
   addUnidad, addBulto, setCant, setCantDirecto, setDisc, quitar,
   toggleExpandido, confirmar, nuevo, render,
-  setCliente: v => { clienteId = v; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); cargarSugerencias(v); cargarDescuentosCliente(v); },
+  setCliente: v => { clienteId = v; busquedaCli = ''; sugerencias = null; gapAbierto = null; ajustarFechaRepartoPorZona(v); render(); cargarSugerencias(v); cargarDescuentosCliente(v); },
   setBusquedaCli: v => { busquedaCli = v; renderCliResults(); },
   limpiarCliente: () => { clienteId = ''; busquedaCli = ''; sugerencias = null; gapAbierto = null; render(); },
   toggleSug: id => { sugSec[id] = !sugSec[id]; renderSugerencias(); },
@@ -481,7 +481,7 @@ async function cargarTodo(){
       .eq('activo', true)
       .order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
-    supabase.from('zonas').select('id, nombre, dias_semana, usuarios_ids').eq('activa', true),
+    supabase.from('zonas').select('id, nombre, dias_semana, usuarios_ids, modo_reparto').eq('activa', true),
     usr?.id
       ? supabase.from('visitas_clientes')
           .select('cliente_id, resultado')
@@ -705,6 +705,16 @@ function mostrarToast(msg) {
     + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 1800);
+}
+
+// Setea fechaReparto según el modo de la zona del cliente:
+//   - dia_siguiente → mañana
+//   - a_definir / no_reparte / sin zona → '' (queda pendiente de programar)
+function ajustarFechaRepartoPorZona(cliId) {
+  const cli = clientes.find(c => c.id === cliId);
+  const zona = cli && cli.zona_id ? zonas.find(z => z.id === cli.zona_id) : null;
+  const modo = zona?.modo_reparto || 'no_reparte';
+  fechaReparto = (modo === 'dia_siguiente') ? _mañanaArg() : '';
 }
 
 async function cargarDescuentosCliente(cliId) {

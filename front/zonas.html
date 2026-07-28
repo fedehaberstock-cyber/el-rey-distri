@@ -100,17 +100,23 @@ if (!tienePermiso('zonas', 'editar') && !tienePermiso('clientes', 'editar')) {
 
 const DIAS = ['—','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
-let zonas = [];      // {id, nombre, orden, activa, dias_semana:int[], usuarios_ids:uuid[]}
+let zonas = [];      // {id, nombre, orden, activa, dias_semana:int[], usuarios_ids:uuid[], modo_reparto}
 let usuarios = [];   // {id, nombre, rol}
 let panelId = null;  // null=cerrado, 'nuevo' o uuid
-let form = { nombre: '', activa: true, dias_semana: [], usuarios_ids: [] };
+let form = { nombre: '', activa: true, dias_semana: [], usuarios_ids: [], modo_reparto: 'dia_siguiente' };
+
+const MODOS = [
+  { id: 'dia_siguiente', lbl: 'Se reparte',  desc: 'Al confirmar, el pedido sale automáticamente al día siguiente.' },
+  { id: 'a_definir',     lbl: 'A definir',   desc: 'El pedido queda pendiente hasta que se programe la fecha desde Pendientes.' },
+  { id: 'no_reparte',    lbl: 'No reparte',  desc: 'Retiro en depósito o consumo interno. Sin fecha de reparto.' },
+];
 let errMsg = '';
 let saving = false;
 
 async function cargar() {
   const [{ data, error }, { data: usrs }] = await Promise.all([
     supabase.from('zonas')
-      .select('id, nombre, orden, activa, dias_semana, usuarios_ids')
+      .select('id, nombre, orden, activa, dias_semana, usuarios_ids, modo_reparto')
       .eq('empresa_id', usuario.empresa_id)
       .order('orden', { ascending: true }),
     supabase.from('usuarios')
@@ -163,7 +169,7 @@ function renderList() {
       <div class="zona-orden">${i + 1}</div>
       <div class="zona-info">
         <div class="nm">${z.nombre}</div>
-        <div class="sub">${(z.dias_semana && z.dias_semana.length) ? '📅 ' + z.dias_semana.slice().sort().map(d=>DIAS[d].slice(0,3)).join('/') + ' · ' : ''}Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
+        <div class="sub">${(z.dias_semana && z.dias_semana.length) ? '📅 ' + z.dias_semana.slice().sort().map(d=>DIAS[d].slice(0,3)).join('/') + ' · ' : ''}${MODOS.find(m=>m.id===(z.modo_reparto||'dia_siguiente'))?.lbl || ''} · Orden ${z.orden}${z.activa ? '' : ' · Inactiva'}</div>
         ${nombresUsuarios(z.usuarios_ids).length ? `<div class="sub">👤 ${nombresUsuarios(z.usuarios_ids).join(', ')}</div>` : ''}
       </div>
       <div class="ord-btns">
@@ -198,6 +204,23 @@ function renderPanel(el) {
               onchange="window._toggleDia(${d}, this.checked)"
               style="width:16px;height:16px;accent-color:var(--gold)">
             ${DIAS[d]}
+          </label>`).join('')}
+      </div>
+
+      <label class="fl">Modo de reparto</label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${MODOS.map(m => `
+          <label style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;
+            border:1px solid ${form.modo_reparto===m.id ? 'var(--gold)' : 'var(--line)'};
+            border-radius:10px;background:${form.modo_reparto===m.id ? 'var(--gold-lt)' : 'var(--card)'};
+            cursor:pointer">
+            <input type="radio" name="modo" value="${m.id}" ${form.modo_reparto===m.id?'checked':''}
+              onchange="window._setForm('modo_reparto', '${m.id}')"
+              style="margin-top:2px;accent-color:var(--gold)">
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:600">${m.lbl}</div>
+              <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">${m.desc}</div>
+            </div>
           </label>`).join('')}
       </div>
 
@@ -247,10 +270,11 @@ async function guardar() {
       activa: true,
       dias_semana: form.dias_semana,
       usuarios_ids: form.usuarios_ids,
+      modo_reparto: form.modo_reparto,
     }));
   } else {
     ({ error } = await supabase.from('zonas')
-      .update({ nombre: form.nombre.trim(), activa: form.activa, dias_semana: form.dias_semana, usuarios_ids: form.usuarios_ids })
+      .update({ nombre: form.nombre.trim(), activa: form.activa, dias_semana: form.dias_semana, usuarios_ids: form.usuarios_ids, modo_reparto: form.modo_reparto })
       .eq('id', panelId));
   }
   saving = false;
@@ -276,10 +300,10 @@ async function mover(id, delta) {
   if (r1.error || r2.error) { alert('Error al reordenar'); await cargar(); }
 }
 
-window._nuevo  = () => { form = { nombre: '', activa: true, dias_semana: [], usuarios_ids: [] }; errMsg = ''; panelId = 'nuevo'; render(); };
+window._nuevo  = () => { form = { nombre: '', activa: true, dias_semana: [], usuarios_ids: [], modo_reparto: 'dia_siguiente' }; errMsg = ''; panelId = 'nuevo'; render(); };
 window._editar = id => {
   const z = zonas.find(x => x.id === id); if (!z) return;
-  form = { nombre: z.nombre, activa: z.activa, dias_semana: [...(z.dias_semana || [])], usuarios_ids: [...(z.usuarios_ids || [])] }; errMsg = ''; panelId = id; render();
+  form = { nombre: z.nombre, activa: z.activa, dias_semana: [...(z.dias_semana || [])], usuarios_ids: [...(z.usuarios_ids || [])], modo_reparto: z.modo_reparto || 'dia_siguiente' }; errMsg = ''; panelId = id; render();
 };
 window._toggleDia = (d, checked) => {
   const set = new Set(form.dias_semana);
