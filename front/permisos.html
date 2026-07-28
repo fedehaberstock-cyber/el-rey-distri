@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <script src="./src/logger.js"></script>
-<title>El Rey · Permisos</title>
+<title>El Rey · Usuarios y permisos</title>
 <style>
   :root{
     --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
@@ -113,6 +113,33 @@
     .user-card,.modulo-card{animation:fd .15s ease}
     @keyframes fd{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
   }
+
+  /* NUEVO USUARIO */
+  .nuevo-btn{width:calc(100% - 36px);margin:14px 18px 4px;padding:12px;background:var(--gold);
+    color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;
+    cursor:pointer;font-family:inherit}
+  .nuevo-btn:active{background:var(--gold-dk)}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(28,43,39,.55);z-index:100;
+    display:flex;align-items:center;justify-content:center;padding:18px}
+  .modal{background:var(--paper);border-radius:16px;width:100%;max-width:420px;
+    padding:20px;max-height:90vh;overflow-y:auto}
+  .modal h3{font-size:18px;margin-bottom:14px}
+  .modal .fld{margin-bottom:12px}
+  .modal .fld label{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:5px}
+  .modal .fld input,.modal .fld select{width:100%;padding:11px;border:1px solid var(--line);
+    border-radius:10px;font-size:16px;font-family:inherit;background:var(--card);color:var(--ink)}
+  .modal .fld input:focus,.modal .fld select:focus{outline:2px solid var(--gold);
+    outline-offset:1px;border-color:transparent}
+  .modal-actions{display:flex;gap:10px;margin-top:16px}
+  .modal-actions button{flex:1;padding:12px;border-radius:10px;font-size:15px;
+    font-weight:600;font-family:inherit;cursor:pointer;border:none}
+  .btn-cancel{background:var(--line-soft);color:var(--ink)}
+  .btn-ok{background:var(--gold);color:#fff}
+  .btn-ok:disabled{opacity:.5}
+  .modal-err{background:var(--red-bg);color:var(--red-tx);padding:10px;border-radius:8px;
+    font-size:13px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -120,7 +147,7 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { supabase } from './src/supabase.js';
+import { supabase, SUPABASE_URL, SUPABASE_ANON } from './src/supabase.js';
 import { requireSession, tienePermiso } from './src/auth.js';
 
 // ── AUTH GUARD ────────────────────────────────────────────────────────────
@@ -208,6 +235,10 @@ let pendingChanges = {};  // pendingChanges[userId] = Set of changed modulos
 let vista = 'lista';
 let usuarioSel = null;
 let guardando = false;
+let modalNuevo = false;
+let nuevoForm = { nombre: '', email: '', password: '', rol: 'preventista' };
+let nuevoErr = '';
+let creando = false;
 
 // ── CARGA INICIAL ──────────────────────────────────────────────────────────
 async function cargarTodo() {
@@ -257,18 +288,65 @@ function render() {
   el.innerHTML = '';
   if (vista === 'lista') renderLista(el);
   else                   renderDetalle(el);
+  if (modalNuevo) renderModalNuevo();
+}
+
+function renderModalNuevo() {
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()">
+      <h3>Nuevo usuario</h3>
+      ${nuevoErr ? `<div class="modal-err">${nuevoErr}</div>` : ''}
+      <div class="fld">
+        <label>Nombre</label>
+        <input id="nu-nombre" type="text" value="${nuevoForm.nombre}" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label>Email</label>
+        <input id="nu-email" type="email" value="${nuevoForm.email}" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label>Contraseña (mínimo 6)</label>
+        <input id="nu-password" type="text" value="${nuevoForm.password}" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label>Rol</label>
+        <select id="nu-rol">
+          <option value="preventista" ${nuevoForm.rol==='preventista'?'selected':''}>Preventista</option>
+          <option value="deposito"    ${nuevoForm.rol==='deposito'?'selected':''}>Depósito</option>
+          <option value="admin"       ${nuevoForm.rol==='admin'?'selected':''}>Administrador</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="window._cerrarNuevo()" ${creando?'disabled':''}>Cancelar</button>
+        <button class="btn-ok" onclick="window._crearUsuario()" ${creando?'disabled':''}>
+          ${creando ? 'Creando…' : 'Crear'}
+        </button>
+      </div>
+    </div>`;
+  bg.onclick = () => { if (!creando) window._cerrarNuevo(); };
+  document.body.appendChild(bg);
+
+  // preservar valores en state al escribir (sin re-render)
+  ['nombre','email','password'].forEach(k => {
+    const inp = document.getElementById('nu-'+k);
+    inp.addEventListener('input', e => { nuevoForm[k] = e.target.value; });
+  });
+  document.getElementById('nu-rol').addEventListener('change', e => { nuevoForm.rol = e.target.value; });
 }
 
 function renderLista(el) {
   el.innerHTML = `
     <div class="hdr">
       <div class="brand"><span class="crown">&#9818;</span>
-        <div>El Rey<small>Permisos</small></div>
+        <div>El Rey<small>Usuarios y permisos</small></div>
       </div>
       <div class="hdr-right">
         <button class="back" style="font-size:13px" onclick="window._goHome()">Inicio ›</button>
       </div>
     </div>
+    <button class="nuevo-btn" onclick="window._abrirNuevo()">＋ Nuevo usuario</button>
     <div class="user-list">
       ${usuarios.map(u => `
         <div class="user-card" onclick="window._abrirDetalle('${u.id}')">
@@ -444,6 +522,64 @@ window._guardar = async () => {
   delete pendingChanges[usuarioSel];
   showToast('Permisos guardados. Aplican en el próximo login del usuario.');
   render();
+};
+
+window._abrirNuevo = () => {
+  nuevoForm = { nombre: '', email: '', password: '', rol: 'preventista' };
+  nuevoErr = '';
+  modalNuevo = true;
+  render();
+};
+
+window._cerrarNuevo = () => {
+  modalNuevo = false;
+  render();
+};
+
+const ERRORES = {
+  falta_nombre: 'Ingresá un nombre.',
+  email_invalido: 'Email inválido.',
+  password_corto: 'La contraseña debe tener al menos 6 caracteres.',
+  rol_invalido: 'Rol inválido.',
+  solo_admin: 'Solo un administrador puede crear usuarios.',
+  sesion_invalida: 'Sesión inválida, volvé a entrar.',
+  auth_create_falló: 'No se pudo crear el usuario en auth (¿email ya registrado?).',
+  insert_usuarios_falló: 'No se pudo crear la fila en usuarios.',
+};
+
+window._crearUsuario = async () => {
+  if (creando) return;
+  nuevoErr = '';
+  creando = true;
+  render();
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/crear-usuario`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+      },
+      body: JSON.stringify(nuevoForm),
+    });
+    const j = await resp.json();
+    if (!resp.ok || !j.ok) {
+      nuevoErr = (ERRORES[j.error] || j.error || 'Error') + (j.detalle ? ` — ${j.detalle}` : '');
+      creando = false;
+      render();
+      return;
+    }
+    creando = false;
+    modalNuevo = false;
+    showToast('Usuario creado.');
+    await cargarTodo();
+  } catch (e) {
+    nuevoErr = 'Error de red: ' + e.message;
+    creando = false;
+    render();
+  }
 };
 
 // ── INIT ───────────────────────────────────────────────────────────────────
