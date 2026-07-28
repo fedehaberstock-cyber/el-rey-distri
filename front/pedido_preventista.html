@@ -779,10 +779,17 @@ function addBulto(id){
   const ex = orden.find(o=>o.productoId===id && o.esBulto);
   if(ex){ ex.cant += p.u_bulto; }
   else {
+    // Combinar recargo/descuento de plantilla con descuento de bulto (multiplicativo)
+    const auto = resolverDescuento(p);
+    const dtoB = Number(p.desc_bulto) || 0;
+    const combinado = auto.esAuto && auto.pct !== 0
+      ? Math.round((1 - (1 - auto.pct/100) * (1 - dtoB/100)) * 10000) / 100
+      : dtoB;
     orden.push({
       productoId:id,
       cant: p.u_bulto,
-      disc: p.desc_bulto,
+      disc: combinado,
+      discAuto: auto.esAuto && auto.pct !== 0,
       esBulto: true,
       uPorBulto: p.u_bulto
     });
