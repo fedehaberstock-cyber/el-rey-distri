@@ -984,7 +984,7 @@ function setCantDirecto(i, v){
   it.cant = nuevo;
   refrescarItems();
 }
-function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(0,+v||0)); orden[i].discAuto=false; refrescarItems(); }
+function setDisc(i,v){ orden[i].disc=Math.min(100,Math.max(-100,+v||0)); orden[i].discAuto=false; refrescarItems(); }
 function quitar(i){ orden.splice(i,1); refrescarItems(); }
 function toggleExpandido(id){ expandido = expandido===id ? null : id; renderResults(); }
 
@@ -1318,9 +1318,9 @@ function renderResults(){
                 aria-label="Más">+</button>
             </div>
             <div class="disc">
-              <input type="number" min="0" max="100" value="${it.disc}"
-                onchange="window.setDisc(${i},this.value)"> % desc
-              ${it.discAuto ? `<span style="margin-left:6px;font-size:10px;background:#E7EEF7;color:#2A5A8A;padding:2px 6px;border-radius:999px;font-weight:700">AUTO</span>` : ''}
+              <input type="number" min="-100" max="100" value="${it.disc}"
+                onchange="window.setDisc(${i},this.value)"> % ${it.disc < 0 ? 'rec' : 'desc'}
+              ${it.discAuto ? `<span style="margin-left:6px;font-size:10px;background:${it.disc < 0 ? 'var(--amber-bg);color:var(--amber-tx)' : '#E7EEF7;color:#2A5A8A'};padding:2px 6px;border-radius:999px;font-weight:700">AUTO</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -1345,12 +1345,17 @@ function renderResults(){
       `onpointerdown="event.preventDefault();this.dataset.sy=event.clientY"
        onpointerup="if(Math.abs(event.clientY-(this.dataset.sy||0))<8)window.addUnidad('${p.id}')"`
     const auto = clienteId ? resolverDescuento(p) : { pct: 0, esAuto: false };
-    const tieneAuto = auto.esAuto && auto.pct > 0;
+    const tieneAuto = auto.esAuto && auto.pct !== 0;
+    const esRecargo = auto.pct < 0;
     const precioFinal = tieneAuto ? Math.round(p.precio * (1 - auto.pct / 100)) : p.precio;
+    const badgeStyle = esRecargo
+      ? 'background:var(--amber-bg);color:var(--amber-tx)'
+      : 'background:#E7EEF7;color:#2A5A8A';
+    const badgeTxt = esRecargo ? `+${Math.abs(auto.pct)}%` : `-${auto.pct}%`;
     const precioHtml = tieneAuto
       ? `<span style="text-decoration:line-through;color:var(--ink-soft);font-weight:500;font-size:12px;margin-right:4px">${ars(p.precio)}</span>
          <span style="color:var(--gold-dk);font-weight:700">${ars(precioFinal)}</span>
-         <span style="display:inline-block;margin-left:4px;font-size:10px;background:#E7EEF7;color:#2A5A8A;padding:1px 6px;border-radius:999px;font-weight:700">-${auto.pct}%</span>`
+         <span style="display:inline-block;margin-left:4px;font-size:10px;${badgeStyle};padding:1px 6px;border-radius:999px;font-weight:700">${badgeTxt}</span>`
       : ars(p.precio);
     return `<div class="row" ${sinStock?'style="opacity:.55"':''}>
       <div class="row-main" ${tapAttrs}>
@@ -1402,9 +1407,9 @@ function renderItems(){
             : `× ${ars(p.precio)}`}
         </span>
         <div class="disc">
-          <input type="number" min="0" max="100" value="${it.disc}"
-            oninput="window.setDisc(${i},this.value)"> % desc.
-          ${it.discAuto ? `<span style="margin-left:6px;font-size:10px;background:#E7EEF7;color:#2A5A8A;padding:2px 6px;border-radius:999px;font-weight:700">AUTO</span>` : ''}
+          <input type="number" min="-100" max="100" value="${it.disc}"
+            oninput="window.setDisc(${i},this.value)"> % ${it.disc < 0 ? 'rec.' : 'desc.'}
+          ${it.discAuto ? `<span style="margin-left:6px;font-size:10px;background:${it.disc < 0 ? 'var(--amber-bg);color:var(--amber-tx)' : '#E7EEF7;color:#2A5A8A'};padding:2px 6px;border-radius:999px;font-weight:700">AUTO</span>` : ''}
         </div>
       </div>
     </div>`;
