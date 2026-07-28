@@ -101,7 +101,7 @@ async function cargar() {
         pedido_items(cantidad, precio_unit, descuento,
           productos(nombre, categoria, subcategoria, proveedor_id, proveedores(nombre)))`)
       .eq('empresa_id', usuario.empresa_id)
-      .in('estado', ['confirmado','entregado'])
+      .in('estado', ['entregado','devolucion'])
       .gte('fecha', desde)
       .lte('fecha', hasta + 'T23:59:59'),
     supabase.from('proveedores').select('id, nombre')

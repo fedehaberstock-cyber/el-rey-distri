@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="./src/logger.js"></script>
+<title>El Rey · Devolución</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;   --red-tx:#A8392B;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{max-width:480px;margin:0 auto;padding-bottom:120px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;color:var(--gold);font-size:13px;font-weight:600;
+    cursor:pointer;font-family:inherit}
+
+  .hint-box{margin:14px 18px;padding:12px 14px;background:var(--amber-bg);
+    border:1px solid var(--amber-tx);border-radius:12px;font-size:13px;
+    color:var(--amber-tx);line-height:1.4}
+  .hint-box b{font-weight:700}
+
+  section{padding:14px 18px;border-bottom:1px solid var(--line-soft)}
+  .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px}
+  .field{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:15px;font-family:inherit;color:var(--ink)}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+
+  .cli-hit{padding:10px 14px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:14px}
+  .cli-hit:active{background:var(--line-soft)}
+  .cli-sel{padding:12px 14px;background:var(--gold-lt);border:1px solid var(--gold);
+    border-radius:10px;display:flex;justify-content:space-between;align-items:center}
+  .cli-sel .nm{font-weight:700}
+  .cli-sel .x{background:none;border:none;color:var(--gold-dk);font-size:20px;cursor:pointer}
+
+  .prod-hit{padding:10px 14px;border-bottom:1px solid var(--line-soft);cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;font-size:14px}
+  .prod-hit:active{background:var(--line-soft)}
+
+  .item-row{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px;margin-bottom:8px}
+  .item-row .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .item-row .nm{font-weight:700;flex:1}
+  .item-row .rm{background:none;border:none;color:var(--red-tx);font-size:18px;cursor:pointer}
+  .item-row .ctl{display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap}
+  .item-row .ctl input{width:80px;padding:8px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;font-family:inherit;text-align:center}
+  .item-row .ctl label{font-size:13px;color:var(--ink-soft)}
+  .stk-chk{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;
+    padding:6px 10px;border-radius:8px;background:var(--green-bg);color:var(--green-tx);font-weight:600}
+  .stk-chk input{width:18px;height:18px;accent-color:var(--green-tx);cursor:pointer}
+  .stk-chk.off{background:var(--line-soft);color:var(--ink-soft)}
+
+  .bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;
+    max-width:480px;background:var(--paper);border-top:1px solid var(--line);
+    padding:12px 18px 18px;display:flex;flex-direction:column;gap:8px}
+  .bar-total{display:flex;justify-content:space-between;font-size:16px;font-weight:700}
+  .bar-total .v{color:var(--red-tx)}
+  .bar-btn{width:100%;padding:14px;border:none;border-radius:12px;background:var(--gold);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bar-btn:disabled{opacity:.5}
+  .bar-btn:active:not(:disabled){background:var(--gold-dk)}
+
+  .toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:14px;font-weight:600;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .toast.err{background:var(--red-tx)}
+
+  .err-msg{color:var(--red-tx);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="root"><div style="text-align:center;padding:60px;color:var(--ink-soft)">Cargando…</div></div>
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js';
+import { requireSession, tienePermiso } from './src/auth.js';
+import { ars, mostrarError } from './src/utils.js?v=2';
+
+const { usuario } = await requireSession();
+if (!tienePermiso('pedidos')) { location.href = './login_home.html'; throw new Error('sin permiso'); }
+
+let clientes = [];
+let productos = [];
+let clienteSel = null;
+let busquedaCli = '';
+let busquedaProd = '';
+let items = []; // {producto_id, nombre, cantidad, precio_unit, reingresa_stock}
+let obs = '';
+let guardando = false;
+
+async function cargar() {
+  const [{ data: cli }, { data: prod }] = await Promise.all([
+    supabase.from('clientes').select('id, nombre, direccion').eq('empresa_id', usuario.empresa_id).order('nombre'),
+    supabase.from('productos').select('id, nombre, precio').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ]);
+  clientes = cli || [];
+  productos = prod || [];
+  render();
+}
+
+function render() {
+  const el = document.getElementById('root');
+  el.innerHTML = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Devolución</small></div>
+      </div>
+      <button class="back" onclick="location.href='./login_home.html'">Inicio ›</button>
+    </div>
+
+    <div class="hint-box">
+      💡 <b>¿Vuelve a stock?</b> Marcá esta casilla si el producto se puede volver a vender.
+      Desmarcala si el producto <b>no puede revenderse</b> — vencido, roto, contaminado, etc.
+      La devolución genera un <b>crédito a favor del cliente</b> que se descuenta en la próxima boleta.
+    </div>
+
+    <section>
+      <div class="lbl">Cliente</div>
+      ${clienteSel ? `
+        <div class="cli-sel">
+          <div>
+            <div class="nm">${clienteSel.nombre}</div>
+            <div style="font-size:12px;color:var(--gold-dk)">${clienteSel.direccion || ''}</div>
+          </div>
+          <button class="x" onclick="window._quitarCli()">×</button>
+        </div>` : `
+        <input class="field" placeholder="Buscar cliente por nombre…" value="${busquedaCli}"
+          oninput="window._buscarCli(this.value)" autocomplete="off">
+        <div id="res-cli"></div>`}
+    </section>
+
+    ${clienteSel ? `
+    <section>
+      <div class="lbl">Agregar producto</div>
+      <input class="field" placeholder="Buscar producto…" value="${busquedaProd}"
+        oninput="window._buscarProd(this.value)" autocomplete="off">
+      <div id="res-prod"></div>
+    </section>
+
+    <section>
+      <div class="lbl">Productos a devolver (${items.length})</div>
+      <div id="items-list">
+        ${items.length ? items.map((it, i) => `
+          <div class="item-row">
+            <div class="top">
+              <div class="nm">${it.nombre}</div>
+              <button class="rm" onclick="window._quitarItem(${i})">×</button>
+            </div>
+            <div class="ctl">
+              <div><label>Cant:</label>
+                <input type="number" min="1" value="${it.cantidad}"
+                  onchange="window._setCant(${i}, this.value)"></div>
+              <div><label>Precio unit.:</label>
+                <input type="number" min="0" step="0.01" value="${it.precio_unit}"
+                  onchange="window._setPrecio(${i}, this.value)"></div>
+              <label class="stk-chk ${!it.reingresa_stock ? 'off' : ''}">
+                <input type="checkbox" ${it.reingresa_stock ? 'checked' : ''}
+                  onchange="window._toggleStk(${i})">
+                🔄 Vuelve a stock
+              </label>
+            </div>
+          </div>`).join('') : '<div style="color:var(--ink-soft);font-size:14px;text-align:center;padding:20px">Aún no agregaste productos.</div>'}
+      </div>
+    </section>
+
+    <section>
+      <div class="lbl">Observaciones (opcional)</div>
+      <textarea class="field" rows="2" placeholder="Ej: producto vencido, roto…"
+        oninput="window._setObs(this.value)">${obs}</textarea>
+    </section>
+    ` : ''}
+  `;
+
+  if (clienteSel) {
+    renderProdResults();
+  } else {
+    renderCliResults();
+  }
+  renderBar();
+}
+
+function renderCliResults() {
+  const box = document.getElementById('res-cli');
+  if (!box) return;
+  if (busquedaCli.trim().length < 2) { box.innerHTML = ''; return; }
+  const q = busquedaCli.toLowerCase();
+  const hits = clientes.filter(c => c.nombre.toLowerCase().includes(q)).slice(0, 8);
+  box.innerHTML = hits.length
+    ? hits.map(c => `<div class="cli-hit" onclick="window._elegirCli('${c.id}')">${c.nombre}<div style="font-size:12px;color:var(--ink-soft)">${c.direccion || ''}</div></div>`).join('')
+    : '<div style="padding:14px;color:var(--ink-soft);font-size:14px">Sin resultados.</div>';
+}
+
+function renderProdResults() {
+  const box = document.getElementById('res-prod');
+  if (!box) return;
+  if (busquedaProd.trim().length < 2) { box.innerHTML = ''; return; }
+  const q = busquedaProd.toLowerCase();
+  const hits = productos.filter(p => p.nombre.toLowerCase().includes(q)).slice(0, 8);
+  box.innerHTML = hits.length
+    ? hits.map(p => `<div class="prod-hit" onclick="window._agregarProd('${p.id}')">
+        <span>${p.nombre}</span>
+        <span style="color:var(--ink-soft);font-size:13px">${ars(p.precio)}</span>
+      </div>`).join('')
+    : '<div style="padding:14px;color:var(--ink-soft);font-size:14px">Sin resultados.</div>';
+}
+
+function renderBar() {
+  let bar = document.querySelector('.bar');
+  if (!clienteSel || !items.length) { if (bar) bar.remove(); return; }
+  const total = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.precio_unit) || 0), 0);
+  if (!bar) { bar = document.createElement('div'); bar.className = 'bar'; document.body.appendChild(bar); }
+  bar.innerHTML = `
+    <div class="bar-total">
+      <span>Crédito al cliente</span>
+      <span class="v">−${ars(total)}</span>
+    </div>
+    <button class="bar-btn" onclick="window._confirmar()" ${guardando ? 'disabled' : ''}>
+      ${guardando ? 'Guardando…' : 'Confirmar devolución'}
+    </button>`;
+}
+
+function showToast(msg, isErr = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+// ── handlers ──
+window._buscarCli = v => { busquedaCli = v; renderCliResults(); };
+window._elegirCli = id => { clienteSel = clientes.find(c => c.id === id); busquedaCli = ''; render(); };
+window._quitarCli = () => { clienteSel = null; items = []; render(); };
+
+window._buscarProd = v => { busquedaProd = v; renderProdResults(); };
+window._agregarProd = id => {
+  const p = productos.find(x => x.id === id);
+  if (!p) return;
+  const ex = items.find(it => it.producto_id === id);
+  if (ex) { ex.cantidad += 1; }
+  else {
+    items.push({
+      producto_id: p.id, nombre: p.nombre,
+      cantidad: 1, precio_unit: p.precio, reingresa_stock: true,
+    });
+  }
+  busquedaProd = '';
+  render();
+};
+window._quitarItem = i => { items.splice(i, 1); render(); };
+window._setCant   = (i, v) => { items[i].cantidad = Math.max(1, parseInt(v) || 1); renderBar(); };
+window._setPrecio = (i, v) => { items[i].precio_unit = Math.max(0, parseFloat(v) || 0); renderBar(); };
+window._toggleStk = i => { items[i].reingresa_stock = !items[i].reingresa_stock; render(); };
+window._setObs    = v => { obs = v; };
+
+window._confirmar = async () => {
+  if (guardando || !clienteSel || !items.length) return;
+  if (!confirm(`Confirmar devolución de ${items.length} producto(s) para ${clienteSel.nombre}?`)) return;
+  guardando = true; renderBar();
+  try {
+    const { data, error } = await supabase.rpc('crear_devolucion', {
+      p_payload: {
+        cliente_id: clienteSel.id,
+        observaciones: obs && obs.trim() ? obs.trim() : null,
+        items: items.map(it => ({
+          producto_id: it.producto_id,
+          cantidad: it.cantidad,
+          precio_unit: it.precio_unit,
+          reingresa_stock: it.reingresa_stock,
+        })),
+      }
+    });
+    if (error) throw error;
+    showToast('✓ Devolución registrada');
+    clienteSel = null; items = []; obs = '';
+    setTimeout(() => { location.href = './login_home.html'; }, 1200);
+  } catch (e) {
+    showToast('Error: ' + (e.message || e), true);
+    guardando = false; renderBar();
+  }
+};
+
+await cargar();
+</script>
+</body>
+</html>
