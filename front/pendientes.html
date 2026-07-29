@@ -127,8 +127,7 @@ async function cargar() {
       usuarios!pedidos_usuario_id_fkey(nombre)
     `)
     .eq('empresa_id', usuario.empresa_id)
-    .in('estado', ['confirmado','postergado'])
-    .is('hoja_ruta_id', null);   // pendiente = no está asignado a ninguna hoja
+    .in('estado', ['confirmado','postergado']);
 
   // Filtro por usuario si no es admin de pedidos
   if (!esAdminPed) q = q.eq('usuario_id', usuario.id);
@@ -136,7 +135,11 @@ async function cargar() {
   const { data, error } = await q.order('fecha_reparto', { ascending: true, nullsFirst: true });
   if (error) { document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`; return; }
 
+  // Pendiente = no fue efectivamente entregado. Mostramos:
+  //   - todos los que no tienen hoja asignada (a_definir, rolleados, postergados, programados)
+  //   - los que tienen hoja pero cuya fecha_reparto ya pasó o es hoy (por si la hoja no se cerró)
   pendientes = (data || [])
+    .filter(p => !p.hoja_ruta_id || (p.fecha_reparto && p.fecha_reparto <= HOY))
     .map(p => {
       const tipo = p.estado === 'postergado' ? 'postergado'
                  : p.fecha_reparto == null   ? 'a_definir'
