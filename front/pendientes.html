@@ -46,6 +46,7 @@
   .ped-card.def{border-left:4px solid var(--amber-tx)}
   .ped-card.rol{border-left:4px solid var(--red-tx)}
   .ped-card.prog{border-left:4px solid var(--green-tx)}
+  .ped-card.rep{border-left:4px solid var(--blue-tx)}
   .ped-hdr{padding:12px 14px;border-bottom:1px solid var(--line-soft)}
   .ped-hdr .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .ped-hdr .nm{font-size:15px;font-weight:700}
@@ -159,7 +160,7 @@ async function cargar() {
       const tipo = p.estado === 'postergado' ? 'postergado'
                  : p.fecha_reparto == null   ? 'a_definir'
                  : p.fecha_reparto <= HOY    ? 'rolleado'
-                 : fueRolleado               ? 'rolleado'   // futuro rolleado
+                 : fueRolleado               ? 'reprogramado'   // futuro con rollover previo
                                               : 'programado';
       return {
         id: p.id,
@@ -223,17 +224,18 @@ function render() {
     return;
   }
 
-  const grupos = { rolleado: [], a_definir: [], postergado: [], programado: [] };
+  const grupos = { rolleado: [], a_definir: [], reprogramado: [], postergado: [], programado: [] };
   filtrados.forEach(p => grupos[p.tipo].push(p));
 
   const titulos = {
-    rolleado:   'No entregados / vencidos',
-    a_definir:  'A definir fecha',
-    postergado: 'Postergados',
-    programado: 'Programados a futuro',
+    rolleado:     'No entregados / vencidos',
+    a_definir:    'A definir fecha',
+    reprogramado: 'Reprogramados (esperando entrega)',
+    postergado:   'Postergados',
+    programado:   'Programados a futuro',
   };
 
-  ['rolleado','a_definir','postergado','programado'].forEach(k => {
+  ['rolleado','a_definir','reprogramado','postergado','programado'].forEach(k => {
     if (!grupos[k].length) return;
     const sec = document.createElement('div');
     sec.innerHTML = `<div class="sec-lbl">${titulos[k]} · ${grupos[k].length}</div>`;
@@ -244,9 +246,10 @@ function render() {
 
 function renderCard(p) {
   const el = document.createElement('div');
-  const cls = p.tipo === 'a_definir' ? 'def'
-            : p.tipo === 'rolleado'  ? 'rol'
-            : p.tipo === 'programado' ? 'prog'
+  const cls = p.tipo === 'a_definir'    ? 'def'
+            : p.tipo === 'rolleado'     ? 'rol'
+            : p.tipo === 'reprogramado' ? 'rep'
+            : p.tipo === 'programado'   ? 'prog'
             : '';
   el.className = `ped-card ${cls}`;
   const fechaTxt = p.fechaReparto ? p.fechaReparto.split('-').reverse().join('/') : '';
@@ -254,9 +257,11 @@ function renderCard(p) {
     ? '<span class="chip def">A DEFINIR</span>'
     : p.tipo === 'rolleado'
       ? `<span class="chip rol">${p.fechaReparto === HOY ? 'HOY' : 'VENCIDO'} ${fechaTxt ? '· ' + fechaTxt : ''}</span>`
-      : p.tipo === 'programado'
-        ? `<span class="chip prog">PROG · ${fechaTxt}</span>`
-        : '<span class="chip post">POSTERGADO</span>';
+      : p.tipo === 'reprogramado'
+        ? `<span class="chip post">REPROGRAMADO · ${fechaTxt}</span>`
+        : p.tipo === 'programado'
+          ? `<span class="chip prog">PROG · ${fechaTxt}</span>`
+          : '<span class="chip post">POSTERGADO</span>';
 
   el.innerHTML = `
     <div class="ped-hdr">
@@ -276,7 +281,9 @@ function renderCard(p) {
     <div class="total-row"><span>Total</span><span>${ars(p.total)}</span></div>
     <div class="acciones">
       <button class="btn-acc ok" onclick="window._entregado('${p.id}','${p.cliente.replace(/'/g,'\\\'')}')">✓ Entregado</button>
-      <button class="btn-acc pri" onclick="window._abrirFecha('${p.id}')">📅 Reprogramar</button>
+      ${(p.tipo === 'reprogramado' && !esAdminPed)
+        ? '<button class="btn-acc" disabled style="opacity:.5;cursor:not-allowed">📅 Ya reprogramado</button>'
+        : `<button class="btn-acc pri" onclick="window._abrirFecha('${p.id}')">📅 Reprogramar</button>`}
       ${p.boletaId ? `<button class="btn-acc" onclick="location.href='./editar_boleta.html?id=${p.boletaId}'">✏ Editar</button>` : ''}
       <button class="btn-acc dan" onclick="window._cancelar('${p.id}','${p.cliente.replace(/'/g,'\\\'')}')">✕ Cancelar</button>
     </div>
