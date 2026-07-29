@@ -129,6 +129,7 @@
 <div id="bar-bottom" class="bar-bottom">
   <div class="sel-info" id="bar-info"></div>
   <button class="clr" onclick="window._limpiarSel()">Limpiar</button>
+  <button class="clr" onclick="window._marcarEnviadasSel()">📤 Enviadas</button>
   <button class="clr" onclick="window._exportarSel('zip')">📦 ZIP</button>
   <button class="exp" onclick="window._exportarSel('pdf')">📄 PDF</button>
 </div>
@@ -268,7 +269,16 @@ function render() {
     listaHtml = [...grupos.entries()].map(([k, arr]) => {
       const nombre = k === '__sin__' ? 'Sin beneficiario asignado' : benefNombre(k)
       const totalG = arr.reduce((s, t) => s + Math.abs(Number(t.monto)), 0)
-      return `<div class="group-hdr"><span>${nombre} · ${arr.length}</span><span class="group-total">${ars(totalG)}</span></div>
+      const ids = arr.map(t => t.id).join(',')
+      const todosSel = arr.every(t => seleccionadas.has(t.id))
+      return `<div class="group-hdr">
+                <span>${nombre} · ${arr.length}
+                  <button class="lnk" style="margin-left:8px" onclick="window._selGrupo('${ids}', ${!todosSel})">
+                    ${todosSel ? '☐ Quitar grupo' : '☑ Seleccionar grupo'}
+                  </button>
+                </span>
+                <span class="group-total">${ars(totalG)}</span>
+              </div>
               ${arr.map(renderRow).join('')}`
     }).join('')
   } else {
@@ -454,6 +464,19 @@ window._limpiarSel = () => { seleccionadas = new Set(); render() }
 window._selVisibles = () => {
   listaFiltrada().forEach(t => seleccionadas.add(t.id))
   render()
+}
+window._selGrupo = (idsCsv, agregar) => {
+  const ids = idsCsv.split(',')
+  if (agregar) ids.forEach(id => seleccionadas.add(id))
+  else         ids.forEach(id => seleccionadas.delete(id))
+  render()
+}
+window._marcarEnviadasSel = async () => {
+  const ids = [...seleccionadas]
+  if (!ids.length) return
+  if (!confirm(`¿Marcar ${ids.length} transferencia${ids.length===1?'':'s'} como enviadas al beneficiario?`)) return
+  await marcarEnviadas(ids)
+  mostrarToast(`📤 ${ids.length} marcada${ids.length===1?'':'s'} como enviadas`)
 }
 
 window._toggleConciliado = async (id, val) => {
