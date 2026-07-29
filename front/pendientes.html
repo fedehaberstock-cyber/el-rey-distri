@@ -102,11 +102,12 @@ const _fmt = d => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/C
 const HOY = _fmt(new Date());
 const MANANA = _fmt(new Date(Date.now() + 86400000));
 
-let pendientes = [];  // {tipo:'a_definir'|'rolleado'|'postergado', ...pedido}
+let pendientes = [];  // {tipo:'a_definir'|'rolleado'|'postergado'|'programado', ...pedido}
 let zonasMap = {};
 let filtroZona = 'todas';
 let fechaAbierta = null;  // pedido_id con panel de fecha abierto
 let fechaSel = MANANA;
+let motivoSel = '';
 
 async function cargar() {
   // Zonas para filtro y visualización
@@ -135,17 +136,34 @@ async function cargar() {
   const { data, error } = await q.order('fecha_reparto', { ascending: true, nullsFirst: true });
   if (error) { document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`; return; }
 
+  // Set de pedido_ids que ya tienen un rollover previo (visita no_entregado).
+  // Esto nos permite distinguir un pedido recién programado a mañana de uno
+  // que fue rolleado (debió entregarse antes y no salió).
+  const { data: viss } = await supabase.from('visitas_clientes')
+    .select('pedido_id').eq('empresa_id', usuario.empresa_id).eq('resultado', 'no_entregado');
+  const rolleadosIds = new Set((viss || []).map(v => v.pedido_id).filter(Boolean));
+
   // Pendiente = todo lo confirmado/postergado que aún no está entregado.
-  // Incluimos incluso los que ya están asignados a una hoja futura (por si
-  // fueron rolleados desde una hoja anterior no entregada).
+  // Los "programados a futuro" solo aparecen si fueron rolleados previamente
+  // (para no llenar la pantalla de pedidos frescos para mañana).
   pendientes = (data || [])
+    .filter(p => {
+      if (p.estado === 'postergado') return true;
+      if (p.fecha_reparto == null)   return true;
+      if (p.fecha_reparto <= HOY)    return true;
+      // futuro: solo si tuvo rollover previo
+      return rolleadosIds.has(p.id);
+    })
     .map(p => {
+      const fueRolleado = rolleadosIds.has(p.id);
       const tipo = p.estado === 'postergado' ? 'postergado'
                  : p.fecha_reparto == null   ? 'a_definir'
                  : p.fecha_reparto <= HOY    ? 'rolleado'
+                 : fueRolleado               ? 'rolleado'   // futuro rolleado
                                               : 'programado';
       return {
         id: p.id,
+        cliente_id: p.cliente_id,
         cliente: p.clientes?.nombre || '(sin cliente)',
         dir: p.clientes?.direccion || '',
         zonaId: p.clientes?.zona_id || null,
@@ -267,6 +285,11 @@ function renderCard(p) {
         <label>Nueva fecha de reparto</label>
         <input type="date" value="${fechaSel}" min="${HOY}"
           onchange="window._setFecha(this.value)">
+        <label style="margin-top:10px;display:block">Motivo (opcional)</label>
+        <input type="text" placeholder="Ej: cliente rechazó, pidió otro día…"
+          value="${motivoSel}" oninput="window._setMotivo(this.value)"
+          style="width:100%;padding:9px;border:1px solid var(--gold);border-radius:8px;
+          font-size:14px;font-family:inherit;background:#fff;margin-top:5px">
         <div class="row-btns">
           <button class="fp-cancel" onclick="window._cerrarFecha()">Cancelar</button>
           <button class="fp-ok" onclick="window._reprogramar('${p.id}')">Guardar</button>
@@ -276,21 +299,44 @@ function renderCard(p) {
 }
 
 window._filZ = z => { filtroZona = z; render(); };
-window._abrirFecha = id => { fechaAbierta = id; fechaSel = MANANA; render(); };
-window._cerrarFecha = () => { fechaAbierta = null; render(); };
+window._abrirFecha = id => {
+  fechaAbierta = id;
+  fechaSel = MANANA;
+  motivoSel = pendientes.find(p => p.id === id)?.motivo || '';
+  render();
+};
+window._cerrarFecha = () => { fechaAbierta = null; motivoSel = ''; render(); };
 window._setFecha = v => { fechaSel = v; };
+window._setMotivo = v => { motivoSel = v; };
 
 window._reprogramar = async (id) => {
   try {
+    const motivo = motivoSel && motivoSel.trim() ? motivoSel.trim() : null;
     const { error } = await supabase.from('pedidos').update({
       fecha_reparto: fechaSel,
       estado: 'confirmado',
       hoja_ruta_id: null,
       entregado: null,
-      motivo_no_entrega: null,
+      motivo_no_entrega: motivo,
     }).eq('id', id);
     if (error) throw error;
+
+    // Registrar visita 'no_entregado' con motivo → queda como rollover manual
+    // y persiste la trazabilidad del rechazo/postergación.
+    const ped = pendientes.find(p => p.id === id);
+    if (ped) {
+      await supabase.from('visitas_clientes').insert({
+        empresa_id: usuario.empresa_id,
+        cliente_id: ped.cliente_id || null,
+        usuario_id: usuario.id,
+        resultado: 'no_entregado',
+        motivo,
+        pedido_id: id,
+      });
+    }
+
     fechaAbierta = null;
+    motivoSel = '';
     await cargar();
   } catch (e) { mostrarError('Error: ' + e.message); }
 };
