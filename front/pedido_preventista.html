@@ -1138,9 +1138,23 @@ function render(){
           oninput="window.setBusquedaCli(this.value)" autocomplete="off">
         <div id="res-cli"></div>
       `}
-      <div class="lbl" style="margin-top:10px">Fecha de reparto</div>
-      <input class="field" type="date" value="${fechaReparto}"
-        onchange="window.setFechaReparto(this.value)">
+      ${(() => {
+        const zonaCli = cli && cli.zona_id ? zonas.find(z => z.id === cli.zona_id) : null;
+        const modoCli = zonaCli?.modo_reparto || (cli ? 'no_reparte' : null);
+        const bloquear = cli && modoCli !== 'dia_siguiente';
+        const hintTxt = modoCli === 'a_definir'
+          ? 'Zona a definir — se programa desde Pendientes'
+          : (modoCli === 'no_reparte'
+              ? (cli && !cli.zona_id ? 'Cliente sin zona — no se reparte' : 'Zona sin reparto — solo retiro / consumo interno')
+              : '');
+        return `
+          <div class="lbl" style="margin-top:10px">Fecha de reparto</div>
+          <input class="field" type="date" value="${bloquear ? '' : fechaReparto}"
+            onchange="window.setFechaReparto(this.value)"
+            ${bloquear ? 'disabled style="opacity:.55;cursor:not-allowed;background:#f5f5f5"' : ''}>
+          ${bloquear ? `<div style="font-size:12px;color:var(--gold-dk);margin-top:4px">⚠ ${hintTxt}</div>` : ''}
+        `;
+      })()}
     </section>
     ${cli ? `<div id="sug-box"></div>` : ''}
     <div class="divider"></div>
