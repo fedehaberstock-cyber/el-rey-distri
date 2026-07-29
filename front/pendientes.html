@@ -151,7 +151,9 @@ async function cargar() {
     .filter(p => {
       if (p.estado === 'postergado') return true;
       if (p.fecha_reparto == null)   return true;
-      if (p.fecha_reparto <= HOY)    return true;
+      // fecha <= HOY: pendiente SOLO si no está en una hoja abierta
+      // (si está en hoja, se está por entregar, no es pendiente)
+      if (p.fecha_reparto <= HOY)    return p.hoja_ruta_id == null;
       // futuro: solo si tuvo rollover previo
       return rolleadosIds.has(p.id);
     })
