@@ -135,11 +135,10 @@ async function cargar() {
   const { data, error } = await q.order('fecha_reparto', { ascending: true, nullsFirst: true });
   if (error) { document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`; return; }
 
-  // Pendiente = no fue efectivamente entregado. Mostramos:
-  //   - todos los que no tienen hoja asignada (a_definir, rolleados, postergados, programados)
-  //   - los que tienen hoja pero cuya fecha_reparto ya pasó o es hoy (por si la hoja no se cerró)
+  // Pendiente = todo lo confirmado/postergado que aún no está entregado.
+  // Incluimos incluso los que ya están asignados a una hoja futura (por si
+  // fueron rolleados desde una hoja anterior no entregada).
   pendientes = (data || [])
-    .filter(p => !p.hoja_ruta_id || (p.fecha_reparto && p.fecha_reparto <= HOY))
     .map(p => {
       const tipo = p.estado === 'postergado' ? 'postergado'
                  : p.fecha_reparto == null   ? 'a_definir'
