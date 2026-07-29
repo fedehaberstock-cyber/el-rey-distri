@@ -45,6 +45,7 @@
     border-radius:14px;overflow:hidden}
   .ped-card.def{border-left:4px solid var(--amber-tx)}
   .ped-card.rol{border-left:4px solid var(--red-tx)}
+  .ped-card.prog{border-left:4px solid var(--green-tx)}
   .ped-hdr{padding:12px 14px;border-bottom:1px solid var(--line-soft)}
   .ped-hdr .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .ped-hdr .nm{font-size:15px;font-weight:700}
@@ -53,6 +54,8 @@
   .chip.def{background:var(--amber-bg);color:var(--amber-tx)}
   .chip.rol{background:var(--red-bg);color:var(--red-tx)}
   .chip.post{background:var(--blue-bg);color:var(--blue-tx)}
+  .chip.prog{background:var(--green-bg);color:var(--green-tx)}
+  .btn-acc.ok{background:var(--green-bg);color:var(--green-tx);border-color:var(--green-tx)}
 
   .items{padding:8px 14px;border-bottom:1px solid var(--line-soft);font-size:13px;color:var(--ink-soft)}
   .items .it{display:flex;justify-content:space-between;padding:2px 0}
@@ -117,34 +120,28 @@ async function cargar() {
   //   - estado='postergado'             → 'postergado'
   let q = supabase.from('pedidos')
     .select(`
-      id, fecha, fecha_reparto, estado, motivo_no_entrega, usuario_id,
+      id, fecha, fecha_reparto, estado, motivo_no_entrega, usuario_id, hoja_ruta_id,
       cliente_id, clientes(nombre, direccion, zona_id),
       boletas(id, total, saldo_anterior, estado),
       pedido_items(cantidad, productos(nombre)),
       usuarios!pedidos_usuario_id_fkey(nombre)
     `)
     .eq('empresa_id', usuario.empresa_id)
-    .in('estado', ['confirmado','postergado']);
+    .in('estado', ['confirmado','postergado'])
+    .is('hoja_ruta_id', null);   // pendiente = no está asignado a ninguna hoja
 
   // Filtro por usuario si no es admin de pedidos
   if (!esAdminPed) q = q.eq('usuario_id', usuario.id);
 
-  const { data, error } = await q.order('fecha', { ascending: false });
+  const { data, error } = await q.order('fecha_reparto', { ascending: true, nullsFirst: true });
   if (error) { document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`; return; }
 
   pendientes = (data || [])
-    .filter(p => {
-      if (p.estado === 'postergado') return true;
-      if (p.fecha_reparto == null)   return true;      // a definir
-      // rolleado: fecha < HOY, sin hoja (nueva hoja no existe todavía) → aparece si no hay hoja
-      // Como no traemos hoja_ruta_id, usamos que fecha < HOY es indicio.
-      if (p.fecha_reparto < HOY)     return true;
-      return false;
-    })
     .map(p => {
       const tipo = p.estado === 'postergado' ? 'postergado'
                  : p.fecha_reparto == null   ? 'a_definir'
-                                              : 'rolleado';
+                 : p.fecha_reparto <= HOY    ? 'rolleado'
+                                              : 'programado';
       return {
         id: p.id,
         cliente: p.clientes?.nombre || '(sin cliente)',
@@ -206,16 +203,17 @@ function render() {
     return;
   }
 
-  const grupos = { a_definir: [], rolleado: [], postergado: [] };
+  const grupos = { rolleado: [], a_definir: [], postergado: [], programado: [] };
   filtrados.forEach(p => grupos[p.tipo].push(p));
 
   const titulos = {
+    rolleado:   'No entregados / vencidos',
     a_definir:  'A definir fecha',
-    rolleado:   'No entregados / rolleados',
     postergado: 'Postergados',
+    programado: 'Programados a futuro',
   };
 
-  ['a_definir','rolleado','postergado'].forEach(k => {
+  ['rolleado','a_definir','postergado','programado'].forEach(k => {
     if (!grupos[k].length) return;
     const sec = document.createElement('div');
     sec.innerHTML = `<div class="sec-lbl">${titulos[k]} · ${grupos[k].length}</div>`;
@@ -226,13 +224,19 @@ function render() {
 
 function renderCard(p) {
   const el = document.createElement('div');
-  const cls = p.tipo === 'a_definir' ? 'def' : p.tipo === 'rolleado' ? 'rol' : '';
+  const cls = p.tipo === 'a_definir' ? 'def'
+            : p.tipo === 'rolleado'  ? 'rol'
+            : p.tipo === 'programado' ? 'prog'
+            : '';
   el.className = `ped-card ${cls}`;
+  const fechaTxt = p.fechaReparto ? p.fechaReparto.split('-').reverse().join('/') : '';
   const chip = p.tipo === 'a_definir'
     ? '<span class="chip def">A DEFINIR</span>'
     : p.tipo === 'rolleado'
-      ? `<span class="chip rol">ROLLEADO ${p.fechaReparto ? '· ' + p.fechaReparto.split('-').reverse().join('/') : ''}</span>`
-      : '<span class="chip post">POSTERGADO</span>';
+      ? `<span class="chip rol">${p.fechaReparto === HOY ? 'HOY' : 'VENCIDO'} ${fechaTxt ? '· ' + fechaTxt : ''}</span>`
+      : p.tipo === 'programado'
+        ? `<span class="chip prog">PROG · ${fechaTxt}</span>`
+        : '<span class="chip post">POSTERGADO</span>';
 
   el.innerHTML = `
     <div class="ped-hdr">
@@ -251,6 +255,7 @@ function renderCard(p) {
     </div>
     <div class="total-row"><span>Total</span><span>${ars(p.total)}</span></div>
     <div class="acciones">
+      <button class="btn-acc ok" onclick="window._entregado('${p.id}','${p.cliente.replace(/'/g,'\\\'')}')">✓ Entregado</button>
       <button class="btn-acc pri" onclick="window._abrirFecha('${p.id}')">📅 Reprogramar</button>
       ${p.boletaId ? `<button class="btn-acc" onclick="location.href='./editar_boleta.html?id=${p.boletaId}'">✏ Editar</button>` : ''}
       <button class="btn-acc dan" onclick="window._cancelar('${p.id}','${p.cliente.replace(/'/g,'\\\'')}')">✕ Cancelar</button>
@@ -292,6 +297,25 @@ window._cancelar = async (id, nombre) => {
   if (!confirm(`¿Cancelar pedido de ${nombre}? Se devolverá el stock.`)) return;
   try {
     const { error } = await supabase.rpc('anular_pedido', { p_pedido_id: id });
+    if (error) throw error;
+    await cargar();
+  } catch (e) { mostrarError('Error: ' + e.message); }
+};
+
+window._entregado = async (id, nombre) => {
+  const opts = ['1', '2', '3'];
+  const forma = prompt(
+    `Marcar entregado a ${nombre}. ¿Cómo pagó?\n\n` +
+    `  1) Cuenta corriente (queda en deuda)\n` +
+    `  2) Efectivo\n` +
+    `  3) Transferencia\n\n` +
+    `Ingresá 1, 2 o 3:`, '1');
+  if (!forma || !opts.includes(forma)) return;
+  const map = { '1': 'cuenta_corriente', '2': 'efectivo', '3': 'transferencia' };
+  try {
+    const { error } = await supabase.rpc('marcar_pedido_entregado', {
+      p_pedido_id: id, p_forma_pago: map[forma],
+    });
     if (error) throw error;
     await cargar();
   } catch (e) { mostrarError('Error: ' + e.message); }
