@@ -605,12 +605,13 @@ function aplicarOferta(oferta) {
   const precioNormal = Number(oferta.precio_normal) || p.precio;
   let descTotal = 0;
   if (precioOferta && precioNormal > 0 && precioOferta < precioNormal) {
-    descTotal = Math.round((1 - precioOferta / precioNormal) * 100);
+    // 2 decimales para respetar el precio exacto (ej. 883 sobre 1020 = 13.43%)
+    descTotal = Math.round((1 - precioOferta / precioNormal) * 10000) / 100;
   }
   if (oferta.aplica_desc_bulto && oferta.u_bulto > 1 && cantReq >= oferta.u_bulto) {
     const a = descTotal / 100;
     const b = (Number(oferta.desc_bulto) || 0) / 100;
-    descTotal = Math.round((1 - (1 - a) * (1 - b)) * 100);
+    descTotal = Math.round((1 - (1 - a) * (1 - b)) * 10000) / 100;
   }
   // Multiplicador para el vinculado según cuántos "packs" del principal lleva
   const packs = Math.floor(cantReq / minReq);
@@ -663,7 +664,7 @@ function aplicarOferta(oferta) {
               const precioProm = Number(oferta.regalo_precio);
               const precioNormalV = Number(oferta.regalo_precio_normal) || Number(pr.precio) || 0;
               if (precioNormalV > 0 && precioProm < precioNormalV) {
-                discVinc = Math.round((1 - precioProm / precioNormalV) * 100);
+                discVinc = Math.round((1 - precioProm / precioNormalV) * 10000) / 100;
               } else {
                 discVinc = 0;
               }
