@@ -231,6 +231,7 @@ let busqueda   = '';
 let panelOpen  = null;      // 'ingreso' | 'ajuste' | 'editar' | null
 let pInput     = { prodId: '', busq: '', cant: '', motivo: '' };
 let proveedores = [];
+let plantillas = [];        // [{id, nombre}] para el modal "Lista para compartir"
 let edit       = null;      // {nombre, categoria, proveedor_id, costo, precio, u_bulto, desc_bulto, activo}
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
@@ -261,6 +262,10 @@ async function cargarTodo() {
     .eq('empresa_id', usuario.empresa_id);
   window._provProds = provProds || [];
   proveedores = provs || [];
+
+  const { data: plts } = await supabase.from('plantillas_descuento')
+    .select('id, nombre').eq('empresa_id', usuario.empresa_id).order('nombre');
+  plantillas = plts || [];
 
   const velMap = {};
   for (const v of (velocidades || [])) velMap[v.producto_id] = Number(v.unidades_por_dia) || 0;
@@ -1162,7 +1167,28 @@ window._setTab            = t  => { tab = t; filtroGrupo = 'todo'; busqueda = ''
 window._setBusqueda       = v  => { busqueda = v; renderStockList(); };
 
 // Opciones persistentes durante la sesión del modal
-let _lpOpts = { modo:'unidad', soloConStock:true, excluidas:new Set(), diasRec:7, soloRec:false };
+let _lpOpts = { modo:'unidad', soloConStock:true, excluidas:new Set(), diasRec:7, soloRec:false, plantillaId:'' };
+let _lpReglas = [];  // reglas de la plantilla activa
+
+// Resuelve el % de descuento a aplicar a un producto según las reglas de la
+// plantilla activa. Prioridad: producto > subcategoria > categoria > todo.
+// Exclusión gana sobre cualquier %; entre reglas del mismo nivel, el mayor %.
+function _lpResolverDesc(p) {
+  if (!_lpReglas.length) return 0;
+  const buscar = (alcance, valor) => _lpReglas.filter(r =>
+    r.alcance === alcance &&
+    (alcance === 'todo' || (r.alcance_valor || '').trim() === valor));
+  const mejor = arr => {
+    if (!arr.length) return null;
+    if (arr.some(r => r.excluye)) return 0;
+    return Math.max(...arr.map(r => Number(r.porcentaje) || 0));
+  };
+  let v = mejor(buscar('producto', String(p.id)));
+  if (v == null && p.subcategoria) v = mejor(buscar('subcategoria', p.subcategoria));
+  if (v == null && p.cat)          v = mejor(buscar('categoria', p.cat));
+  if (v == null)                   v = mejor(buscar('todo', ''));
+  return v || 0;
+}
 
 function _lpGenerarTexto() {
   const hoy = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Cordoba' });
@@ -1193,9 +1219,11 @@ function _lpGenerarTexto() {
   }
   const cats = [...porCat.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
 
+  const plActiva = _lpOpts.plantillaId ? plantillas.find(x => x.id === _lpOpts.plantillaId) : null;
+  const sufijoTit = plActiva ? ` — plantilla: ${plActiva.nombre}` : '';
   const titulo = _lpOpts.soloRec
-    ? `*📈 Aumentos recientes (${_lpOpts.diasRec}d) — El Rey*`
-    : `*📋 Lista de precios — El Rey*`;
+    ? `*📈 Aumentos recientes (${_lpOpts.diasRec}d) — El Rey${sufijoTit}*`
+    : `*📋 Lista de precios — El Rey${sufijoTit}*`;
   let txt = `${titulo}\n${hoy}\n`;
   for (const [cat, arr] of cats) {
     txt += `\n*${cat}*\n`;
@@ -1203,12 +1231,15 @@ function _lpGenerarTexto() {
       let precioFinal;
       let sufijo = '';
       if (_lpOpts.modo === 'bulto' && p.u_bulto > 1) {
-        // precio de bulto: precio unit * u_bulto * (1 - desc_bulto)
-        precioFinal = Math.round(p.precio * p.u_bulto * (1 - (p.desc_bulto || 0) / 100));
+        precioFinal = p.precio * p.u_bulto * (1 - (p.desc_bulto || 0) / 100);
         sufijo = ` (bulto ${p.u_bulto}u)`;
       } else {
         precioFinal = p.precio;
       }
+      // Aplicar plantilla si hay reglas (soporta % positivo = descuento, negativo = recargo)
+      const pct = _lpResolverDesc(p);
+      if (pct !== 0) precioFinal = precioFinal * (1 - pct / 100);
+      precioFinal = Math.round(precioFinal);
       const marca = (!_lpOpts.soloRec && cutoff && p.ultimo_cambio_precio && p.ultimo_cambio_precio >= cutoff) ? '📈 ' : '';
       txt += `• ${marca}${p.nombre}${sufijo} — ${ars(precioFinal)}\n`;
     }
@@ -1234,10 +1265,25 @@ window._lpToggleCat = c => {
 };
 window._lpSetDias   = v => { _lpOpts.diasRec = Math.max(0, parseInt(v) || 0); _lpActualizarTexto(); };
 window._lpSetSoloRec= v => { _lpOpts.soloRec = v; document.querySelectorAll('.lp-rec').forEach(x => x.classList.toggle('active', x.dataset.v===(v?'1':'0'))); _lpActualizarTexto(); };
+window._lpSetPlantilla = async v => {
+  _lpOpts.plantillaId = v || '';
+  if (!v) { _lpReglas = []; _lpActualizarTexto(); return; }
+  try {
+    const { data, error } = await supabase.from('plantillas_descuento_reglas')
+      .select('alcance, alcance_valor, porcentaje, excluye').eq('plantilla_id', v);
+    if (error) throw error;
+    _lpReglas = data || [];
+  } catch (e) {
+    console.warn('[lp plantilla] error:', e.message || e);
+    _lpReglas = [];
+  }
+  _lpActualizarTexto();
+};
 
 window._abrirListaPrecios = () => {
   // reset a defaults
-  _lpOpts = { modo:'unidad', soloConStock:true, excluidas:new Set(), diasRec:7, soloRec:false };
+  _lpOpts = { modo:'unidad', soloConStock:true, excluidas:new Set(), diasRec:7, soloRec:false, plantillaId:'' };
+  _lpReglas = [];
   const cats = [...new Set(productos.filter(p => p.precio > 0).map(p => p.cat))]
     .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
@@ -1268,6 +1314,13 @@ window._abrirListaPrecios = () => {
         <button class="lp-stock chip" data-v="0" onclick="window._lpSetStock('0')"
           style="padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Todos</button>
       </div>
+
+      <label class="fl">Regla de precios (plantilla)</label>
+      <select onchange="window._lpSetPlantilla(this.value)"
+        style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;background:var(--card)">
+        <option value="">— Sin plantilla (precios de lista) —</option>
+        ${plantillas.map(pl => `<option value="${pl.id}">${pl.nombre}</option>`).join('')}
+      </select>
 
       <label class="fl">Categorías (tocá para excluir)</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
