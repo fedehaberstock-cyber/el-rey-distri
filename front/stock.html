@@ -817,7 +817,7 @@ async function eliminarProducto() {
   panelOpen = null; edit = null;
   vista = 'lista'; prodSelId = null;
   await cargarTodo();
-  render();
+  window._irLista();
 }
 window._eliminarProducto = eliminarProducto;
 
