@@ -1375,11 +1375,17 @@ window._setAgrupar        = v  => { agrupar = v; filtroGrupo = 'todo'; render();
 window._setFiltroGrupo    = i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
 window._setFiltroGrupoFull= i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
 window._setBannerNeg      = () => { busqueda = ''; filtroGrupo = 'todo'; render(); /* negativos ya primeros por sort */ };
+let _listaScrollY = 0;
 window._irDetalle         = async id => {
+  _listaScrollY = window.scrollY || window.pageYOffset || 0;
   prodSelId = id; vista = 'detalle'; movs = []; render();
+  window.scrollTo(0, 0);
   await cargarMovs(id); render();
 };
-window._irLista           = () => { vista = 'lista'; panelOpen = null; render(); };
+window._irLista           = () => {
+  vista = 'lista'; panelOpen = null; render();
+  requestAnimationFrame(() => window.scrollTo(0, _listaScrollY));
+};
 window._abrirPanel        = (tipo, id) => {
   if (!puedeAjustar) return;
   panelOpen = tipo; pInput = { prodId: id || '', busq: '', cant: '', motivo: '' }; render();
