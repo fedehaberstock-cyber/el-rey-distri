@@ -511,7 +511,7 @@ function renderStockList() {
     const alertaI = diI >= DIAS_ALERTA;
     const dRest = p.velocidad > 0 && p.stock > 0 ? Math.floor(p.stock / p.velocidad) : null;
     const dRestClass = dRest === null ? '' : dRest <= 3 ? 'rest-urg' : dRest <= 7 ? 'rest-baja' : 'rest-ok';
-    return `<div class="prod-card" onclick="window._irDetalle('${p.id}')">
+    return `<div class="prod-card" data-prod-id="${p.id}" onclick="window._irDetalle('${p.id}')">
       <div class="top">
         <span class="nm">${p.nombre}</span>
         <span class="stock-badge ${cl}">${p.stock}</span>
@@ -1012,7 +1012,7 @@ function renderTabMuerto(el) {
     </div>
     <div class="list">
       ${muertos.map(p => `
-        <div class="prod-card" onclick="window._irDetalle('${p.id}')">
+        <div class="prod-card" data-prod-id="${p.id}" onclick="window._irDetalle('${p.id}')">
           <div class="top">
             <span class="nm">${p.nombre}</span>
             <span class="stock-badge ok">${p.stock}</span>
@@ -1376,15 +1376,35 @@ window._setFiltroGrupo    = i  => { filtroGrupo = (window._gruposCache || grupos
 window._setFiltroGrupoFull= i  => { filtroGrupo = (window._gruposCache || grupos())[i]; render(); };
 window._setBannerNeg      = () => { busqueda = ''; filtroGrupo = 'todo'; render(); /* negativos ya primeros por sort */ };
 let _listaScrollY = 0;
+let _listaAnchorId = null;   // producto clickeado
+let _listaPrevId   = null;   // producto inmediatamente anterior (fallback si se borra)
 window._irDetalle         = async id => {
   _listaScrollY = window.scrollY || window.pageYOffset || 0;
+  _listaAnchorId = id;
+  _listaPrevId = null;
+  const card = document.querySelector(`.prod-card[data-prod-id="${id}"]`);
+  if (card) {
+    let prev = card.previousElementSibling;
+    while (prev && !prev.matches?.('.prod-card[data-prod-id]')) prev = prev.previousElementSibling;
+    _listaPrevId = prev?.getAttribute('data-prod-id') || null;
+  }
   prodSelId = id; vista = 'detalle'; movs = []; render();
   window.scrollTo(0, 0);
   await cargarMovs(id); render();
 };
 window._irLista           = () => {
   vista = 'lista'; panelOpen = null; render();
-  requestAnimationFrame(() => window.scrollTo(0, _listaScrollY));
+  requestAnimationFrame(() => {
+    const target =
+      (_listaAnchorId && document.querySelector(`.prod-card[data-prod-id="${_listaAnchorId}"]`)) ||
+      (_listaPrevId   && document.querySelector(`.prod-card[data-prod-id="${_listaPrevId}"]`));
+    if (target) {
+      const y = target.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo(0, Math.max(0, y));
+    } else {
+      window.scrollTo(0, _listaScrollY);
+    }
+  });
 };
 window._abrirPanel        = (tipo, id) => {
   if (!puedeAjustar) return;
