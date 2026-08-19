@@ -868,7 +868,11 @@ function renderTabSinIngreso(el) {
 // ── TAB PRECIOS ────────────────────────────────────────────────────────────
 function renderTabPrecio(el) {
   const gs = grupos();
-  const lista = [...productos].sort((a,b) => diasDesde(b.ultima_frescura_precio) - diasDesde(a.ultima_frescura_precio));
+  const lista = [...productos].sort((a,b) => {
+    const da = diasDesde(a.ultima_frescura_precio), db = diasDesde(b.ultima_frescura_precio);
+    if (db !== da) return db - da;   // más días sin confirmar, primero
+    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity:'base' });  // luego alfabético
+  });
   const maxDias = diasDesde(lista[0]?.ultima_frescura_precio) || 1;
   el.innerHTML += `
     <div class="filters">
