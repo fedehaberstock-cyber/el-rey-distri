@@ -106,18 +106,26 @@ let preview = []       // [{prodId, precioActual, precioNuevo, excluido}]
 let aplicando = false
 let precioSigueCosto = true   // ON: el precio sigue al costo manteniendo el margen
 
+const HOY = new Date()
+const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 9999
+
 async function cargar() {
   const [{ data: prods, error: e1 }, { data: provs, error: e2 }] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, subcategoria, proveedor_id, costo, precio')
+      .select('id, nombre, categoria, subcategoria, proveedor_id, costo, precio, updated_at, ultimo_cambio_costo, ultimo_cambio_precio, ultima_revision_precio')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
     supabase.from('proveedores').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
   ])
   if (e1) return err(e1)
   if (e2) return err(e2)
-  productos = (prods || []).map(p => ({
-    ...p, costo: Number(p.costo) || 0, precio: Number(p.precio) || 0
-  }))
+  productos = (prods || []).map(p => {
+    const ultCC  = p.ultimo_cambio_costo || (p.updated_at ? p.updated_at.slice(0, 10) : null)
+    const ultCP  = p.ultimo_cambio_precio || null
+    const ultRev = p.ultima_revision_precio || null
+    // Frescura: fecha más reciente entre revisión, cambio de costo y cambio de precio.
+    const fresc = [ultRev, ultCC, ultCP].filter(Boolean).sort().pop() || null
+    return { ...p, costo: Number(p.costo) || 0, precio: Number(p.precio) || 0, _frescura: fresc }
+  })
   proveedores = provs || []
   categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort()
   render()
@@ -156,7 +164,12 @@ function productosFiltrados() {
   const map = new Map()
   for (const p of porFiltro) map.set(p.id, p)
   for (const p of porSel)    map.set(p.id, p)
-  return [...map.values()]
+  // Orden: más días sin confirmar precio arriba, luego alfabético.
+  return [...map.values()].sort((a, b) => {
+    const da = diasDesde(a._frescura), db = diasDesde(b._frescura)
+    if (db !== da) return db - da
+    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+  })
 }
 
 function aplicarAjuste(valorActual, ajuste) {
@@ -195,6 +208,7 @@ function construirFila(p, excluido) {
     costoNuevo: String(costoNuevoNum),
     precioActual: p.precio,
     precioNuevo: String(precioNuevoNum),
+    frescura: p._frescura || null,
     excluido: !!excluido,
   }
 }
@@ -427,7 +441,10 @@ function render() {
             return `<tr class="${r.excluido?'excluido':''}">
               <td><input class="cb" type="checkbox" ${r.excluido?'':'checked'} onchange="window._toggleExcl(${i})"></td>
               <td><div style="font-weight:600">${r.nombre}</div>
-                <div style="font-size:11px;color:var(--ink-soft)">${r.categoria}${r.subcategoria?` · ${r.subcategoria}`:''}</div></td>
+                <div style="font-size:11px;color:var(--ink-soft)">${r.categoria}${r.subcategoria?` · ${r.subcategoria}`:''}
+                  ${(() => { const dc = diasDesde(r.frescura); const col = dc>=60?'var(--red-tx)':dc>=45?'var(--amber-tx)':'var(--ink-soft)';
+                    return `· <span style="color:${col};font-weight:600">${dc===9999?'sin confirmar':dc+'d'}</span>` })()}
+                </div></td>
               <td class="r">
                 <div style="font-size:10px;color:var(--ink-soft)">${ars(r.costoActual)}</div>
                 <input class="precio" type="number" value="${r.costoNuevo}"
