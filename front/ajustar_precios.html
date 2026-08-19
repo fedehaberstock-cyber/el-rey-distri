@@ -104,6 +104,7 @@ let selectorOpen = false
 let busquedaSel = ''
 let preview = []       // [{prodId, precioActual, precioNuevo, excluido}]
 let aplicando = false
+let precioSigueCosto = true   // ON: el precio sigue al costo manteniendo el margen
 
 async function cargar() {
   const [{ data: prods, error: e1 }, { data: provs, error: e2 }] = await Promise.all([
@@ -165,24 +166,43 @@ function aplicarAjuste(valorActual, ajuste) {
   return valorActual + v
 }
 
+// Precio que mantiene el margen cuando cambia el costo:
+// precio_nuevo = precio_actual × (costo_nuevo / costo_actual), redondeado a $50.
+// Si no hay costo base (costoActual<=0) no se puede mantener margen → deja el precio.
+function precioSiguiendo(precioActual, costoActual, costoNuevo) {
+  if (!(costoActual > 0)) return precioActual
+  return redondear50_00(precioActual * (costoNuevo / costoActual))
+}
+
 function calcularPreview() {
   const hayAjusteCosto  = isFinite(parseFloat(ajusteCosto.valor))  && parseFloat(ajusteCosto.valor)  !== 0
   const hayAjustePrecio = isFinite(parseFloat(ajustePrecio.valor)) && parseFloat(ajustePrecio.valor) !== 0
-  if (!hayAjusteCosto && !hayAjustePrecio) { alert('Ingresá un valor de ajuste en costo o precio'); return }
   const lista = productosFiltrados()
   if (!lista.length) { alert('No hay productos seleccionados. Elegí filtros o marcá productos individuales.'); return }
+  // En modo "precio sigue al costo" no exigimos ajuste: se abre la tabla para
+  // cargar los costos nuevos uno por uno (el precio se calcula solo).
+  if (!precioSigueCosto && !hayAjusteCosto && !hayAjustePrecio) {
+    alert('Ingresá un valor de ajuste en costo o precio'); return
+  }
   preview = lista.map(p => {
-    const costoCrudo  = hayAjusteCosto  ? aplicarAjuste(p.costo,  ajusteCosto)  : p.costo
-    const precioCrudo = hayAjustePrecio ? aplicarAjuste(p.precio, ajustePrecio) : p.precio
+    const costoCrudo    = hayAjusteCosto ? aplicarAjuste(p.costo, ajusteCosto) : p.costo
+    const costoNuevoNum = Math.round(costoCrudo)
+    let precioNuevoNum
+    if (precioSigueCosto) {
+      precioNuevoNum = precioSiguiendo(p.precio, p.costo, costoNuevoNum)
+    } else {
+      const precioCrudo = hayAjustePrecio ? aplicarAjuste(p.precio, ajustePrecio) : p.precio
+      precioNuevoNum = hayAjustePrecio ? redondear50_00(precioCrudo) : Math.round(precioCrudo)
+    }
     return {
       prodId: p.id,
       nombre: p.nombre,
       categoria: p.categoria,
       subcategoria: p.subcategoria || '',
       costoActual: p.costo,
-      costoNuevo: String(Math.round(costoCrudo)),
+      costoNuevo: String(costoNuevoNum),
       precioActual: p.precio,
-      precioNuevo: String(hayAjustePrecio ? redondear50_00(precioCrudo) : Math.round(precioCrudo)),
+      precioNuevo: String(precioNuevoNum),
       excluido: false,
     }
   })
@@ -312,7 +332,20 @@ function render() {
     ${selectorOpen ? renderSelector() : ''}
 
     <section>
-      <div class="lbl">Ajuste de costo</div>
+      <div onclick="window._toggleSigue()" style="display:flex;align-items:center;justify-content:space-between;gap:12px;
+        margin-bottom:14px;padding:11px 13px;border-radius:11px;cursor:pointer;
+        background:${precioSigueCosto?'var(--gold-lt)':'var(--card)'};border:1px solid ${precioSigueCosto?'var(--gold)':'var(--line)'}">
+        <div>
+          <div style="font-weight:700;font-size:13px;color:${precioSigueCosto?'var(--gold-dk)':'var(--ink)'}">🔗 El precio sigue al costo</div>
+          <div style="font-size:11px;color:var(--ink-soft);margin-top:2px">Mantiene el margen: si el costo sube X%, el precio sube X%.</div>
+        </div>
+        <div style="flex-shrink:0;width:46px;height:26px;border-radius:999px;position:relative;transition:.15s;
+          background:${precioSigueCosto?'var(--gold)':'var(--line)'}">
+          <div style="position:absolute;top:3px;${precioSigueCosto?'right:3px':'left:3px'};width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s"></div>
+        </div>
+      </div>
+
+      <div class="lbl">Ajuste de costo${precioSigueCosto?' (opcional)':''}</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
         <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden">
           <button onclick="window._setTipoCosto('%')"
@@ -327,6 +360,7 @@ function render() {
           oninput="window._setValorCosto(this.value)" style="flex:1">
       </div>
 
+      ${!precioSigueCosto ? `
       <div class="lbl">Ajuste de precio de venta</div>
       <div style="display:flex;gap:8px;align-items:center">
         <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden">
@@ -340,9 +374,12 @@ function render() {
         <input class="field" type="number" step="0.01" value="${ajustePrecio.valor}"
           placeholder="${ajustePrecio.tipo==='%'?'Ej: 5':'Ej: 800'}"
           oninput="window._setValorPrecio(this.value)" style="flex:1">
-      </div>
+      </div>` : ''}
+
       <div style="font-size:11px;color:var(--ink-soft);margin-top:6px">
-        Dejá vacío el que no quieras modificar. El precio se redondea al múltiplo de $50 (podés corregirlo por fila).
+        ${precioSigueCosto
+          ? 'Dejá el ajuste vacío y tocá «Calcular preview» para cargar los costos nuevos uno por uno — el precio se calcula solo y redondea a $50.'
+          : 'Dejá vacío el que no quieras modificar. El precio se redondea al múltiplo de $50 (podés corregirlo por fila).'}
       </div>
     </section>
 
@@ -357,14 +394,19 @@ function render() {
             <th class="r">Costo (act / nuevo)</th>
             <th class="r">Precio actual</th>
             <th class="r">Precio nuevo</th>
-            <th class="r">Margen</th>
+            <th class="r">Margen (antes→ahora)</th>
           </tr>
         </thead>
         <tbody>
           ${preview.map((r,i) => {
-            const costoNum = parseFloat(r.costoNuevo) || 0
-            const margenNuevo = costoNum > 0 ? ((parseFloat(r.precioNuevo) - costoNum) / costoNum * 100) : 0
-            const delta = parseFloat(r.precioNuevo) - r.precioActual
+            const costoNum  = parseFloat(r.costoNuevo)  || 0
+            const precioNum = parseFloat(r.precioNuevo) || 0
+            // Margen sobre el precio (así lo piensa el negocio)
+            const margenActual = r.precioActual > 0 ? ((r.precioActual - r.costoActual) / r.precioActual * 100) : 0
+            const margenNuevo  = precioNum > 0 ? ((precioNum - costoNum) / precioNum * 100) : 0
+            const mDelta = margenNuevo - margenActual
+            const mColor = mDelta < -0.6 ? 'var(--red-tx)' : mDelta > 0.6 ? 'var(--green-tx)' : 'var(--ink-soft)'
+            const delta = precioNum - r.precioActual
             const deltaPct = r.precioActual > 0 ? (delta / r.precioActual * 100) : 0
             return `<tr class="${r.excluido?'excluido':''}">
               <td><input class="cb" type="checkbox" ${r.excluido?'':'checked'} onchange="window._toggleExcl(${i})"></td>
@@ -381,7 +423,9 @@ function render() {
                   onchange="window._setPrecio(${i}, this.value)">
                 ${delta!==0?`<div class="${delta>=0?'delta-up':'delta-down'}">${delta>=0?'+':''}${deltaPct.toFixed(1)}%</div>`:''}
               </td>
-              <td class="r" style="font-weight:600;${margenNuevo<20?'color:var(--red-tx)':margenNuevo<25?'color:var(--amber-tx)':'color:var(--green-tx)'}">${margenNuevo.toFixed(1)}%</td>
+              <td class="r" style="font-weight:600;color:${mColor}">
+                <span style="color:var(--ink-soft);font-weight:500">${margenActual.toFixed(0)}%</span> → ${margenNuevo.toFixed(0)}%
+              </td>
             </tr>`
           }).join('')}
         </tbody>
@@ -491,9 +535,19 @@ function actualizarResumen() {
     + (seleccionados.size ? ` (${seleccionados.size})` : '')
 }
 window._calcular = () => calcularPreview()
+window._toggleSigue = () => { precioSigueCosto = !precioSigueCosto; preview = []; render() }
 window._toggleExcl = i => { preview[i].excluido = !preview[i].excluido; render() }
 window._setPrecio = (i,v) => { preview[i].precioNuevo = v; render() }
-window._setCosto  = (i,v) => { preview[i].costoNuevo  = v; render() }
+window._setCosto  = (i,v) => {
+  preview[i].costoNuevo = v
+  // En modo "precio sigue al costo", al editar el costo el precio se recalcula
+  // manteniendo el margen (mismo % que el costo original), redondeado a $50.
+  if (precioSigueCosto) {
+    const cn = parseFloat(v) || 0
+    preview[i].precioNuevo = String(precioSiguiendo(preview[i].precioActual, preview[i].costoActual, cn))
+  }
+  render()
+}
 window._cancelar = () => { preview = []; render() }
 window._aplicar  = () => aplicar()
 
