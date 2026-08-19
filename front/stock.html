@@ -245,7 +245,7 @@ async function cargarTodo() {
     { data: ventas },
   ] = await Promise.all([
     supabase.from('productos')
-      .select('id, nombre, categoria, subcategoria, costo, precio, updated_at, ultimo_cambio_costo, ultimo_cambio_precio, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
+      .select('id, nombre, categoria, subcategoria, costo, precio, updated_at, ultimo_cambio_costo, ultimo_cambio_precio, ultima_revision_precio, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
     supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
@@ -291,24 +291,34 @@ async function cargarTodo() {
       ingresoMap[ii.producto_id] = f;
   }
 
-  productos = (prods || []).map(p => ({
-    id: p.id,
-    nombre: p.nombre,
-    cat: p.categoria || 'Sin categoría',
-    subcategoria: p.subcategoria || '',
-    prov: p.proveedores?.nombre || 'Sin proveedor',
-    proveedor_id: p.proveedor_id || null,
-    costo: p.costo || 0,
-    precio: p.precio || 0,
-    u_bulto: p.u_bulto || 1,
-    desc_bulto: p.desc_bulto || 0,
-    stock: stockMap[p.id] ?? 0,
-    velocidad: velMap[p.id] || 0,
-    ultimo_ingreso: ingresoMap[p.id] || null,
-    ultima_venta: ultVentaMap[p.id] || null,
-    ultimo_cambio_costo: p.ultimo_cambio_costo || (p.updated_at ? p.updated_at.slice(0, 10) : null),
-    ultimo_cambio_precio: p.ultimo_cambio_precio || null,
-  }));
+  productos = (prods || []).map(p => {
+    const ultCC  = p.ultimo_cambio_costo || (p.updated_at ? p.updated_at.slice(0, 10) : null);
+    const ultCP  = p.ultimo_cambio_precio || null;
+    const ultRev = p.ultima_revision_precio || null;
+    // "Frescura" del precio: la fecha más reciente entre revisión manual,
+    // cambio de costo (ingreso) y cambio de precio. Fechas YYYY-MM-DD → ordenan cronológicamente.
+    const frescura = [ultRev, ultCC, ultCP].filter(Boolean).sort().pop() || null;
+    return {
+      id: p.id,
+      nombre: p.nombre,
+      cat: p.categoria || 'Sin categoría',
+      subcategoria: p.subcategoria || '',
+      prov: p.proveedores?.nombre || 'Sin proveedor',
+      proveedor_id: p.proveedor_id || null,
+      costo: p.costo || 0,
+      precio: p.precio || 0,
+      u_bulto: p.u_bulto || 1,
+      desc_bulto: p.desc_bulto || 0,
+      stock: stockMap[p.id] ?? 0,
+      velocidad: velMap[p.id] || 0,
+      ultimo_ingreso: ingresoMap[p.id] || null,
+      ultima_venta: ultVentaMap[p.id] || null,
+      ultimo_cambio_costo: ultCC,
+      ultimo_cambio_precio: ultCP,
+      ultima_revision_precio: ultRev,
+      ultima_frescura_precio: frescura,
+    };
+  });
 
   if (puedeAjustar) {
     const { data: inact } = await supabase.from('productos')
@@ -858,8 +868,8 @@ function renderTabSinIngreso(el) {
 // ── TAB PRECIOS ────────────────────────────────────────────────────────────
 function renderTabPrecio(el) {
   const gs = grupos();
-  const lista = [...productos].sort((a,b) => diasDesde(b.ultimo_cambio_costo) - diasDesde(a.ultimo_cambio_costo));
-  const maxDias = diasDesde(lista[0]?.ultimo_cambio_costo) || 1;
+  const lista = [...productos].sort((a,b) => diasDesde(b.ultima_frescura_precio) - diasDesde(a.ultima_frescura_precio));
+  const maxDias = diasDesde(lista[0]?.ultima_frescura_precio) || 1;
   el.innerHTML += `
     <div class="filters">
       <div class="chips">
@@ -867,10 +877,10 @@ function renderTabPrecio(el) {
           onclick="window._setFiltroGrupoFull(${i})">${g==='todo'?'Todos':g}</div>`).join('')}
       </div>
     </div>
-    <div class="section-lbl">Ordenados por días sin cambio de costo</div>
+    <div class="section-lbl">Ordenados por días sin revisar precio</div>
     <div class="list" style="padding-bottom:20px">
       ${lista.filter(p => filtroGrupo==='todo' || p[campoGrupo()]===filtroGrupo).map(p => {
-        const d = diasDesde(p.ultimo_cambio_costo);
+        const d = diasDesde(p.ultima_frescura_precio);
         const cl = d >= 60 ? 'red' : d >= 45 ? 'amber' : '';
         return `<div class="rank-item">
           <div class="top">
@@ -1072,18 +1082,18 @@ function renderTabResumen(el) {
   const sinStock = productos.filter(p => p.stock === 0).length;
   const bajo     = productos.filter(p => p.stock > 0 && p.stock <= 5).length;
   const sinI45   = productos.filter(p => diasDesde(p.ultimo_ingreso) >= 45).length;
-  const sinP45   = productos.filter(p => diasDesde(p.ultimo_cambio_costo) >= 45).length;
+  const sinP45   = productos.filter(p => diasDesde(p.ultima_frescura_precio) >= 45).length;
   const top5I = [...productos].sort((a,b) => diasDesde(b.ultimo_ingreso) - diasDesde(a.ultimo_ingreso)).slice(0,5);
-  const top5P = [...productos].sort((a,b) => diasDesde(b.ultimo_cambio_costo) - diasDesde(a.ultimo_cambio_costo)).slice(0,5);
+  const top5P = [...productos].sort((a,b) => diasDesde(b.ultima_frescura_precio) - diasDesde(a.ultima_frescura_precio)).slice(0,5);
   const maxI = diasDesde(top5I[0]?.ultimo_ingreso) || 1;
-  const maxP = diasDesde(top5P[0]?.ultimo_cambio_costo) || 1;
+  const maxP = diasDesde(top5P[0]?.ultima_frescura_precio) || 1;
 
   el.innerHTML += `
     <div class="summary">
       <div class="sum-card"><div class="num red">${neg+sinStock}</div><div class="lbl">Sin stock / negativos</div></div>
       <div class="sum-card"><div class="num amber">${bajo}</div><div class="lbl">Stock bajo (≤5)</div></div>
       <div class="sum-card"><div class="num red">${sinI45}</div><div class="lbl">Sin ingreso +45 días</div></div>
-      <div class="sum-card"><div class="num amber">${sinP45}</div><div class="lbl">Precio +45d sin cambio</div></div>
+      <div class="sum-card"><div class="num amber">${sinP45}</div><div class="lbl">Precio +45d sin revisar</div></div>
     </div>
     <div class="section-lbl" style="margin-top:8px">Top 5 sin reingreso</div>
     <div class="list" style="padding-top:0">
@@ -1096,10 +1106,10 @@ function renderTabResumen(el) {
         </div>`;
       }).join('')}
     </div>
-    <div class="section-lbl">Top 5 precio sin cambio</div>
+    <div class="section-lbl">Top 5 precio sin revisar</div>
     <div class="list" style="padding-top:0;padding-bottom:20px">
       ${top5P.map(p => {
-        const d = diasDesde(p.ultimo_cambio_costo);
+        const d = diasDesde(p.ultima_frescura_precio);
         return `<div class="rank-item">
           <div class="top"><span class="nm">${p.nombre}</span>
             <span class="val" style="${d>=60?'color:var(--red-tx)':d>=45?'color:var(--amber-tx)':''}">${d}d</span></div>

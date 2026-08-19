@@ -227,14 +227,18 @@ async function aplicar() {
   const resumenAj = []
   if (parseFloat(ajusteCosto.valor))  resumenAj.push(`costo ${ajusteCosto.tipo==='%'?ajusteCosto.valor+'%':'$'+ajusteCosto.valor}`)
   if (parseFloat(ajustePrecio.valor)) resumenAj.push(`precio ${ajustePrecio.tipo==='%'?ajustePrecio.valor+'%':'$'+ajustePrecio.valor}`)
-  if (!confirm(`Aplicar ${resumenAj.join(' y ')} sobre ${aAplicar.length} productos? Esta acción actualiza los precios.`)) return
+  const glosa = resumenAj.length ? `Aplicar ${resumenAj.join(' y ')} sobre` : 'Actualizar y marcar como revisados'
+  if (!confirm(`${glosa} ${aAplicar.length} productos? Esta acción actualiza los precios.`)) return
 
+  // Fecha de hoy (Córdoba) para estampar la revisión de precio.
+  const hoyISO = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Cordoba' })
   aplicando = true; render()
   const updates = aAplicar.map(r =>
     supabase.from('productos')
       .update({
         precio: Math.round(parseFloat(r.precioNuevo) || 0),
         costo:  Math.round(parseFloat(r.costoNuevo)  || 0),
+        ultima_revision_precio: hoyISO,
       })
       .eq('id', r.prodId)
   )
