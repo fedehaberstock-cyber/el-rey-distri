@@ -155,7 +155,16 @@ async function cargar() {
   clienteId = pedido.cliente_id
   descuento = Number(pedido.descuento || 0)
   fechaReparto = pedido.fecha_reparto
-  ofertas = oResp.data || []
+  // Solo ofertas realmente vigentes: activa + dentro de fechas + con cupo de stock
+  // (mismo criterio que usa el pedido normal via rpc_sugerencias_cliente).
+  const hoyISO = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Cordoba' })
+  ofertas = (oResp.data || []).filter(o =>
+    o.activa === true &&
+    (!o.vigente_desde || o.vigente_desde <= hoyISO) &&
+    (!o.vigente_hasta || o.vigente_hasta >= hoyISO) &&
+    (o.stock_maximo == null || Number(o.stock_vendido || 0) < Number(o.stock_maximo)) &&
+    Number(stockMap[o.producto_id] || 0) > 0
+  )
   items = (pedido.pedido_items || []).map(it => ({
     producto_id: it.producto_id,
     nombre: it.productos?.nombre || '?',
