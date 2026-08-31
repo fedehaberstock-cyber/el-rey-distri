@@ -813,6 +813,7 @@ function renderItem(it) {
       <div class="sub">${it.categoria || '—'}${it.subcategoria?` · ${it.subcategoria}`:''} · costo ${ars(Number(it.ultimo_costo)||0)}${it.notas_compra?` · 📝 ${it.notas_compra}`:''} <span style="cursor:pointer;color:var(--gold)" onclick="window._editarNotas('${it.producto_id}')">${it.notas_compra?'✏':'+ notas'}</span></div>
       <div class="chips-line">
         ${dRest !== null ? `<span class="mini-chip ${urg?'urg':baja?'baja':'ok'}">${dRest}d stock</span>` : ''}
+        <span class="mini-chip" style="background:var(--line-soft);color:var(--ink)">${Number(it.stock_actual || 0)}u en stock</span>
         ${pend > 0 ? `<span class="mini-chip pend">${pend}u en camino</span>` : ''}
         ${um}
         ${vp ? `<span class="mini-chip ${vp.pct>0?'up':'down'}">${vp.pct>0?'▲':'▼'} ${Math.abs(vp.pct).toFixed(0)}%</span>` : ''}
