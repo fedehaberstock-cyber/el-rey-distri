@@ -78,6 +78,7 @@ let preventistasList = []
 let pedidos = []
 let pedidosPrev = []
 let comisionConfig = { tipo: 'porcentaje', valor: 5 }  // default si no se setea
+let comisionHist = []  // historial versionado del usuario seleccionado
 let visitas = []
 let visitasPrev = []
 let itemsPedidos = []  // pedido_items con join al producto
@@ -162,6 +163,13 @@ async function cargar() {
     valor: Number(cfg?.comision_valor) || 0,
   }
 
+  // historial versionado de comisiones del usuario (para tasa por fecha)
+  const { data: chData } = await supabase.from('comisiones_historial')
+    .select('comision_tipo, comision_valor, vigente_desde, vigente_hasta')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('usuario_id', usuarioId)
+  comisionHist = chData || []
+
   // pedidos del usuario seleccionado en el rango
   const { data: peds, error: e1 } = await fetchAllPaginado(() => supabase
     .from('pedidos')
@@ -242,7 +250,29 @@ async function cargar() {
   cargando = false; render()
 }
 
-function calcularKPIs(peds = pedidos, vis = visitas) {
+// Comisión vigente del usuario a una fecha, según historial versionado.
+function comisionVigenteMis(fecha) {
+  const rows = comisionHist.filter(h => h.vigente_desde <= fecha
+    && (!h.vigente_hasta || h.vigente_hasta >= fecha))
+  if (rows.length) {
+    rows.sort((a, b) => (a.vigente_desde < b.vigente_desde ? -1 : 1))
+    const r = rows[rows.length - 1]
+    return { tipo: r.comision_tipo, valor: Number(r.comision_valor) || 0 }
+  }
+  return { tipo: comisionConfig.tipo, valor: Number(comisionConfig.valor) || 0 }
+}
+function prorratearFijoMis(h, d1, d2) {
+  const t1 = new Date(d1 + 'T00:00:00').getTime()
+  const t2 = new Date(d2 + 'T00:00:00').getTime()
+  const hd = new Date(h.vigente_desde + 'T00:00:00').getTime()
+  const hh = h.vigente_hasta ? new Date(h.vigente_hasta + 'T00:00:00').getTime() : Infinity
+  const a = Math.max(t1, hd), b = Math.min(t2, hh)
+  if (a > b) return 0
+  const dias = Math.round((b - a) / 86400000) + 1
+  return (Number(h.comision_valor) || 0) * dias / 30
+}
+
+function calcularKPIs(peds = pedidos, vis = visitas, rango = rangoFechas()) {
   const totalMonto = peds.reduce((s, p) => {
     const sub = (p.pedido_items || []).reduce((ss, it) =>
       ss + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
@@ -250,14 +280,26 @@ function calcularKPIs(peds = pedidos, vis = visitas) {
   }, 0)
   const cantPedidos = peds.length
   const ticketProm = cantPedidos ? totalMonto / cantPedidos : 0
-  // Comision segun config del usuario
+  // Comisión con tasa vigente a la fecha de cada pedido (no retroactiva).
   let comisionEstim = 0
-  if (comisionConfig.tipo === 'porcentaje') {
-    comisionEstim = totalMonto * Number(comisionConfig.valor || 0) / 100
-  } else if (comisionConfig.tipo === 'fijo') {
-    // prorrateo por dias del periodo / 30
-    const { desde, hasta } = rangoFechas()
-    const dias = Math.max(1, (new Date(hasta) - new Date(desde)) / 86400000)
+  const d1 = (rango.desde || '').slice(0,10), d2 = (rango.hasta || '').slice(0,10)
+  // porcentaje: por pedido
+  peds.forEach(p => {
+    const fecha = (p.fecha || '').slice(0,10)
+    const r = comisionVigenteMis(fecha)
+    if (r.tipo === 'porcentaje') {
+      const sub = (p.pedido_items || []).reduce((ss, it) =>
+        ss + Number(it.cantidad) * Number(it.precio_unit) * (1 - Number(it.descuento||0)/100), 0)
+      const tot = sub * (1 - Number(p.descuento||0)/100)
+      comisionEstim += tot * r.valor / 100
+    }
+  })
+  // fijo: prorratear filas 'fijo' del historial sobre el rango
+  comisionHist.filter(h => h.comision_tipo === 'fijo')
+    .forEach(h => { comisionEstim += prorratearFijoMis(h, d1, d2) })
+  // fallback si no hay historial y el actual es fijo
+  if (!comisionHist.length && comisionConfig.tipo === 'fijo') {
+    const dias = Math.max(1, (new Date(d2) - new Date(d1)) / 86400000)
     comisionEstim = Number(comisionConfig.valor || 0) * dias / 30
   }
 
@@ -366,7 +408,7 @@ function renderBody() {
   const el = document.getElementById('tab-body'); if (!el) return
   if (tab === 'kpi') {
     const k = calcularKPIs()
-    const kp = calcularKPIs(pedidosPrev, visitasPrev)
+    const kp = calcularKPIs(pedidosPrev, visitasPrev, rangoFechasPrev())
     el.innerHTML = `
       <section>
         <div class="kpi-grid">

@@ -161,6 +161,7 @@ let todosPedidos = [];  // cache full dataset
 let gastosCache  = []; // [{ fecha, total_gastos }]
 let gastosFijosCache = []; // [{ monto_mensual, vigente_desde, vigente_hasta, activo }]
 let comisionesCache = []; // [{ id, nombre, comision_tipo, comision_valor }]
+let comisionesHistCache = []; // [{ usuario_id, comision_tipo, comision_valor, vigente_desde, vigente_hasta }]
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
 // Trae TODOS los pedidos del rango paginando de a 1000 (Supabase corta en 1000
@@ -191,7 +192,7 @@ async function fetchPedidosPaginado(hace180) {
 async function cargarPedidos() {
   // load last 6 months; filter client-side for speed
   const hace180 = isoOffset(-180);
-  const [{ data, error }, { data: gas }, { data: gfij }, { data: us }] = await Promise.all([
+  const [{ data, error }, { data: gas }, { data: gfij }, { data: us }, { data: ch }] = await Promise.all([
     fetchPedidosPaginado(hace180),
     supabase.from('hojas_ruta')
       .select('fecha, total_gastos')
@@ -204,6 +205,9 @@ async function cargarPedidos() {
     supabase.from('usuarios')
       .select('id, nombre, comision_tipo, comision_valor')
       .eq('empresa_id', usuario.empresa_id),
+    supabase.from('comisiones_historial')
+      .select('usuario_id, comision_tipo, comision_valor, vigente_desde, vigente_hasta')
+      .eq('empresa_id', usuario.empresa_id),
   ]);
 
   if (error) {
@@ -215,34 +219,71 @@ async function cargarPedidos() {
   gastosCache  = gas || [];
   gastosFijosCache = gfij || [];
   comisionesCache = us || [];
+  comisionesHistCache = ch || [];
   render();
 }
 
-// Calcula la comision total del periodo + desglose por preventista.
-// Para 'porcentaje': sobre las ventas del usuario en el rango (con desc generales aplicados).
-// Para 'fijo': prorratea por dias corridos del rango sobre 30.
+// Resuelve la comisión vigente de un usuario a una fecha (YYYY-MM-DD) según
+// el historial versionado. Si no hay historial, cae al valor actual de usuarios.
+function comisionVigente(usuarioId, fecha) {
+  const rows = comisionesHistCache.filter(h => h.usuario_id === usuarioId
+    && h.vigente_desde <= fecha
+    && (!h.vigente_hasta || h.vigente_hasta >= fecha));
+  if (rows.length) {
+    rows.sort((a, b) => (a.vigente_desde < b.vigente_desde ? -1 : 1));
+    const r = rows[rows.length - 1];
+    return { tipo: r.comision_tipo, valor: Number(r.comision_valor) || 0 };
+  }
+  const u = comisionesCache.find(x => x.id === usuarioId);
+  return { tipo: u?.comision_tipo || 'ninguno', valor: Number(u?.comision_valor) || 0 };
+}
+
+// Prorratea una fila 'fijo' del historial sobre su solape con [d1, d2].
+function prorratearFijo(h, d1, d2) {
+  const t1 = new Date(d1 + 'T00:00:00').getTime();
+  const t2 = new Date(d2 + 'T00:00:00').getTime();
+  const hd = new Date(h.vigente_desde + 'T00:00:00').getTime();
+  const hh = h.vigente_hasta ? new Date(h.vigente_hasta + 'T00:00:00').getTime() : Infinity;
+  const a = Math.max(t1, hd), b = Math.min(t2, hh);
+  if (a > b) return 0;
+  const dias = Math.round((b - a) / 86400000) + 1;
+  return (Number(h.comision_valor) || 0) * dias / 30;
+}
+
+// Calcula la comision total del periodo + desglose por preventista, usando la
+// tasa vigente a la fecha de cada pedido (no retroactivo a cambios posteriores).
 function calcularComisiones(pf, d1, d2) {
-  const ventasPorUsuario = {};
+  const porUsuario = {};  // { ventasTotal, montoPct }
   pf.forEach(p => {
     if (!p.usuario_id) return;
+    const fecha = (p.fecha || '').slice(0, 10);
     const sub = (p.pedido_items || []).reduce((s, it) =>
       s + it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100), 0);
     const tot = sub * (1 - (p.descuento || 0) / 100);
-    ventasPorUsuario[p.usuario_id] = (ventasPorUsuario[p.usuario_id] || 0) + tot;
+    if (!porUsuario[p.usuario_id]) porUsuario[p.usuario_id] = { ventasTotal: 0, montoPct: 0 };
+    porUsuario[p.usuario_id].ventasTotal += tot;
+    const r = comisionVigente(p.usuario_id, fecha);
+    if (r.tipo === 'porcentaje') porUsuario[p.usuario_id].montoPct += tot * r.valor / 100;
   });
-  const diasRango = (new Date(d2 + 'T00:00:00') - new Date(d1 + 'T00:00:00')) / 86400000 + 1;
+
+  // Universo de usuarios: los que vendieron + los que tienen alguna fila 'fijo'.
+  const ids = new Set([
+    ...Object.keys(porUsuario),
+    ...comisionesHistCache.filter(h => h.comision_tipo === 'fijo').map(h => h.usuario_id),
+  ]);
+
   const desglose = [];
   let total = 0;
-  for (const u of comisionesCache) {
-    const ventas = ventasPorUsuario[u.id] || 0;
-    let monto = 0;
-    if (u.comision_tipo === 'porcentaje' && ventas > 0) {
-      monto = ventas * Number(u.comision_valor || 0) / 100;
-    } else if (u.comision_tipo === 'fijo' && Number(u.comision_valor) > 0) {
-      monto = Number(u.comision_valor) * diasRango / 30;
-    }
+  for (const uid of ids) {
+    let monto = porUsuario[uid]?.montoPct || 0;
+    comisionesHistCache
+      .filter(h => h.usuario_id === uid && h.comision_tipo === 'fijo')
+      .forEach(h => { monto += prorratearFijo(h, d1, d2); });
     if (monto > 0) {
-      desglose.push({ nombre: u.nombre, tipo: u.comision_tipo, valor: u.comision_valor, ventas, monto });
+      const u = comisionesCache.find(x => x.id === uid);
+      const rep = comisionVigente(uid, d2);  // tipo/valor representativo (al cierre del período)
+      desglose.push({ nombre: u?.nombre || '—', tipo: rep.tipo, valor: rep.valor,
+        ventas: porUsuario[uid]?.ventasTotal || 0, monto });
       total += monto;
     }
   }

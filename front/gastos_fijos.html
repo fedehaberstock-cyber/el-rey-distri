@@ -90,10 +90,12 @@ if (usuario.rol !== 'admin') { location.href = './login_home.html'; }
 
 const ars = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
 const hoyIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Cordoba' }).format(new Date());
+const primeroDeMesIso = () => { const h = hoyIso(); return h.slice(0,8) + '01'; };
+const diaAnteriorIso = (s) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() - 1); return d.toISOString().slice(0,10); };
 
 let gastos = [];
 let panelId = null;
-let form = { concepto: '', monto_mensual: '', vigente_desde: hoyIso(), vigente_hasta: '', activo: true };
+let form = { concepto: '', monto_mensual: '', vigente_desde: hoyIso(), vigente_hasta: '', activo: true, versionar: false, aplicarDesde: primeroDeMesIso() };
 let errMsg = '';
 let saving = false;
 
@@ -197,6 +199,22 @@ function renderPanel(el) {
       <div class="help">Si "vigente hasta" queda vacío el gasto se considera permanente.</div>
 
       ${!esNuevo ? `
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:12px;border:1px solid var(--gold);background:var(--gold-lt);border-radius:12px;cursor:pointer">
+          <input type="checkbox" ${form.versionar ? 'checked' : ''} onchange="window._toggleVersionar(this.checked)"
+            style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;margin-top:1px">
+          <span style="font-size:13px;color:var(--ink)">
+            <b>Es un cambio de importe (aumento)</b><br>
+            Versiona: no toca meses anteriores. El monto viejo queda para el pasado y el nuevo aplica desde la fecha elegida.
+          </span>
+        </label>
+        ${form.versionar ? `
+          <label class="fl">Aplicar nuevo importe desde</label>
+          <input class="field" type="date" value="${form.aplicarDesde}"
+            oninput="window._setForm('aplicarDesde', this.value)">
+          <div class="help">Se cierra el importe viejo el día anterior a esta fecha.</div>
+        ` : ''}` : ''}
+
+      ${!esNuevo && !form.versionar ? `
         <label class="fl">Estado</label>
         <select class="field" onchange="window._setForm('activo', this.value === 'true')">
           <option value="true"  ${form.activo ? 'selected' : ''}>Activo</option>
@@ -224,6 +242,38 @@ async function guardar() {
   if (form.vigente_hasta && form.vigente_hasta < form.vigente_desde) {
     errMsg = 'La fecha "hasta" no puede ser anterior a "desde".'; render(); return;
   }
+  // ── Versionado (cambio de importe desde una fecha, no retroactivo) ──
+  if (panelId !== 'nuevo' && form.versionar) {
+    const orig = gastos.find(g => g.id === panelId);
+    if (!orig) { errMsg = 'No se encontró el gasto.'; render(); return; }
+    if (!form.aplicarDesde) { errMsg = 'Elegí desde qué fecha aplica el nuevo importe.'; render(); return; }
+    if (form.aplicarDesde <= orig.vigente_desde) {
+      errMsg = 'La fecha debe ser posterior al inicio de vigencia del importe actual.'; render(); return;
+    }
+    if (orig.vigente_hasta && form.aplicarDesde > orig.vigente_hasta) {
+      errMsg = 'La fecha no puede ser posterior a la vigencia del importe actual.'; render(); return;
+    }
+    saving = true; errMsg = ''; render();
+    // 1) cerrar el importe viejo el día anterior
+    const { error: e1 } = await supabase.from('gastos_fijos')
+      .update({ vigente_hasta: diaAnteriorIso(form.aplicarDesde) }).eq('id', panelId);
+    if (e1) { saving = false; errMsg = e1.message; render(); return; }
+    // 2) crear el nuevo importe desde la fecha elegida
+    const { error: e2 } = await supabase.from('gastos_fijos').insert({
+      empresa_id: usuario.empresa_id,
+      concepto: form.concepto.trim(),
+      monto_mensual: monto,
+      vigente_desde: form.aplicarDesde,
+      vigente_hasta: orig.vigente_hasta || null,
+      activo: true,
+    });
+    saving = false;
+    if (e2) { errMsg = e2.message; render(); return; }
+    panelId = null;
+    await cargar();
+    return;
+  }
+
   saving = true; errMsg = ''; render();
 
   const payload = {
@@ -258,7 +308,7 @@ async function eliminar() {
 }
 
 window._nuevo = () => {
-  form = { concepto: '', monto_mensual: '', vigente_desde: hoyIso(), vigente_hasta: '', activo: true };
+  form = { concepto: '', monto_mensual: '', vigente_desde: hoyIso(), vigente_hasta: '', activo: true, versionar: false, aplicarDesde: primeroDeMesIso() };
   errMsg = ''; panelId = 'nuevo'; render();
 };
 window._editar = id => {
@@ -270,11 +320,14 @@ window._editar = id => {
     vigente_desde: g.vigente_desde,
     vigente_hasta: g.vigente_hasta || '',
     activo: g.activo,
+    versionar: false,
+    aplicarDesde: primeroDeMesIso(),
   };
   errMsg = ''; panelId = id; render();
 };
 window._cerrar = () => { panelId = null; render(); };
 window._setForm = (k, v) => { form[k] = v; };
+window._toggleVersionar = (v) => { form.versionar = !!v; render(); };
 window._guardar = () => guardar();
 window._eliminar = () => eliminar();
 
