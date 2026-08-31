@@ -94,16 +94,32 @@ let hasta = isoHoy()
 let excluidas = new Set()  // categorias excluidas
 let filtroProv = 'todos'   // id o 'todos' o 'sin' (sin proveedor)
 
-async function cargar() {
-  const [{ data, error }, { data: provs }] = await Promise.all([
-    supabase.from('pedidos')
+// Paginado de a 1000 (Supabase corta en 1000 por request).
+async function fetchPedidosPaginado() {
+  const pageSize = 1000
+  let from = 0, todos = []
+  while (true) {
+    const { data, error } = await supabase.from('pedidos')
       .select(`id, fecha, descuento, estado,
         pedido_items(cantidad, precio_unit, descuento,
           productos(nombre, categoria, subcategoria, proveedor_id, proveedores(nombre)))`)
       .eq('empresa_id', usuario.empresa_id)
       .in('estado', ['entregado','devolucion'])
       .gte('fecha', desde)
-      .lte('fecha', hasta + 'T23:59:59'),
+      .lte('fecha', hasta + 'T23:59:59')
+      .order('fecha', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) return { error }
+    todos = todos.concat(data || [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+  return { data: todos }
+}
+
+async function cargar() {
+  const [{ data, error }, { data: provs }] = await Promise.all([
+    fetchPedidosPaginado(),
     supabase.from('proveedores').select('id, nombre')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
   ])

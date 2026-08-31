@@ -163,11 +163,13 @@ let gastosFijosCache = []; // [{ monto_mensual, vigente_desde, vigente_hasta, ac
 let comisionesCache = []; // [{ id, nombre, comision_tipo, comision_valor }]
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
-async function cargarPedidos() {
-  // load last 6 months; filter client-side for speed
-  const hace180 = isoOffset(-180);
-  const [{ data, error }, { data: gas }, { data: gfij }, { data: us }] = await Promise.all([
-    supabase.from('pedidos')
+// Trae TODOS los pedidos del rango paginando de a 1000 (Supabase corta en 1000
+// por request; sin paginar se pierden filas y los totales salen bajos).
+async function fetchPedidosPaginado(hace180) {
+  const pageSize = 1000;
+  let from = 0, todos = [];
+  while (true) {
+    const { data, error } = await supabase.from('pedidos')
       .select(`
         id, fecha, estado, descuento, usuario_id,
         usuarios!pedidos_usuario_id_fkey(nombre),
@@ -176,7 +178,21 @@ async function cargarPedidos() {
       .eq('empresa_id', usuario.empresa_id)
       .in('estado', ['entregado', 'devolucion'])
       .gte('fecha', hace180)
-      .order('fecha', { ascending: false }),
+      .order('fecha', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) return { error };
+    todos = todos.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: todos };
+}
+
+async function cargarPedidos() {
+  // load last 6 months; filter client-side for speed
+  const hace180 = isoOffset(-180);
+  const [{ data, error }, { data: gas }, { data: gfij }, { data: us }] = await Promise.all([
+    fetchPedidosPaginado(hace180),
     supabase.from('hojas_ruta')
       .select('fecha, total_gastos')
       .eq('empresa_id', usuario.empresa_id)

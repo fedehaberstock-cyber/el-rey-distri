@@ -123,6 +123,21 @@ function delta(actual, anterior) {
   return `<span class="delta ${dir}">${sig}${pct.toFixed(0)}% vs ant.</span>`
 }
 
+// Trae todas las filas paginando de a 1000 (Supabase corta en 1000/request).
+// makeQuery() debe devolver un query builder ya filtrado y ordenado, sin range.
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000
+  let from = 0, todos = []
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1)
+    if (error) return { error }
+    todos = todos.concat(data || [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+  return { data: todos }
+}
+
 async function cargar() {
   cargando = true; render()
   const { desde, hasta } = rangoFechas()
@@ -148,7 +163,7 @@ async function cargar() {
   }
 
   // pedidos del usuario seleccionado en el rango
-  const { data: peds, error: e1 } = await supabase
+  const { data: peds, error: e1 } = await fetchAllPaginado(() => supabase
     .from('pedidos')
     .select(`id, fecha, cliente_id, estado, descuento,
       clientes(nombre),
@@ -157,6 +172,7 @@ async function cargar() {
     .eq('usuario_id', usuarioId)
     .neq('estado', 'anulado')
     .gte('fecha', desde).lte('fecha', hasta)
+    .order('fecha', { ascending: false }))
   if (e1) { document.getElementById('root').innerHTML = `<div class="err">${e1.message}</div>`; return }
   pedidos = peds || []
 
@@ -194,12 +210,13 @@ async function cargar() {
   // ranking de preventistas — solo admin lo ve completo;
   // el preventista ve solo "tu posición de N" sin nombres
   if (esAdmin) {
-    const { data: rank } = await supabase
+    const { data: rank } = await fetchAllPaginado(() => supabase
       .from('pedidos')
       .select('usuario_id, descuento, pedido_items(cantidad, precio_unit, descuento, productos(categoria))')
       .eq('empresa_id', usuario.empresa_id)
       .in('estado', ['entregado', 'devolucion'])
       .gte('fecha', desde).lte('fecha', hasta)
+      .order('fecha', { ascending: false }))
     const map = new Map()
     for (const p of (rank || [])) {
       const descGral = 1 - Number(p.descuento || 0) / 100
