@@ -233,6 +233,26 @@ async function cargarBeneficiarios(){
   beneficiariosList = data || [];
 }
 
+// Paginado de a 1000 (Supabase corta en 1000/request; sin paginar se pierden
+// pedidos recientes y clientes activos aparecen como "sin comprar").
+async function fetchPedidosClientes(hace180) {
+  const pageSize = 1000;
+  let from = 0, todos = [];
+  while (true) {
+    const { data, error } = await supabase.from('pedidos')
+      .select('cliente_id, fecha')
+      .neq('estado', 'anulado')
+      .gte('fecha', hace180)
+      .order('fecha', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) return { error };
+    todos = todos.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: todos };
+}
+
 async function cargarClientes(){
   cargando = true;
   const hace180 = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
@@ -243,10 +263,7 @@ async function cargarClientes(){
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
     supabase.from('zonas').select('id, nombre, orden, activa').order('orden'),
-    supabase.from('pedidos')
-      .select('cliente_id, fecha')
-      .neq('estado', 'anulado')
-      .gte('fecha', hace180),
+    fetchPedidosClientes(hace180),
   ]);
   cargando = false;
   if (e1) { mostrarError('Error cargando clientes: ' + e1.message); return; }
