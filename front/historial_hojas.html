@@ -79,6 +79,20 @@ const fmtFecha = s => {
 let hojas = []      // [{id, fecha, estado, pedidos: [{id, cliente, total, boleta_id}]}]
 let abierta = null  // id de hoja expandida
 
+// Paginado de a 1000 (PostgREST corta en 1000/request).
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000
+  let from = 0, todos = []
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1)
+    if (error) return { error }
+    todos = todos.concat(data || [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+  return { data: todos }
+}
+
 async function cargar() {
   const { data: hojasData, error: e1 } = await supabase
     .from('hojas_ruta')
@@ -96,9 +110,10 @@ async function cargar() {
   if (!hojaIds.length) { hojas = []; return }
 
   const [{ data: peds, error: e2 }, { data: gas, error: e3 }] = await Promise.all([
-    supabase.from('pedidos')
+    fetchAllPaginado(() => supabase.from('pedidos')
       .select('id, hoja_ruta_id, clientes(nombre), boletas(id, total)')
-      .in('hoja_ruta_id', hojaIds),
+      .in('hoja_ruta_id', hojaIds)
+      .order('id')),
     supabase.from('hoja_gastos')
       .select('hoja_id, concepto, monto')
       .in('hoja_id', hojaIds)

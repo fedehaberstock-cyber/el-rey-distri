@@ -234,6 +234,21 @@ let proveedores = [];
 let plantillas = [];        // [{id, nombre}] para el modal "Lista para compartir"
 let edit       = null;      // {nombre, categoria, proveedor_id, costo, precio, u_bulto, desc_bulto, activo}
 
+// Paginado de a 1000 (PostgREST corta en 1000/request; sin paginar se pierden
+// filas históricas y la pestaña "Sin ingreso" reporta mal).
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000;
+  let from = 0, todos = [];
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { error };
+    todos = todos.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: todos };
+}
+
 // ── CARGA ──────────────────────────────────────────────────────────────────
 async function cargarTodo() {
   const [
@@ -248,7 +263,8 @@ async function cargarTodo() {
       .select('id, nombre, categoria, subcategoria, costo, precio, updated_at, ultimo_cambio_costo, ultimo_cambio_precio, ultima_revision_precio, proveedor_id, u_bulto, desc_bulto, proveedores(nombre)')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
     supabase.from('stock_actual').select('producto_id, stock'),
-    supabase.from('ingreso_items').select('producto_id, ingresos(fecha)').not('ingresos','is',null),
+    fetchAllPaginado(() => supabase.from('ingreso_items')
+      .select('producto_id, ingresos(fecha)').not('ingresos','is',null).order('id')),
     supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('velocidad_venta').select('producto_id, unidades_por_dia'),
     // Última venta por producto — calculada server-side en la vista

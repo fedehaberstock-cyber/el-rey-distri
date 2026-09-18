@@ -194,21 +194,38 @@ let diasExpandidos = {};
 let todosLosCobros = [];   // cache: mov_cuenta tipo=pago, last 6 months
 let preventistas = [];     // [{nombre, color}]
 
+// Paginado de a 1000 (PostgREST corta en 1000/request).
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000;
+  let from = 0, todos = [];
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { error };
+    todos = todos.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: todos };
+}
+
 // ── CARGA ──────────────────────────────────────────────────────────────────
 async function cargarTodo() {
   const hace180 = isoOffset(-180);
 
   // No-admin: limitar a sus propios cobros (defensa cliente; RLS no filtra por usuario aquí).
-  let qCobros = supabase.from('mov_cuenta')
-    .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios:usuario_id(nombre), clientes(nombre)')
-    .eq('empresa_id', usuario.empresa_id)
-    .eq('tipo', 'pago')
-    .gte('fecha', hace180)
-    .order('fecha', { ascending: false });
-  if (!verTodo) qCobros = qCobros.eq('usuario_id', usuario.id);
+  const makeCobros = () => {
+    let q = supabase.from('mov_cuenta')
+      .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, usuarios:usuario_id(nombre), clientes(nombre)')
+      .eq('empresa_id', usuario.empresa_id)
+      .eq('tipo', 'pago')
+      .gte('fecha', hace180)
+      .order('fecha', { ascending: false });
+    if (!verTodo) q = q.eq('usuario_id', usuario.id);
+    return q;
+  };
 
   const [{ data: cobros, error: errC }, { data: prevs, error: errP }] = await Promise.all([
-    qCobros,
+    fetchAllPaginado(makeCobros),
     verTodo
       ? supabase.from('usuarios').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('rol', 'preventista')
       : Promise.resolve({ data: [{ id: usuario.id, nombre: usuario.nombre }] }),

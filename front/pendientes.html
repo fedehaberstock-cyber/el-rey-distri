@@ -110,6 +110,20 @@ let fechaAbierta = null;  // pedido_id con panel de fecha abierto
 let fechaSel = MANANA;
 let motivoSel = '';
 
+// Paginado de a 1000 (PostgREST corta en 1000/request).
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000;
+  let from = 0, todos = [];
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { error };
+    todos = todos.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: todos };
+}
+
 async function cargar() {
   // Zonas para filtro y visualización
   const { data: zs } = await supabase.from('zonas')
@@ -120,28 +134,27 @@ async function cargar() {
   //   - fecha_reparto NULL              → 'a_definir'
   //   - fecha_reparto <  HOY sin hoja   → 'rolleado' (venían de una hoja cerrada)
   //   - estado='postergado'             → 'postergado'
-  let q = supabase.from('pedidos')
-    .select(`
-      id, fecha, fecha_reparto, estado, motivo_no_entrega, usuario_id, hoja_ruta_id,
-      cliente_id, clientes(nombre, direccion, zona_id),
-      boletas(id, total, saldo_anterior, estado),
-      pedido_items(cantidad, productos(nombre)),
-      usuarios!pedidos_usuario_id_fkey(nombre)
-    `)
-    .eq('empresa_id', usuario.empresa_id)
-    .in('estado', ['confirmado','postergado']);
-
-  // Filtro por usuario si no es admin de pedidos
-  if (!esAdminPed) q = q.eq('usuario_id', usuario.id);
-
-  const { data, error } = await q.order('fecha_reparto', { ascending: true, nullsFirst: true });
+  const { data, error } = await fetchAllPaginado(() => {
+    let q = supabase.from('pedidos')
+      .select(`
+        id, fecha, fecha_reparto, estado, motivo_no_entrega, usuario_id, hoja_ruta_id,
+        cliente_id, clientes(nombre, direccion, zona_id),
+        boletas(id, total, saldo_anterior, estado),
+        pedido_items(cantidad, productos(nombre)),
+        usuarios!pedidos_usuario_id_fkey(nombre)
+      `)
+      .eq('empresa_id', usuario.empresa_id)
+      .in('estado', ['confirmado','postergado']);
+    if (!esAdminPed) q = q.eq('usuario_id', usuario.id);
+    return q.order('fecha_reparto', { ascending: true, nullsFirst: true });
+  });
   if (error) { document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`; return; }
 
   // Set de pedido_ids que ya tienen un rollover previo (visita no_entregado).
   // Esto nos permite distinguir un pedido recién programado a mañana de uno
   // que fue rolleado (debió entregarse antes y no salió).
-  const { data: viss } = await supabase.from('visitas_clientes')
-    .select('pedido_id').eq('empresa_id', usuario.empresa_id).eq('resultado', 'no_entregado');
+  const { data: viss } = await fetchAllPaginado(() => supabase.from('visitas_clientes')
+    .select('pedido_id').eq('empresa_id', usuario.empresa_id).eq('resultado', 'no_entregado').order('id'));
   const rolleadosIds = new Set((viss || []).map(v => v.pedido_id).filter(Boolean));
 
   // Pendiente = todo lo confirmado/postergado que aún no está entregado.

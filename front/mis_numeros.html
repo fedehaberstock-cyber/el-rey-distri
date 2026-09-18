@@ -185,32 +185,35 @@ async function cargar() {
   pedidos = peds || []
 
   // visitas (preventista solo ve las suyas por RLS)
-  const { data: vis, error: e2 } = await supabase
+  const { data: vis, error: e2 } = await fetchAllPaginado(() => supabase
     .from('visitas_clientes')
     .select('id, fecha, resultado, motivo, cliente_id')
     .eq('empresa_id', usuario.empresa_id)
     .eq('usuario_id', usuarioId)
     .gte('fecha', desde.split('T')[0])
     .lte('fecha', hasta.split('T')[0])
+    .order('fecha', { ascending: false }))
   if (e2) console.warn('visitas:', e2.message)
   visitas = vis || []
 
   // Periodo anterior (para deltas) — solo lo minimo necesario
   const { desde: pDesde, hasta: pHasta } = rangoFechasPrev()
   const [{ data: pedsP }, { data: visP }] = await Promise.all([
-    supabase.from('pedidos')
+    fetchAllPaginado(() => supabase.from('pedidos')
       .select(`id, fecha, cliente_id, descuento,
         pedido_items(cantidad, precio_unit, descuento)`)
       .eq('empresa_id', usuario.empresa_id)
       .eq('usuario_id', usuarioId)
       .in('estado', ['entregado', 'devolucion'])
-      .gte('fecha', pDesde).lte('fecha', pHasta),
-    supabase.from('visitas_clientes')
+      .gte('fecha', pDesde).lte('fecha', pHasta)
+      .order('fecha', { ascending: false })),
+    fetchAllPaginado(() => supabase.from('visitas_clientes')
       .select('cliente_id, resultado')
       .eq('empresa_id', usuario.empresa_id)
       .eq('usuario_id', usuarioId)
       .gte('fecha', pDesde.split('T')[0])
-      .lte('fecha', pHasta.split('T')[0]),
+      .lte('fecha', pHasta.split('T')[0])
+      .order('fecha', { ascending: false })),
   ])
   pedidosPrev = pedsP || []
   visitasPrev = visP || []
