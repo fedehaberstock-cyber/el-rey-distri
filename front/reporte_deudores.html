@@ -293,11 +293,12 @@ function agingDe(id) {
     else b15_plus += c.monto;
     if (!masViejo || c.fecha < masViejo) masViejo = c.fecha;
   }
-  // Aplastar residuos de floating point (< 1 centavo) para que no rompan
-  // clasificación ni chips (b8_14=0.003 hacía "atención" con $0 mostrado).
-  if (b0_7 < 0.01)     b0_7 = 0;
-  if (b8_14 < 0.01)    b8_14 = 0;
-  if (b15_plus < 0.01) b15_plus = 0;
+  // Aplastar residuos < $1 (descuentos porcentuales sobre precios no redondos
+  // dejan centavos; ars() los redondea a $0 pero el FIFO los arrastra y
+  // dispara "atención" con chip "$ 0 8-14d" fantasma).
+  if (b0_7 < 1)     b0_7 = 0;
+  if (b8_14 < 1)    b8_14 = 0;
+  if (b15_plus < 1) b15_plus = 0;
   return { b0_7, b8_14, b15_plus, masViejo };
 }
 
