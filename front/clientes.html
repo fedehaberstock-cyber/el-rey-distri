@@ -258,7 +258,7 @@ async function cargarClientes(){
   const hace180 = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
   const [{ data: cli, error: e1 }, { data: sal, error: e2 }, { data: zon, error: e3 }, { data: peds }] = await Promise.all([
     supabase.from('clientes')
-      .select('id, nombre, direccion, telefono, zona_id, posicion_zona, activo')
+      .select('id, nombre, direccion, telefono, zona_id, posicion_zona, activo, condicion_pago')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
@@ -646,7 +646,14 @@ function renderEditarZona(){
           `<option value="${z.id}" ${c.zona_id===z.id?'selected':''}>${z.nombre}</option>`).join('')}
       </select>
       <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Posición</label>
-      <input id="ez-pos" class="field" type="number" min="0" value="${c.posicion_zona ?? 999}" style="margin-bottom:14px">
+      <input id="ez-pos" class="field" type="number" min="0" value="${c.posicion_zona ?? 999}" style="margin-bottom:12px">
+      <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Condición de pago</label>
+      <select id="ez-cond" class="field" style="margin-bottom:14px">
+        <option value="" ${!c.condicion_pago?'selected':''}>— Sin cargar —</option>
+        <option value="contado" ${c.condicion_pago==='contado'?'selected':''}>Contado</option>
+        <option value="cta_cte" ${c.condicion_pago==='cta_cte'?'selected':''}>Cuenta corriente</option>
+        <option value="50_50" ${c.condicion_pago==='50_50'?'selected':''}>50% contado / 50% cta cte</option>
+      </select>
       <div class="cobro-btns">
         <button class="cancel" onclick="window.cerrarEditarZona()">Cancelar</button>
         <button class="bar-btn" onclick="window.guardarZonaCliente()">Guardar</button>
@@ -663,6 +670,7 @@ window.guardarZonaCliente = async () => {
   const zid = document.getElementById('ez-zona')?.value || null;
   const pos = parseInt(document.getElementById('ez-pos')?.value);
   if (!nombre) { alert('El nombre es obligatorio.'); return; }
+  const cond = document.getElementById('ez-cond')?.value || null;
   const { error } = await supabase.from('clientes')
     .update({
       nombre,
@@ -670,6 +678,7 @@ window.guardarZonaCliente = async () => {
       direccion: dir || null,
       zona_id: zid,
       posicion_zona: Number.isFinite(pos) ? pos : 999,
+      condicion_pago: cond || null,
     })
     .eq('id', cliSelId);
   if (error) { alert('Error: ' + error.message); return; }

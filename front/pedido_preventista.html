@@ -472,7 +472,7 @@ async function cargarTodo(){
     .catch(() => { beneficiariosList = []; });
   const [cliResp, salResp, prodResp, stkResp, zonResp, visResp] = await Promise.all([
     supabase.from('clientes')
-      .select('id, nombre, zona_id')
+      .select('id, nombre, zona_id, condicion_pago')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
@@ -1080,6 +1080,31 @@ async function confirmar(){
   pendienteSync = false;
   confirmado = true;
   render();
+
+  // Si el cliente no tiene condición de pago cargada, ofrecerla ahora.
+  const cliActual = clientes.find(c => c.id === clienteId);
+  if (cliActual && !cliActual.condicion_pago && data?.boleta_id) {
+    setTimeout(() => pedirCondicionPago(cliActual, data.boleta_id), 300);
+  }
+}
+
+async function pedirCondicionPago(cli, boletaId) {
+  const opcionesTxt = '1) Contado\n2) Cuenta corriente\n3) 50% contado / 50% cta cte\n4) Personalizado (solo esta boleta)';
+  const resp = prompt(`Condición de pago de ${cli.nombre}\n\n${opcionesTxt}\n\nIngresá 1-4 (o cancelá para dejarlo para después):`);
+  if (resp == null) return;
+  const n = parseInt(resp.trim());
+  const codes = ['contado', 'cta_cte', '50_50'];
+  if (n >= 1 && n <= 3) {
+    const code = codes[n-1];
+    const { error } = await supabase.from('clientes').update({ condicion_pago: code }).eq('id', cli.id);
+    if (error) { alert('Error: ' + error.message); return; }
+    cli.condicion_pago = code;
+  } else if (n === 4) {
+    const txt = prompt('Texto personalizado para esta boleta:');
+    if (txt == null || !txt.trim()) return;
+    const { error } = await supabase.from('boletas').update({ condicion_pago: txt.trim() }).eq('id', boletaId);
+    if (error) { alert('Error: ' + error.message); return; }
+  }
 }
 
 function render(){
