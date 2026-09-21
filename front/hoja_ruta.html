@@ -373,20 +373,20 @@ async function cargarTodo() {
   })
 
   // Recalcular saldoAnt en vivo desde saldo_actual (refleja pagos posteriores
-  // a la creación de la boleta, ej. cobros al preventista). Si el cliente
-  // tiene 2+ pedidos en esta hoja, solo el PRIMERO lleva el saldo — el resto
-  // queda en 0 para no duplicar el importe.
+  // a la creación de la boleta, ej. cobros al preventista, o crédito a favor
+  // por devoluciones — saldo negativo). Si el cliente tiene 2+ pedidos en esta
+  // hoja, solo el PRIMERO lleva el saldo — el resto queda en 0.
   const yaAsignado = new Set()
   for (const p of pedidos) {
     if (!p.clienteId) continue
     if (yaAsignado.has(p.clienteId)) {
       p.saldoAnt = 0
     } else {
-      p.saldoAnt = Math.max(0, mapSaldo.get(p.clienteId) || 0)
+      // No clampear a 0: si es negativo, es crédito a favor que debe restar.
+      p.saldoAnt = mapSaldo.get(p.clienteId) || 0
       yaAsignado.add(p.clienteId)
     }
-    // Recalcular total a cobrar en vivo (ignorar snapshot).
-    p.tacobrar = p.totalPedido + p.saldoAnt
+    p.tacobrar = Math.max(0, p.totalPedido + p.saldoAnt)
   }
 
   // Cargar metadatos de la hoja resuelta
@@ -534,9 +534,10 @@ function renderHoja(el) {
           <div class="ped-totales">
             <div class="ped-tot-row"><span class="k">Pedido</span><span class="v">${ars(p.totalPedido)}</span></div>
             ${p.saldoAnt > 0 ? `
-              <div class="ped-tot-row saldo"><span class="k">⚠ Saldo anterior</span><span class="v">+ ${ars(p.saldoAnt)}</span></div>
-              <div class="ped-tot-row cobrar"><span class="k">Total a cobrar</span><span class="v">${ars(totalACobrar(p))}</span></div>`
-            : `<div class="ped-tot-row cobrar"><span class="k">Total a cobrar</span><span class="v">${ars(totalACobrar(p))}</span></div>`}
+              <div class="ped-tot-row saldo"><span class="k">⚠ Saldo anterior</span><span class="v">+ ${ars(p.saldoAnt)}</span></div>` : ''}
+            ${p.saldoAnt < 0 ? `
+              <div class="ped-tot-row" style="color:var(--green-tx)"><span class="k">✓ Crédito a favor</span><span class="v">− ${ars(Math.abs(p.saldoAnt))}</span></div>` : ''}
+            <div class="ped-tot-row cobrar"><span class="k">Total a cobrar</span><span class="v">${ars(totalACobrar(p))}</span></div>
           </div>
         </div>`).join('')}`
     el.appendChild(d)
