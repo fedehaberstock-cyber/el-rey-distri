@@ -298,6 +298,7 @@ async function cargarClientes(){
     telefono: c.telefono || '',
     zona_id: c.zona_id || null,
     posicion_zona: c.posicion_zona ?? 999,
+    condicion_pago: c.condicion_pago || null,
     saldo: saldoMap[c.id] || 0,
     inact: inactMap[c.id] || null,
   }));
