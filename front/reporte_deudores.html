@@ -293,6 +293,11 @@ function agingDe(id) {
     else b15_plus += c.monto;
     if (!masViejo || c.fecha < masViejo) masViejo = c.fecha;
   }
+  // Aplastar residuos de floating point (< 1 centavo) para que no rompan
+  // clasificación ni chips (b8_14=0.003 hacía "atención" con $0 mostrado).
+  if (b0_7 < 0.01)     b0_7 = 0;
+  if (b8_14 < 0.01)    b8_14 = 0;
+  if (b15_plus < 0.01) b15_plus = 0;
   return { b0_7, b8_14, b15_plus, masViejo };
 }
 
@@ -394,8 +399,9 @@ function renderDeudList() {
   });
   cont.innerHTML = !filtrados.length
     ? `<div class="empty">Sin deudores en esta categoría.</div>`
-    : filtrados.map(c => {
-        const maxSaldo = datos[0].saldo || 1;
+    : (() => {
+        const maxSaldo = Math.max(1, ...datos.map(d => d.saldo));
+        return filtrados.map(c => {
         const pct = Math.round(c.saldo / maxSaldo * 100);
         const up = ultimoPago(c.id);
         return `<div class="cli-card ${c.nivel === 'critico' || c.nivel === 'advertencia' ? c.nivel : ''}"
@@ -431,6 +437,7 @@ function renderDeudList() {
           ${up ? `<div class="ultimo-pago">Último pago: ${fmtF(up)}</div>` : ''}
         </div>`;
       }).join('');
+      })();
 }
 
 // ── DETALLE ────────────────────────────────────────────────────────────────
