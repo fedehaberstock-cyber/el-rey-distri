@@ -286,12 +286,14 @@ function agingDe(id) {
   }
   let b0_7 = 0, b8_14 = 0, b15_plus = 0;
   let masViejo = null;
+  // masViejo se computa solo con cargos "reales" (>= $1) para que un residuo
+  // de centavos no altere el orden del listado.
   for (const c of cargosPend) {
     const d = diasDesde(c.fecha);
     if (d <= 7) b0_7 += c.monto;
     else if (d <= 14) b8_14 += c.monto;
     else b15_plus += c.monto;
-    if (!masViejo || c.fecha < masViejo) masViejo = c.fecha;
+    if (c.monto >= 1 && (!masViejo || c.fecha < masViejo)) masViejo = c.fecha;
   }
   // Aplastar residuos < $1 (descuentos porcentuales sobre precios no redondos
   // dejan centavos; ars() los redondea a $0 pero el FIFO los arrastra y
