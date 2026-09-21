@@ -436,7 +436,9 @@ function renderDeudList() {
                 alertar ? 'var(--red-tx)' : c.nivel === 'advertencia' ? 'var(--amber-tx)' : 'var(--ink-soft)'}">
               </div>
             </div>
-            ${alertar ? `<div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--red-tx)">⚠ REGULARIZAR URGENTE</div>` : ''}
+            ${sinCompras
+              ? `<div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--red-tx)">⚠ REGULARIZAR URGENTE</div>`
+              : (pctRaw > 50 ? `<div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--amber-tx)">⚠ ATENCION ANALIZAR</div>` : '')}
           </div>
           <div>
             <span class="dias-badge ${c.nivel === 'critico' ? 'critico' : c.nivel === 'advertencia' ? 'advertencia' : 'ok'}">
