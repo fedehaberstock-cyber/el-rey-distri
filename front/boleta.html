@@ -200,20 +200,17 @@ async function cargarBoleta() {
   if (error) throw error
   boleta = data
 
-  // Recalcular saldo dinámicamente: pagos posteriores a la fecha del pedido
-  // reducen el saldo anterior y total a cobrar mostrados en la boleta.
-  boleta.pagos_posteriores = 0
+  // Mientras la boleta no esté entregada, el "saldo anterior" mostrado se
+  // recalcula en vivo desde saldo_actual (misma fuente que la hoja de ruta) —
+  // así refleja pagos al preventista, devoluciones, ajustes, etc. Al entregar,
+  // el cargo de esta boleta entra al saldo_actual y ya no se puede usar
+  // directamente: en ese caso conservamos el snapshot (histórico).
+  boleta.saldo_anterior_live = null
   const cliId = data?.pedidos?.cliente_id
-  if (cliId && data.fecha) {
-    const { data: pagos } = await supabase.from('mov_cuenta')
-      .select('monto, fecha')
-      .eq('cliente_id', cliId)
-      .eq('tipo', 'pago')
-      .gt('fecha', data.fecha)
-      .limit(5000)
-    // los pagos suelen guardarse con monto negativo (contribuyen a reducir el saldo)
-    const suma = (pagos || []).reduce((s, m) => s + Math.abs(Number(m.monto) || 0), 0)
-    boleta.pagos_posteriores = suma
+  if (cliId && data.estado !== 'entregado') {
+    const { data: sa } = await supabase.from('saldo_actual')
+      .select('saldo').eq('cliente_id', cliId).maybeSingle()
+    boleta.saldo_anterior_live = Number(sa?.saldo) || 0
   }
 }
 
@@ -237,13 +234,14 @@ function render() {
   const saldoAntFrozen = Number(boleta.saldo_anterior) || 0
   const total = Number(boleta.total) || 0
   const totalCobrarFrozen = Number(boleta.total_a_cobrar) || 0
-  const pagosPost = Number(boleta.pagos_posteriores) || 0
-  // Aplicar pagos posteriores: primero reducen saldo anterior (si es deuda),
-  // remanente reduce total a cobrar. Si saldo_anterior es negativo (crédito),
-  // no lo tocan.
-  const saldoAnt    = saldoAntFrozen > 0 ? Math.max(0, saldoAntFrozen - pagosPost) : saldoAntFrozen
-  const totalCobrar = Math.max(0, totalCobrarFrozen - pagosPost)
-  const huboPago    = pagosPost > 0 && (saldoAnt !== saldoAntFrozen || totalCobrar !== totalCobrarFrozen)
+  // Si la boleta no está entregada, usar saldo actual en vivo (refleja pagos,
+  // devoluciones, ajustes posteriores a la creación). Si ya está entregada,
+  // conservar snapshot histórico.
+  const saldoAnt = boleta.saldo_anterior_live != null
+    ? boleta.saldo_anterior_live
+    : saldoAntFrozen
+  const totalCobrar = Math.max(0, total + saldoAnt)
+  const huboPago = boleta.saldo_anterior_live != null && saldoAnt !== saldoAntFrozen
   const numCorto = boleta.id.slice(-4).toUpperCase()
 
   const subtotal = items.reduce((s, it) => s + Number(it.cantidad) * Number(it.precio_unit), 0)
@@ -350,7 +348,7 @@ function render() {
     </div>` : ''}
     ${huboPago ? `
     <div class="nota-saldo no-print" style="background:var(--green-bg,#E7F0E8);color:var(--green-tx,#2C6B3F)">
-      ✓ Se aplicaron ${ars(pagosPost)} de pagos posteriores. Los importes ya están actualizados.
+      ✓ Saldo actualizado en vivo (${ars(saldoAntFrozen)} → ${ars(saldoAnt)}). Refleja pagos, devoluciones y ajustes posteriores.
     </div>` : ''}
     ${tieneSaldo ? `
     <div class="nota-saldo no-print">
