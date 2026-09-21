@@ -332,12 +332,25 @@ async function cargarTodo() {
 
   // Boletas para saldo_anterior y total_a_cobrar
   const pedidoIds = rows.map(r => r.pedido_id)
-  const { data: boletas, error: e2 } = await supabase
-    .from('boletas')
-    .select('id, pedido_id, total, saldo_anterior, total_a_cobrar')
-    .in('pedido_id', pedidoIds)
+  const [{ data: boletas, error: e2 }, { data: pedsCli, error: ePC }] = await Promise.all([
+    supabase
+      .from('boletas')
+      .select('id, pedido_id, total, saldo_anterior, total_a_cobrar')
+      .in('pedido_id', pedidoIds),
+    // Traer cliente_id por pedido (hoja_ruta_hoy no siempre lo expone).
+    supabase.from('pedidos').select('id, cliente_id').in('id', pedidoIds),
+  ])
   if (e2) throw e2
+  if (ePC) throw ePC
   const mapBol = new Map((boletas||[]).map(b => [b.pedido_id, b]))
+  const mapCli = new Map((pedsCli||[]).map(p => [p.id, p.cliente_id]))
+
+  // Traer saldo actual de los clientes involucrados (view server-side).
+  const clienteIds = [...new Set((pedsCli || []).map(p => p.cliente_id).filter(Boolean))]
+  const { data: saldosRows } = clienteIds.length
+    ? await supabase.from('saldo_actual').select('cliente_id, saldo').in('cliente_id', clienteIds)
+    : { data: [] }
+  const mapSaldo = new Map((saldosRows || []).map(s => [s.cliente_id, Number(s.saldo) || 0]))
 
   pedidos = rows.map(r => {
     const b = mapBol.get(r.pedido_id) || {}
@@ -348,15 +361,33 @@ async function cargarTodo() {
       zonaOrden:   r.zona_orden  ?? 99,
       pos:         r.posicion_zona ?? 0,
       cliente:     r.cliente_nombre,
+      clienteId:   r.cliente_id || mapCli.get(r.pedido_id) || null,
       dir:         r.direccion || '',
       tel:         r.telefono  || '',
       prev:        r.preventista_nombre || '',
       boletaId:    b.id || null,
       totalPedido: Number(b.total)          || 0,
-      saldoAnt:    Number(b.saldo_anterior) || 0,
-      tacobrar:    Number(b.total_a_cobrar) || 0,
+      saldoAnt:    Number(b.saldo_anterior) || 0,  // snapshot (se recalcula abajo)
+      tacobrar:    Number(b.total_a_cobrar) || 0,  // snapshot (se recalcula abajo)
     }
   })
+
+  // Recalcular saldoAnt en vivo desde saldo_actual (refleja pagos posteriores
+  // a la creación de la boleta, ej. cobros al preventista). Si el cliente
+  // tiene 2+ pedidos en esta hoja, solo el PRIMERO lleva el saldo — el resto
+  // queda en 0 para no duplicar el importe.
+  const yaAsignado = new Set()
+  for (const p of pedidos) {
+    if (!p.clienteId) continue
+    if (yaAsignado.has(p.clienteId)) {
+      p.saldoAnt = 0
+    } else {
+      p.saldoAnt = Math.max(0, mapSaldo.get(p.clienteId) || 0)
+      yaAsignado.add(p.clienteId)
+    }
+    // Recalcular total a cobrar en vivo (ignorar snapshot).
+    p.tacobrar = p.totalPedido + p.saldoAnt
+  }
 
   // Cargar metadatos de la hoja resuelta
   const targetId = _hojaIdParam || _resolvedHojaId
