@@ -258,6 +258,14 @@ const nivelDeudaAging = (a) => {
   return 'leve';
 };
 
+// Total comprado por el cliente en los últimos 30 días (suma de cargos).
+// Se usa como denominador de "deuda vs compras recientes".
+function comprasUlt30(id) {
+  return movimientos
+    .filter(m => m.cliente_id === id && m.tipo === 'cargo' && diasDesde(m.fecha) <= 30)
+    .reduce((s, m) => s + Number(m.monto), 0);
+}
+
 // FIFO aging: aplica pagos al cargo más viejo primero.
 // Buckets: 0-7 / 8-14 / 15+
 function agingDe(id) {
@@ -403,9 +411,13 @@ function renderDeudList() {
   cont.innerHTML = !filtrados.length
     ? `<div class="empty">Sin deudores en esta categoría.</div>`
     : (() => {
-        const maxSaldo = Math.max(1, ...datos.map(d => d.saldo));
         return filtrados.map(c => {
-        const pct = Math.round(c.saldo / maxSaldo * 100);
+        const compras30 = comprasUlt30(c.id);
+        const sinCompras = compras30 < 1;
+        const pctRaw = sinCompras ? null : (c.saldo / compras30 * 100);
+        const pct = pctRaw === null ? 0 : Math.round(pctRaw);
+        const alertar = sinCompras || pctRaw > 50;
+        const barWidth = Math.min(100, pct);
         const up = ultimoPago(c.id);
         return `<div class="cli-card ${c.nivel === 'critico' || c.nivel === 'advertencia' ? c.nivel : ''}"
           onclick="window._abrirDetalle('${c.id}')">
@@ -416,13 +428,15 @@ function renderDeudList() {
           <div class="meta"><span class="meta-tag">${c.direccion || ''}</span></div>
           <div class="progress-wrap">
             <div class="progress-lbl">
-              <span>Participación en deuda total</span><span>${pct}%</span>
+              <span>Deuda vs compras últ. 30d</span>
+              <span>${sinCompras ? '—' : pct + '%'}</span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill" style="width:${pct}%;background:${
-                c.nivel === 'critico' ? 'var(--red-tx)' : c.nivel === 'advertencia' ? 'var(--amber-tx)' : 'var(--ink-soft)'}">
+              <div class="progress-fill" style="width:${barWidth}%;background:${
+                alertar ? 'var(--red-tx)' : c.nivel === 'advertencia' ? 'var(--amber-tx)' : 'var(--ink-soft)'}">
               </div>
             </div>
+            ${alertar ? `<div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--red-tx)">⚠ REGULARIZAR URGENTE</div>` : ''}
           </div>
           <div>
             <span class="dias-badge ${c.nivel === 'critico' ? 'critico' : c.nivel === 'advertencia' ? 'advertencia' : 'ok'}">
