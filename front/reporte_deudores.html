@@ -180,6 +180,22 @@ let guardandoCobro = false;
 // para calcular aging FIFO y detalles.
 let saldoMap = {};   // cliente_id -> saldo
 
+// Paginado de a 1000 (PostgREST corta en 1000/request incluso con .limit alto
+// si max_rows del servidor no fue elevado; sin paginar el aging FIFO queda mal
+// y los buckets no suman el total en deuda).
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000;
+  let from = 0, todos = [];
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { error };
+    todos = todos.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: todos };
+}
+
 async function cargarTodo() {
   const [{ data: clis, error: errC }, { data: sal, error: errS }] = await Promise.all([
     supabase.from('clientes')
@@ -200,12 +216,11 @@ async function cargarTodo() {
   // Traer movimientos SOLO de los deudores actuales (para aging y detalle)
   const deudoresIds = Object.keys(saldoMap).filter(id => saldoMap[id] > 0);
   if (deudoresIds.length) {
-    const { data: movs, error: errM } = await supabase.from('mov_cuenta')
+    const { data: movs, error: errM } = await fetchAllPaginado(() => supabase.from('mov_cuenta')
       .select('id, cliente_id, usuario_id, tipo, monto, fecha, forma_pago, referencia_tipo')
       .eq('empresa_id', usuario.empresa_id)
       .in('cliente_id', deudoresIds)
-      .order('fecha', { ascending: false })
-      .limit(50000);
+      .order('fecha', { ascending: false }));
     if (errM) {
       document.getElementById('root').innerHTML =
         `<div class="err-box">Error al cargar movimientos: ${errM.message}</div>`;
@@ -537,13 +552,13 @@ window._confirmarCobro = async () => {
   rerenderDetalle();
 
   const { error } = await supabase.from('mov_cuenta').insert({
-    empresa_id:  usuario.empresa_id,
-    cliente_id:  detalle,
-    usuario_id:  usuario.id,
-    tipo:        'pago',
-    monto:       -n,
-    descripcion: 'Cobro registrado',
-    fecha:       isoHoy(),
+    empresa_id:      usuario.empresa_id,
+    cliente_id:      detalle,
+    usuario_id:      usuario.id,
+    tipo:            'pago',
+    monto:           -n,
+    referencia_tipo: 'cobro_reporte',
+    fecha:           isoHoy(),
   });
 
   guardandoCobro = false;
@@ -552,7 +567,7 @@ window._confirmarCobro = async () => {
   // update local cache optimistically
   movimientos.unshift({
     id: crypto.randomUUID(), cliente_id: detalle, usuario_id: usuario.id,
-    tipo: 'pago', monto: -n, descripcion: 'Cobro registrado', fecha: isoHoy(), forma_pago: null,
+    tipo: 'pago', monto: -n, referencia_tipo: 'cobro_reporte', fecha: isoHoy(), forma_pago: null,
   });
   cobroMonto = ''; vistaDetalle = 'movs';
   render();
