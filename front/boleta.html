@@ -188,7 +188,7 @@ async function cargarBoleta() {
       pedidos (
         id, descuento, observaciones, cliente_id,
         usuarios!pedidos_usuario_id_fkey(nombre),
-        clientes(nombre, direccion, telefono, condicion_pago),
+        clientes(nombre, direccion, telefono, condicion_pago, cond_pago_es_default),
         pedido_items(
           cantidad, precio_unit, descuento, es_bulto, u_por_bulto,
           productos(nombre)
@@ -262,8 +262,11 @@ function render() {
   const tieneSaldo   = saldoAnt > 0
   const tieneCredito = saldoAnt < 0
 
-  // Condición de pago: override en boleta > default del cliente. Vale texto libre.
-  const condPago = boleta.condicion_pago || cli.condicion_pago || null
+  // Condición de pago: override en boleta manda; caso contrario, hereda del
+  // cliente solo si es predeterminada.
+  const condPago = boleta.condicion_pago
+    || (cli.cond_pago_es_default ? cli.condicion_pago : null)
+    || null
   const condPagoLabel = condPagoALabel(condPago)
 
   el.innerHTML = `
@@ -359,14 +362,23 @@ function render() {
       </div>
     </div>
 
+    ${condPagoLabel ? `
     <div class="bol-obs">
       <span class="bol-obs-lbl">💳 Cond. pago:</span>
-      ${condPagoLabel ? condPagoLabel : '<i style="color:var(--red-tx)">Sin cargar</i>'}
+      ${condPagoLabel}
       <button class="no-print" onclick="window._editarCondPago()"
         style="margin-left:8px;font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;font-family:inherit">
-        ${condPago ? 'Cambiar' : 'Cargar'}
+        Cambiar
       </button>
-    </div>
+    </div>` : `
+    <div class="bol-obs no-print">
+      <span class="bol-obs-lbl">💳 Cond. pago:</span>
+      <i style="color:var(--ink-soft)">No aplica</i>
+      <button onclick="window._editarCondPago()"
+        style="margin-left:8px;font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;font-family:inherit">
+        Cargar
+      </button>
+    </div>`}
     ${ped?.observaciones ? `
     <div class="bol-obs">
       <span class="bol-obs-lbl">📝 Obs.:</span> ${ped.observaciones}
@@ -399,36 +411,26 @@ function render() {
   el.appendChild(bar)
 }
 
-// Editor de condición de pago desde la boleta.
+// Editor de condición de pago desde la boleta (override per-boleta;
+// no toca al cliente — para eso está el editor de cliente).
 window._editarCondPago = async () => {
-  const cli = boleta?.pedidos?.clientes || {}
-  const actualCliente = cli.condicion_pago || null
-  const actualBoleta  = boleta.condicion_pago || null
+  const actualBoleta = boleta.condicion_pago || null
   const opcionesTxt = COND_PAGO_OPCIONES.map((o, i) => `${i+1}) ${o.label}`).join('\n')
-  const promptTxt = `Condición de pago\n\n${opcionesTxt}\n4) Personalizado (solo esta boleta)\n\n` +
-    `Ingresá un número (1-4). Actual del cliente: ${condPagoALabel(actualCliente) || '(sin cargar)'}` +
-    (actualBoleta ? ` · Actual de esta boleta: ${condPagoALabel(actualBoleta)}` : '')
+  const promptTxt = `Condición de pago (solo esta boleta)\n\n${opcionesTxt}\n4) Personalizada (texto libre)\n0) Quitar\n\n` +
+    `Ingresá 0-4. Actual: ${condPagoALabel(actualBoleta) || '(sin cargar)'}`
   const resp = prompt(promptTxt)
   if (resp == null) return
   const n = parseInt(resp.trim())
-  if (n >= 1 && n <= 3) {
-    const code = COND_PAGO_OPCIONES[n-1].code
-    // Guardar como default del cliente + limpiar override en boleta.
-    const [{ error: e1 }, { error: e2 }] = await Promise.all([
-      supabase.from('clientes').update({ condicion_pago: code }).eq('id', boleta.pedidos.cliente_id),
-      supabase.from('boletas').update({ condicion_pago: null }).eq('id', boleta.id),
-    ])
-    if (e1 || e2) { alert('Error: ' + ((e1||e2).message)); return }
-  } else if (n === 4) {
-    const txt = prompt('Texto personalizado para esta boleta (no toca al cliente):', actualBoleta || '')
-    if (txt == null) return
-    const v = txt.trim()
-    if (!v) return
-    const { error } = await supabase.from('boletas').update({ condicion_pago: v }).eq('id', boleta.id)
-    if (error) { alert('Error: ' + error.message); return }
-  } else {
-    return
-  }
+  let valor = undefined
+  if (n === 0) valor = null
+  else if (n >= 1 && n <= 3) valor = COND_PAGO_OPCIONES[n-1].code
+  else if (n === 4) {
+    const txt = prompt('Texto personalizado para esta boleta:', actualBoleta || '')
+    if (txt == null || !txt.trim()) return
+    valor = txt.trim()
+  } else return
+  const { error } = await supabase.from('boletas').update({ condicion_pago: valor }).eq('id', boleta.id)
+  if (error) { alert('Error: ' + error.message); return }
   await cargarBoleta()
   render()
 }

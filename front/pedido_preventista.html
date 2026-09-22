@@ -472,7 +472,7 @@ async function cargarTodo(){
     .catch(() => { beneficiariosList = []; });
   const [cliResp, salResp, prodResp, stkResp, zonResp, visResp] = await Promise.all([
     supabase.from('clientes')
-      .select('id, nombre, zona_id, condicion_pago')
+      .select('id, nombre, zona_id, condicion_pago, cond_pago_es_default')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
@@ -1080,14 +1080,9 @@ async function confirmar(){
   pendienteSync = false;
   confirmado = true;
   render();
-
-  // Si el cliente no tiene condición de pago cargada, ofrecerla ahora.
-  const cliActual = clientes.find(c => c.id === clienteId);
-  if (cliActual && !cliActual.condicion_pago && data?.boleta_id) {
-    setTimeout(() => pedirCondicionPago(cliActual, data.boleta_id), 300);
-  }
 }
 
+// ── CONDICION DE PAGO ─────────────────────────────────────────────────
 const COND_PAGO_OPCIONES_PP = [
   { code: 'contado', label: 'Contado' },
   { code: 'cta_cte', label: 'Cuenta corriente' },
@@ -1098,44 +1093,105 @@ function condPagoLabel(v) {
   const op = COND_PAGO_OPCIONES_PP.find(o => o.code === v);
   return op ? op.label : v;
 }
+// ¿Está activa la condición de pago del cliente para mostrar/aplicar?
+function condPagoActiva(cli) { return !!(cli && cli.condicion_pago); }
 
-// Editor de condición desde la vista del preventista (antes de confirmar).
-// Solo permite las 3 opciones canónicas (el "personalizado" sigue siendo per-boleta,
-// se ofrece después de confirmar).
-window.cambiarCondPagoCliente = async () => {
+let condModal = null;   // { cliId, activo, code, custom, esDefault }
+
+window.cambiarCondPagoCliente = () => {
   const cli = clientes.find(c => c.id === clienteId);
   if (!cli) return;
-  const opcionesTxt = COND_PAGO_OPCIONES_PP.map((o, i) => `${i+1}) ${o.label}`).join('\n');
-  const promptTxt = `Condición de pago de ${cli.nombre}\n\n${opcionesTxt}\n0) Quitar (dejar sin cargar)\n\nActual: ${condPagoLabel(cli.condicion_pago) || '(sin cargar)'}`;
-  const resp = prompt(promptTxt);
-  if (resp == null) return;
-  const n = parseInt(resp.trim());
-  let code = null;
-  if (n >= 1 && n <= 3) code = COND_PAGO_OPCIONES_PP[n-1].code;
-  else if (n !== 0) return;
-  const { error } = await supabase.from('clientes').update({ condicion_pago: code }).eq('id', cli.id);
+  const actualCode = cli.condicion_pago && COND_PAGO_OPCIONES_PP.some(o => o.code === cli.condicion_pago)
+    ? cli.condicion_pago : (cli.condicion_pago ? '__custom__' : 'contado');
+  condModal = {
+    cliId: cli.id,
+    activo: !!cli.condicion_pago,
+    code: actualCode,
+    custom: actualCode === '__custom__' ? cli.condicion_pago : '',
+    esDefault: !!cli.cond_pago_es_default,
+  };
+  renderCondModal();
+};
+
+window.cerrarCondModal = () => { condModal = null; document.getElementById('cond-modal-ov')?.remove(); };
+
+window.setCondModalActivo = (v) => { condModal.activo = !!v; renderCondModal(); };
+window.setCondModalCode = (c) => { condModal.code = c; renderCondModal(); };
+window.setCondModalCustom = (t) => { condModal.custom = t; };
+window.setCondModalDefault = (v) => { condModal.esDefault = !!v; };
+
+window.guardarCondModal = async () => {
+  const m = condModal;
+  if (!m) return;
+  let valor = null;
+  let esDefault = false;
+  if (m.activo) {
+    if (m.code === '__custom__') {
+      const t = (m.custom || '').trim();
+      if (!t) { alert('Escribí el texto personalizado.'); return; }
+      valor = t;
+    } else {
+      valor = m.code;
+    }
+    esDefault = m.esDefault;
+  }
+  const { error } = await supabase.from('clientes')
+    .update({ condicion_pago: valor, cond_pago_es_default: esDefault })
+    .eq('id', m.cliId);
   if (error) { alert('Error: ' + error.message); return; }
-  cli.condicion_pago = code;
+  const cli = clientes.find(c => c.id === m.cliId);
+  if (cli) { cli.condicion_pago = valor; cli.cond_pago_es_default = esDefault; }
+  condModal = null;
+  document.getElementById('cond-modal-ov')?.remove();
   render();
 };
 
-async function pedirCondicionPago(cli, boletaId) {
-  const opcionesTxt = '1) Contado\n2) Cuenta corriente\n3) 50% contado / 50% cta cte\n4) Personalizado (solo esta boleta)';
-  const resp = prompt(`Condición de pago de ${cli.nombre}\n\n${opcionesTxt}\n\nIngresá 1-4 (o cancelá para dejarlo para después):`);
-  if (resp == null) return;
-  const n = parseInt(resp.trim());
-  const codes = ['contado', 'cta_cte', '50_50'];
-  if (n >= 1 && n <= 3) {
-    const code = codes[n-1];
-    const { error } = await supabase.from('clientes').update({ condicion_pago: code }).eq('id', cli.id);
-    if (error) { alert('Error: ' + error.message); return; }
-    cli.condicion_pago = code;
-  } else if (n === 4) {
-    const txt = prompt('Texto personalizado para esta boleta:');
-    if (txt == null || !txt.trim()) return;
-    const { error } = await supabase.from('boletas').update({ condicion_pago: txt.trim() }).eq('id', boletaId);
-    if (error) { alert('Error: ' + error.message); return; }
-  }
+function renderCondModal() {
+  document.getElementById('cond-modal-ov')?.remove();
+  if (!condModal) return;
+  const m = condModal;
+  const ov = document.createElement('div');
+  ov.id = 'cond-modal-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick = e => { if (e.target === ov) window.cerrarCondModal(); };
+  const opts = [...COND_PAGO_OPCIONES_PP, { code: '__custom__', label: 'Personalizada' }];
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:18px;max-width:420px;width:100%;
+      box-shadow:0 10px 30px rgba(0,0,0,.2);font-family:inherit">
+      <h3 style="margin:0 0 12px;font-size:17px">Condición de pago</h3>
+      <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);
+        border-radius:10px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" ${m.activo ? 'checked' : ''} onchange="window.setCondModalActivo(this.checked)">
+        <span style="font-weight:600">Usar condición de pago para este cliente</span>
+      </label>
+      ${m.activo ? `
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+        ${opts.map(o => `
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);
+            border-radius:8px;cursor:pointer;${m.code===o.code?'background:var(--gold-lt,#F5E9D0);border-color:var(--gold)':''}">
+            <input type="radio" name="condcode" value="${o.code}" ${m.code===o.code?'checked':''}
+              onchange="window.setCondModalCode('${o.code}')">
+            <span>${o.label}</span>
+          </label>`).join('')}
+        ${m.code === '__custom__' ? `
+          <input type="text" placeholder="Escribí la condición..." value="${(m.custom||'').replace(/"/g,'&quot;')}"
+            oninput="window.setCondModalCustom(this.value)"
+            style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;margin-top:4px">` : ''}
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);
+        border-radius:10px;cursor:pointer;margin-bottom:14px">
+        <input type="checkbox" ${m.esDefault ? 'checked' : ''} onchange="window.setCondModalDefault(this.checked)">
+        <span>Es <b>predeterminada</b> (aplicar automáticamente a boletas)</span>
+      </label>
+      ` : ''}
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="window.cerrarCondModal()" style="padding:9px 16px;border:1px solid var(--line);
+          background:#fff;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit">Cancelar</button>
+        <button onclick="window.guardarCondModal()" style="padding:9px 16px;border:1px solid var(--gold);
+          background:var(--gold);color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 function render(){

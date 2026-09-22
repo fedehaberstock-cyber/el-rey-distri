@@ -258,7 +258,7 @@ async function cargarClientes(){
   const hace180 = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
   const [{ data: cli, error: e1 }, { data: sal, error: e2 }, { data: zon, error: e3 }, { data: peds }] = await Promise.all([
     supabase.from('clientes')
-      .select('id, nombre, direccion, telefono, zona_id, posicion_zona, activo, condicion_pago')
+      .select('id, nombre, direccion, telefono, zona_id, posicion_zona, activo, condicion_pago, cond_pago_es_default')
       .eq('activo', true)
       .order('nombre'),
     supabase.from('saldo_actual').select('cliente_id, saldo'),
@@ -299,6 +299,7 @@ async function cargarClientes(){
     zona_id: c.zona_id || null,
     posicion_zona: c.posicion_zona ?? 999,
     condicion_pago: c.condicion_pago || null,
+    cond_pago_es_default: !!c.cond_pago_es_default,
     saldo: saldoMap[c.id] || 0,
     inact: inactMap[c.id] || null,
   }));
@@ -649,12 +650,27 @@ function renderEditarZona(){
       <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Posición</label>
       <input id="ez-pos" class="field" type="number" min="0" value="${c.posicion_zona ?? 999}" style="margin-bottom:12px">
       <label class="fl" style="display:block;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px">Condición de pago</label>
-      <select id="ez-cond" class="field" style="margin-bottom:14px">
-        <option value="" ${!c.condicion_pago?'selected':''}>— Sin cargar —</option>
-        <option value="contado" ${c.condicion_pago==='contado'?'selected':''}>Contado</option>
-        <option value="cta_cte" ${c.condicion_pago==='cta_cte'?'selected':''}>Cuenta corriente</option>
-        <option value="50_50" ${c.condicion_pago==='50_50'?'selected':''}>50% contado / 50% cta cte</option>
-      </select>
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;cursor:pointer">
+        <input id="ez-cond-activo" type="checkbox" ${c.condicion_pago?'checked':''}
+          onchange="document.getElementById('ez-cond-box').hidden=!this.checked">
+        <span style="font-weight:600">Usar condición de pago para este cliente</span>
+      </label>
+      <div id="ez-cond-box" ${c.condicion_pago?'':'hidden'} style="margin-bottom:14px">
+        <select id="ez-cond" class="field" style="margin-bottom:8px"
+          onchange="document.getElementById('ez-cond-custom').hidden=(this.value!=='__custom__')">
+          <option value="contado" ${c.condicion_pago==='contado'?'selected':''}>Contado</option>
+          <option value="cta_cte" ${c.condicion_pago==='cta_cte'?'selected':''}>Cuenta corriente</option>
+          <option value="50_50" ${c.condicion_pago==='50_50'?'selected':''}>50% contado / 50% cta cte</option>
+          <option value="__custom__" ${c.condicion_pago && !['contado','cta_cte','50_50'].includes(c.condicion_pago)?'selected':''}>Personalizada</option>
+        </select>
+        <input id="ez-cond-custom" class="field" placeholder="Texto personalizado..." style="margin-bottom:8px"
+          value="${c.condicion_pago && !['contado','cta_cte','50_50'].includes(c.condicion_pago) ? (c.condicion_pago||'').replace(/"/g,'&quot;') : ''}"
+          ${c.condicion_pago && !['contado','cta_cte','50_50'].includes(c.condicion_pago) ? '' : 'hidden'}>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer">
+          <input id="ez-cond-default" type="checkbox" ${c.cond_pago_es_default?'checked':''}>
+          <span>Es <b>predeterminada</b> (aplicar automáticamente a boletas)</span>
+        </label>
+      </div>
       <div class="cobro-btns">
         <button class="cancel" onclick="window.cerrarEditarZona()">Cancelar</button>
         <button class="bar-btn" onclick="window.guardarZonaCliente()">Guardar</button>
@@ -671,7 +687,21 @@ window.guardarZonaCliente = async () => {
   const zid = document.getElementById('ez-zona')?.value || null;
   const pos = parseInt(document.getElementById('ez-pos')?.value);
   if (!nombre) { alert('El nombre es obligatorio.'); return; }
-  const cond = document.getElementById('ez-cond')?.value || null;
+  const condActivo = document.getElementById('ez-cond-activo')?.checked;
+  const condSel = document.getElementById('ez-cond')?.value || '';
+  const condCustom = document.getElementById('ez-cond-custom')?.value?.trim() || '';
+  const condDefault = document.getElementById('ez-cond-default')?.checked;
+  let condPago = null;
+  let condEsDefault = false;
+  if (condActivo) {
+    if (condSel === '__custom__') {
+      if (!condCustom) { alert('Escribí el texto personalizado de la condición de pago.'); return; }
+      condPago = condCustom;
+    } else {
+      condPago = condSel || null;
+    }
+    condEsDefault = !!condDefault;
+  }
   const { error } = await supabase.from('clientes')
     .update({
       nombre,
@@ -679,7 +709,8 @@ window.guardarZonaCliente = async () => {
       direccion: dir || null,
       zona_id: zid,
       posicion_zona: Number.isFinite(pos) ? pos : 999,
-      condicion_pago: cond || null,
+      condicion_pago: condPago,
+      cond_pago_es_default: condEsDefault,
     })
     .eq('id', cliSelId);
   if (error) { alert('Error: ' + error.message); return; }
