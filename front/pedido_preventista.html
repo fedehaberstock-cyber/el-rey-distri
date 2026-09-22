@@ -1088,6 +1088,37 @@ async function confirmar(){
   }
 }
 
+const COND_PAGO_OPCIONES_PP = [
+  { code: 'contado', label: 'Contado' },
+  { code: 'cta_cte', label: 'Cuenta corriente' },
+  { code: '50_50',   label: '50% contado / 50% cta cte' },
+];
+function condPagoLabel(v) {
+  if (!v) return '';
+  const op = COND_PAGO_OPCIONES_PP.find(o => o.code === v);
+  return op ? op.label : v;
+}
+
+// Editor de condición desde la vista del preventista (antes de confirmar).
+// Solo permite las 3 opciones canónicas (el "personalizado" sigue siendo per-boleta,
+// se ofrece después de confirmar).
+window.cambiarCondPagoCliente = async () => {
+  const cli = clientes.find(c => c.id === clienteId);
+  if (!cli) return;
+  const opcionesTxt = COND_PAGO_OPCIONES_PP.map((o, i) => `${i+1}) ${o.label}`).join('\n');
+  const promptTxt = `Condición de pago de ${cli.nombre}\n\n${opcionesTxt}\n0) Quitar (dejar sin cargar)\n\nActual: ${condPagoLabel(cli.condicion_pago) || '(sin cargar)'}`;
+  const resp = prompt(promptTxt);
+  if (resp == null) return;
+  const n = parseInt(resp.trim());
+  let code = null;
+  if (n >= 1 && n <= 3) code = COND_PAGO_OPCIONES_PP[n-1].code;
+  else if (n !== 0) return;
+  const { error } = await supabase.from('clientes').update({ condicion_pago: code }).eq('id', cli.id);
+  if (error) { alert('Error: ' + error.message); return; }
+  cli.condicion_pago = code;
+  render();
+};
+
 async function pedirCondicionPago(cli, boletaId) {
   const opcionesTxt = '1) Contado\n2) Cuenta corriente\n3) 50% contado / 50% cta cte\n4) Personalizado (solo esta boleta)';
   const resp = prompt(`Condición de pago de ${cli.nombre}\n\n${opcionesTxt}\n\nIngresá 1-4 (o cancelá para dejarlo para después):`);
@@ -1143,6 +1174,15 @@ function render(){
         </div>
         <div class="saldo ${cli.saldo>0?'deudor':'aldia'}">
           ${cli.saldo>0 ? 'Debe '+ars(cli.saldo) : (cli.saldo<0?'A favor '+ars(-cli.saldo):'Cuenta al día')}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px;
+          border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13px">
+          <span style="font-weight:600;color:var(--ink-soft)">💳 Cond. pago:</span>
+          <span style="flex:1">${condPagoLabel(cli.condicion_pago) || '<i style="color:var(--red-tx)">Sin cargar</i>'}</span>
+          <button onclick="window.cambiarCondPagoCliente()" style="background:none;border:none;
+            color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit;font-size:12px">
+            ${cli.condicion_pago ? 'Cambiar' : 'Cargar'}
+          </button>
         </div>
         <div style="display:flex;gap:8px;margin-top:8px">
           <button onclick="window.registrarSinPedido()"
