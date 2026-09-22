@@ -479,29 +479,38 @@ window._marcarEnviadasSel = async () => {
   mostrarToast(`📤 ${ids.length} marcada${ids.length===1?'':'s'} como enviadas`)
 }
 
-window._toggleConciliado = async (id, val) => {
+// Actualiza un mov_cuenta; si tarda >15s o lanza excepción, destraba el botón y avisa.
+async function actualizarMov(id, upd) {
   guardando = true; render()
+  try {
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('La base no respondió en 15 s')), 15000))
+    const { error } = await Promise.race([supabase.from('mov_cuenta').update(upd).eq('id', id), timeout])
+    if (error) throw error
+    await cargar()
+    detalle = null
+    return true
+  } catch (e) {
+    alert('Error al guardar: ' + (e.message || e))
+    return false
+  } finally {
+    guardando = false
+    render()
+  }
+}
+
+window._toggleConciliado = async (id, val) => {
   const upd = val
     ? { conciliado: true,  conciliado_en: new Date().toISOString(), conciliado_por: usuario.id }
     : { conciliado: false, conciliado_en: null, conciliado_por: null }
-  const { error } = await supabase.from('mov_cuenta').update(upd).eq('id', id)
-  guardando = false
-  if (error) { alert('Error: ' + error.message); render(); return }
-  await cargar()
-  detalle = null; render()
+  await actualizarMov(id, upd)
 }
 
 window._toggleEnviado = async (id, val) => {
-  guardando = true; render()
   const upd = val
     ? { enviado_al_beneficiario: true,  enviado_en: new Date().toISOString() }
     : { enviado_al_beneficiario: false, enviado_en: null }
-  const { error } = await supabase.from('mov_cuenta').update(upd).eq('id', id)
-  guardando = false
-  if (error) { alert('Error: ' + error.message); render(); return }
-  await cargar()
-  detalle = null; render()
-  mostrarToast(val ? '📤 Marcada como enviada' : '↺ Marcada como pendiente de envío')
+  if (await actualizarMov(id, upd))
+    mostrarToast(val ? '📤 Marcada como enviada' : '↺ Marcada como pendiente de envío')
 }
 
 function mostrarToast(msg) {
