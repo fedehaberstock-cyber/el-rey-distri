@@ -109,7 +109,7 @@ async function cargar() {
   const hojaIds = (hojasData || []).map(h => h.id)
   if (!hojaIds.length) { hojas = []; return }
 
-  const [{ data: peds, error: e2 }, { data: gas, error: e3 }] = await Promise.all([
+  const [{ data: peds, error: e2 }, { data: gas, error: e3 }, { data: incid, error: e4 }] = await Promise.all([
     fetchAllPaginado(() => supabase.from('pedidos')
       .select('id, hoja_ruta_id, clientes(nombre), boletas(id, total)')
       .in('hoja_ruta_id', hojaIds)
@@ -118,9 +118,16 @@ async function cargar() {
       .select('hoja_id, concepto, monto')
       .in('hoja_id', hojaIds)
       .order('fecha', { ascending: true }),
+    // No entregados / cancelados: salen de la hoja al cerrar, queda la visita.
+    fetchAllPaginado(() => supabase.from('visitas_clientes')
+      .select('hoja_ruta_id, motivo, pedido_id, clientes(nombre), pedidos(estado, boletas(id, total))')
+      .in('hoja_ruta_id', hojaIds)
+      .eq('resultado', 'no_entregado')
+      .order('id')),
   ])
   if (e2) throw e2
   if (e3) throw e3
+  if (e4) throw e4
 
   const mapPeds = new Map()
   for (const p of (peds || [])) {
@@ -142,10 +149,26 @@ async function cargar() {
     mapGas.set(g.hoja_id, arr)
   }
 
+  const mapInc = new Map()
+  for (const v of (incid || [])) {
+    const arr = mapInc.get(v.hoja_ruta_id) || []
+    const bol = Array.isArray(v.pedidos?.boletas) ? v.pedidos.boletas[0] : v.pedidos?.boletas
+    arr.push({
+      id:        v.pedido_id || '',
+      cliente:   v.clientes?.nombre || '(sin cliente)',
+      motivo:    v.motivo || '',
+      cancelado: v.pedidos?.estado === 'anulado',
+      total:     Number(bol?.total) || 0,
+      boleta_id: bol?.id || null,
+    })
+    mapInc.set(v.hoja_ruta_id, arr)
+  }
+
   hojas = hojasData.map(h => ({
     ...h,
-    pedidos: mapPeds.get(h.id) || [],
-    gastos:  mapGas.get(h.id)  || [],
+    pedidos:     mapPeds.get(h.id) || [],
+    gastos:      mapGas.get(h.id)  || [],
+    incidencias: mapInc.get(h.id)  || [],
   }))
 }
 
@@ -172,6 +195,10 @@ function render() {
           if (totGastos > 0) badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600">💸 ${ars(totGastos)}</span>`)
           if (falt > 0.5)    badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--red-bg);color:var(--red-tx);font-weight:600">⚠ faltan ${ars(falt)}</span>`)
           if (falt < -0.5)   badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--green-bg);color:var(--green-tx);font-weight:600">+ sobra ${ars(-falt)}</span>`)
+          const nNoEnt = h.incidencias.filter(i => !i.cancelado).length
+          const nCanc  = h.incidencias.filter(i => i.cancelado).length
+          if (nNoEnt) badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--red-bg);color:var(--red-tx);font-weight:600">✗ ${nNoEnt} no entregado${nNoEnt>1?'s':''}</span>`)
+          if (nCanc)  badges.push(`<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:var(--gold-lt);color:var(--gold-dk);font-weight:600">⊘ ${nCanc} cancelado${nCanc>1?'s':''}</span>`)
           return `
             <div class="hoja">
               <div class="hoja-top" onclick="window._toggle('${h.id}')">
@@ -209,7 +236,7 @@ function render() {
                           📝 ${h.observaciones}
                         </div>` : ''}
                     </div>` : ''}
-                  ${h.pedidos.length === 0 ? `<div style="padding:14px;color:var(--ink-soft);font-size:13px">Sin pedidos.</div>`
+                  ${h.pedidos.length === 0 ? (h.incidencias.length ? '' : `<div style="padding:14px;color:var(--ink-soft);font-size:13px">Sin pedidos.</div>`)
                     : h.pedidos.map(p => `
                       <div class="ped-row" onclick="window._verBoleta('${p.boleta_id || ''}')">
                         <div>
@@ -217,6 +244,16 @@ function render() {
                           <div class="ped-meta">#${p.id.slice(-4).toUpperCase()}${p.boleta_id ? '' : ' · sin boleta'}</div>
                         </div>
                         <div class="ped-total">${ars(p.total)}</div>
+                      </div>`).join('')}
+                  ${h.incidencias.map(i => `
+                      <div class="ped-row" onclick="window._verBoleta('${i.boleta_id || ''}')" style="opacity:.85">
+                        <div>
+                          <div class="ped-cli">${i.cliente}</div>
+                          <div class="ped-meta" style="color:${i.cancelado ? 'var(--gold-dk)' : 'var(--red-tx)'};font-weight:600">
+                            ${i.cancelado ? '⊘ Cancelado por el repartidor' : '✗ No lo recibió'}${i.motivo ? ': ' + i.motivo : ''}
+                          </div>
+                        </div>
+                        <div class="ped-total" style="text-decoration:line-through;color:var(--ink-soft)">${ars(i.total)}</div>
                       </div>`).join('')}
                   ${esAdmin && h.estado !== 'cerrada' ? `
                     <div style="padding:12px 14px;background:var(--paper);border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:8px">
@@ -230,7 +267,7 @@ function render() {
                         style="width:100%;padding:11px;border:1px solid var(--red-tx);border-radius:10px;
                           background:transparent;color:var(--red-tx);font-size:13px;font-weight:600;
                           cursor:pointer;font-family:inherit">
-                        Cerrar sin cobros (pedidos rollean al día siguiente)
+                        Cerrar sin cobros (los pedidos quedan en Pendientes)
                       </button>
                     </div>` : ''}
                 </div>` : ''}
@@ -250,7 +287,7 @@ window._verBoleta = (boletaId) => {
 
 window._cerrarHoja = async (hojaId) => {
   if (!esAdmin) return
-  if (!confirm('¿Cerrar esta hoja? Los pedidos sin entregar pasan al día siguiente.')) return
+  if (!confirm('¿Cerrar esta hoja? Los pedidos sin entregar quedan en Pendientes, sin fecha, hasta que les asignes una.')) return
   // marcar entregado=false en pedidos que no se procesaron, para que rolleen
   const { error: e1 } = await supabase.from('pedidos')
     .update({ entregado: false })

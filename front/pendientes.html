@@ -172,8 +172,9 @@ async function cargar() {
     })
     .map(p => {
       const fueRolleado = rolleadosIds.has(p.id);
+      // No entregado en una hoja cerrada: queda sin fecha hasta reprogramarlo.
       const tipo = p.estado === 'postergado' ? 'postergado'
-                 : p.fecha_reparto == null   ? 'a_definir'
+                 : p.fecha_reparto == null   ? (fueRolleado ? 'rolleado' : 'a_definir')
                  : p.fecha_reparto <= HOY    ? 'rolleado'
                  : fueRolleado               ? 'reprogramado'   // futuro con rollover previo
                                               : 'programado';
@@ -271,7 +272,9 @@ function renderCard(p) {
   const chip = p.tipo === 'a_definir'
     ? '<span class="chip def">A DEFINIR</span>'
     : p.tipo === 'rolleado'
-      ? `<span class="chip rol">${p.fechaReparto === HOY ? 'HOY' : 'VENCIDO'} ${fechaTxt ? '· ' + fechaTxt : ''}</span>`
+      ? (p.fechaReparto
+          ? `<span class="chip rol">${p.fechaReparto === HOY ? 'HOY' : 'VENCIDO'} · ${fechaTxt}</span>`
+          : '<span class="chip rol">NO ENTREGADO · SIN FECHA</span>')
       : p.tipo === 'reprogramado'
         ? `<span class="chip post">REPROGRAMADO · ${fechaTxt}</span>`
         : p.tipo === 'programado'

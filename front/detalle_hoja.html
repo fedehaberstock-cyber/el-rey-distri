@@ -104,7 +104,7 @@ if (!hojaId) {
   throw new Error('sin hoja_id')
 }
 
-const [{ data: hoja, error: e1 }, { data: peds, error: e2 }, { data: gas, error: e3 }] = await Promise.all([
+const [{ data: hoja, error: e1 }, { data: peds, error: e2 }, { data: gas, error: e3 }, { data: incid, error: e4 }] = await Promise.all([
   supabase.from('hojas_ruta')
     .select('id, fecha, estado, total_efectivo, total_transf, total_cuenta, total_no_entregado, total_gastos, efectivo_entregado, faltante, observaciones, cerrada_en, usuarios!hojas_ruta_usuario_id_fkey(nombre)')
     .eq('id', hojaId).single(),
@@ -115,10 +115,18 @@ const [{ data: hoja, error: e1 }, { data: peds, error: e2 }, { data: gas, error:
       usuarios!pedidos_usuario_id_fkey(nombre)`)
     .eq('hoja_ruta_id', hojaId),
   supabase.from('hoja_gastos').select('concepto, monto, fecha').eq('hoja_id', hojaId).order('fecha', { ascending: true }),
+  // No entregados y cancelados: al cerrar salen de la hoja, pero queda la visita.
+  supabase.from('visitas_clientes')
+    .select(`motivo, pedido_id,
+      clientes(id, nombre, direccion, telefono, posicion_zona, zonas(nombre, orden)),
+      pedidos(id, estado, descuento, boletas(id, total, saldo_anterior, total_a_cobrar),
+        usuarios!pedidos_usuario_id_fkey(nombre))`)
+    .eq('hoja_ruta_id', hojaId)
+    .eq('resultado', 'no_entregado'),
 ])
 
-if (e1 || e2 || e3) {
-  document.getElementById('root').innerHTML = `<div class="err-box">${(e1||e2||e3).message}</div>`
+if (e1 || e2 || e3 || e4) {
+  document.getElementById('root').innerHTML = `<div class="err-box">${(e1||e2||e3||e4).message}</div>`
   throw new Error('fail')
 }
 
@@ -147,6 +155,34 @@ const pedidos = (peds || []).map(p => {
   }
 })
 
+const yaListados = new Set(pedidos.map(p => p.id))
+for (const v of (incid || [])) {
+  if (v.pedido_id && yaListados.has(v.pedido_id)) continue
+  const ped = v.pedidos
+  const b = Array.isArray(ped?.boletas) ? ped.boletas[0] : ped?.boletas
+  const anulado = ped?.estado === 'anulado'
+  pedidos.push({
+    id:        v.pedido_id || ('x' + Math.random().toString(16).slice(2)),
+    estado:    anulado ? 'anulado' : 'no_entregado',
+    entregado: false,
+    motivo:    v.motivo || '',
+    eliminado: !ped,
+    estadoActual: ped?.estado || null,
+    cli:       v.clientes?.nombre || 'Sin cliente',
+    dir:       v.clientes?.direccion || '',
+    tel:       v.clientes?.telefono || '',
+    pos:       v.clientes?.posicion_zona ?? 99,
+    zona:      v.clientes?.zonas?.nombre || 'Sin zona',
+    zonaOrden: v.clientes?.zonas?.orden ?? 99,
+    prev:      ped?.usuarios?.nombre || '',
+    boletaId:  b?.id || null,
+    total:     Number(b?.total) || 0,
+    saldoAnt:  0,
+    tacobrar:  Number(b?.total) || 0,
+    ef: 0, tr: 0, cc: 0,
+  })
+}
+
 // Agrupar por zona
 const zonaMap = new Map()
 pedidos.forEach(p => {
@@ -166,7 +202,7 @@ const falt = Number(hoja.faltante) || 0
 const totalCobrado = totEf + totTr + totCc
 
 const cantEntregados   = pedidos.filter(p => p.entregado === true).length
-const cantNoEntregados = pedidos.filter(p => p.entregado === false).length
+const cantNoEntregados = pedidos.filter(p => p.entregado === false && p.estado !== 'anulado').length
 const cantAnulados     = pedidos.filter(p => p.estado === 'anulado').length
 
 // Render
@@ -188,7 +224,7 @@ document.getElementById('root').innerHTML = `
     <div class="badges">
       ${cantEntregados ? `<span class="badge green">✓ ${cantEntregados} entregados</span>` : ''}
       ${cantNoEntregados ? `<span class="badge red">✗ ${cantNoEntregados} no entregados</span>` : ''}
-      ${cantAnulados ? `<span class="badge amber">⊘ ${cantAnulados} anulados</span>` : ''}
+      ${cantAnulados ? `<span class="badge amber">⊘ ${cantAnulados} cancelados</span>` : ''}
     </div>
   </div>
 
@@ -232,8 +268,15 @@ document.getElementById('root').innerHTML = `
         const noE = p.entregado === false
         const cls = anu ? 'anulado' : noE ? 'no-entrega' : ''
         const tags = []
-        if (anu) tags.push(`<span class="pago-tag anu">⊘ Anulado</span>`)
-        else if (noE) tags.push(`<span class="pago-tag ne">✗ No entregado${p.motivo?': '+p.motivo:''}</span>`)
+        if (anu) tags.push(`<span class="pago-tag anu">⊘ Cancelado por el repartidor${p.motivo?': '+p.motivo:''}</span>`)
+        else if (noE) {
+          tags.push(`<span class="pago-tag ne">✗ No lo recibió${p.motivo?': '+p.motivo:''}</span>`)
+          const ahora = p.eliminado ? 'Pedido eliminado'
+            : p.estadoActual === 'entregado' ? 'Entregado más tarde'
+            : p.estadoActual === 'confirmado' || p.estadoActual === 'postergado' ? 'Ahora en Pendientes'
+            : ''
+          if (ahora) tags.push(`<span class="pago-tag cc">${ahora}</span>`)
+        }
         else {
           if (p.ef > 0) tags.push(`<span class="pago-tag ef">💵 ${ars(p.ef)}</span>`)
           if (p.tr > 0) tags.push(`<span class="pago-tag tr">📲 ${ars(p.tr)}</span>`)
