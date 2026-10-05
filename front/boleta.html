@@ -186,7 +186,7 @@ async function cargarBoleta() {
     .select(`
       id, total, saldo_anterior, total_a_cobrar, estado, fecha, condicion_pago,
       pedidos (
-        id, descuento, observaciones, cliente_id,
+        id, descuento, observaciones, cliente_id, estado,
         usuarios!pedidos_usuario_id_fkey(nombre),
         clientes(nombre, direccion, telefono, condicion_pago, cond_pago_es_default),
         pedido_items(
@@ -285,6 +285,10 @@ function render() {
         boleta.estado==='emitida'?'Emitida':
         boleta.estado==='modificada'?'Modificada':'Anulada'}</span>
     </div>
+    ${ped?.estado === 'anulado' ? `
+    <div class="nota-saldo no-print" style="background:var(--red-bg,#F6E5E2);color:var(--red-tx,#A8392B)">
+      ✕ Pedido anulado en el cierre de la hoja de ruta. La mercadería ya volvió al stock y se revirtió la cuenta corriente. No suma a ventas.
+    </div>` : ''}
 
     <div class="boleta-wrap">
       <div class="bol-header">
@@ -436,7 +440,17 @@ window._editarCondPago = async () => {
 }
 
 async function eliminarBoleta() {
-  if (!confirm('¿Eliminar esta boleta? Se borran items, pedido y movimientos de stock/cuenta asociados. No se puede deshacer.')) return
+  const pedidoAnulado = boleta?.pedidos?.estado === 'anulado'
+  const msg = pedidoAnulado
+    ? '¿Eliminar esta boleta ANULADA?\n\n' +
+      '• La mercadería YA volvió al stock cuando se anuló el pedido.\n' +
+      '• Eliminarla solo borra el registro: el stock NO cambia.\n\n' +
+      'No se puede deshacer.'
+    : '¿Eliminar esta boleta?\n\n' +
+      '• Se deshace la venta: la mercadería VUELVE al stock.\n' +
+      '• Se borran el pedido y sus movimientos de cuenta corriente.\n\n' +
+      'No se puede deshacer.'
+  if (!confirm(msg)) return
   const { error } = await supabase.rpc('eliminar_boleta', { p_boleta_id: boleta.id })
   if (error) { mostrarError('Error: ' + error.message); return }
   alert('Boleta eliminada')
