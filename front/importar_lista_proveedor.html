@@ -300,16 +300,11 @@ function renderPegar() {
 }
 
 function renderClasificar() {
-  const pendientes = lineasParseadas.filter(l => {
-    const c = clasif[l.nombre_norm]
-    return !c // sin clasificar aún
-  })
-  const total = lineasParseadas.length
+  const pendientes = lineasParseadas.filter(l => !clasif[l.nombre_norm])
   const nMap = Object.values(clasif).filter(c => c.estado === 'mapeado').length
   const nIgn = Object.values(clasif).filter(c => c.estado === 'ignorado').length
 
   if (!pendientes.length) {
-    // Nada por clasificar: pasar directo a cambios.
     return `<section>
       <div class="box"><p>Todas las líneas están clasificadas. ${nMap} mapeadas · ${nIgn} ignoradas.</p></div>
       <div class="bar">
@@ -319,69 +314,93 @@ function renderClasificar() {
     </section>`
   }
 
-  const yaMapeadosIds = new Set(Object.values(clasif).filter(c => c.estado==='mapeado' && c.producto_id).map(c => c.producto_id))
-  const prodOpts = productos
-    .filter(p => !yaMapeadosIds.has(p.id))
-    .filter(p => !busquedaProd || normalizar(p.nombre).includes(normalizar(busquedaProd)))
+  // Datalist compartido con todos los productos no mapeados aún.
+  const yaMapeados = new Set(Object.values(clasif).filter(c => c.estado==='mapeado' && c.producto_id).map(c => c.producto_id))
+  const prodDisponibles = productos.filter(p => !yaMapeados.has(p.id))
+  const datalist = `<datalist id="prod-dl">
+    ${prodDisponibles.map(p => `<option value="${p.nombre.replace(/"/g,'&quot;')}"></option>`).join('')}
+  </datalist>`
 
   return `<section>
     <div class="box">
       <h3>Clasificar nombres nuevos</h3>
-      <p>Asociá cada línea a un producto tuyo o marcala como <b>ignorada</b> (no la trabajás). Lo que elijas acá queda guardado y en próximas listas se usa solo.</p>
-      <p style="font-size:12px;margin-top:4px"><b>Equivalencia</b>: si el proveedor vende en una cantidad distinta a la tuya, ajustá "Lista = Stock". Ej: proveedor x10, tu stock x20 → <code>1 = 2</code>.</p>
-      <input class="field" placeholder="Buscar producto para asociar…" value="${busquedaProd.replace(/"/g,'&quot;')}"
-        oninput="window._setBusqProd(this.value)" style="margin-top:8px">
+      <p>Escribí para buscar el producto tuyo que corresponde, o marcala como <b>ignorada</b>. Lo que elijas queda guardado y en próximas listas se usa solo.</p>
+      <p style="font-size:12px;margin-top:4px;color:var(--ink-soft)"><b>Equivalencia</b>: si el proveedor vende en otra cantidad, ajustá "L = S". Ej: proveedor x10, tu stock x20 → <code>1 = 2</code>.</p>
     </div>
+    ${datalist}
     <div class="box" style="padding:0;overflow:hidden">
       <table>
         <thead>
           <tr>
-            <th>Nombre en la lista</th>
-            <th class="r">Precio ref</th>
-            <th>Mapear a producto</th>
-            <th style="width:140px">Equivalencia</th>
-            <th style="width:80px;text-align:center">Ignorar</th>
+            <th style="min-width:180px">Nombre en la lista</th>
+            <th class="r" style="width:90px">Precio ref</th>
+            <th style="min-width:200px">Buscar y mapear</th>
+            <th style="width:120px">Equivalencia</th>
+            <th style="width:70px;text-align:center">Acción</th>
           </tr>
         </thead>
-        <tbody>
-          ${pendientes.map(l => {
-            const eq = eqInputs[l.nombre_norm] || { l: '1', s: '1' }
-            return `
-            <tr>
-              <td>${l.nombre}</td>
-              <td class="r">${arsCent(l.precio)}</td>
-              <td>
-                <select class="mini" onchange="window._mapear('${l.nombre_norm}', this.value)">
-                  <option value="">— Elegir producto —</option>
-                  ${prodOpts.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')}
-                </select>
-              </td>
-              <td>
-                <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">
-                  <span>Lista</span>
-                  <input type="number" step="any" min="0" value="${eq.l}" data-norm="${l.nombre_norm}" data-eq="l"
-                    oninput="window._setEq(this)" style="width:48px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;text-align:center">
-                  <span>=</span>
-                  <input type="number" step="any" min="0" value="${eq.s}" data-norm="${l.nombre_norm}" data-eq="s"
-                    oninput="window._setEq(this)" style="width:48px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;text-align:center">
-                  <span>Stock</span>
-                </div>
-              </td>
-              <td style="text-align:center">
-                <button class="btn-ghost" style="padding:5px 10px;font-size:12px"
-                  onclick="window._ignorar('${l.nombre_norm}')">Ignorar</button>
-              </td>
-            </tr>`}).join('')}
+        <tbody id="tbody-clas">
+          ${pendientes.map(l => renderFilaClas(l)).join('')}
         </tbody>
       </table>
     </div>
     <div class="bar">
       <button class="btn-ghost" onclick="window._volverA('pegar')">‹ Volver</button>
-      <button class="btn-gold" onclick="window._armarCambios()">
+      <button class="btn-gold" id="btn-ver-cambios" onclick="window._armarCambios()">
         ${pendientes.length} sin clasificar · Ver cambios ›
       </button>
     </div>
   </section>`
+}
+
+function renderFilaClas(l) {
+  const eq = eqInputs[l.nombre_norm] || { l: '1', s: '1' }
+  const normAttr = l.nombre_norm.replace(/"/g,'&quot;')
+  return `<tr data-norm="${normAttr}">
+    <td style="font-size:13px">${l.nombre}</td>
+    <td class="r">${arsCent(l.precio)}</td>
+    <td>
+      <input list="prod-dl" class="mini" placeholder="Escribir y elegir…"
+        style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:inherit;background:#fff"
+        onchange="window._mapearPorNombre('${normAttr}', this.value)"
+        onkeydown="if(event.key==='Enter'){this.blur()}">
+    </td>
+    <td>
+      <div style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--ink-soft)">
+        <input type="number" step="any" min="0" value="${eq.l}" data-norm="${normAttr}" data-eq="l"
+          oninput="window._setEq(this)" style="width:40px;padding:4px;border:1px solid var(--line);border-radius:5px;font-family:inherit;font-size:12px;text-align:center">
+        <span>=</span>
+        <input type="number" step="any" min="0" value="${eq.s}" data-norm="${normAttr}" data-eq="s"
+          oninput="window._setEq(this)" style="width:40px;padding:4px;border:1px solid var(--line);border-radius:5px;font-family:inherit;font-size:12px;text-align:center">
+      </div>
+    </td>
+    <td style="text-align:center">
+      <button class="btn-ghost" style="padding:4px 10px;font-size:12px"
+        onclick="window._ignorar('${normAttr}')">Ignorar</button>
+    </td>
+  </tr>`
+}
+
+// Actualiza el contador del botón sin re-renderizar toda la pantalla.
+function refrescarContadorPendientes() {
+  const pendientes = lineasParseadas.filter(l => !clasif[l.nombre_norm]).length
+  const btn = document.getElementById('btn-ver-cambios')
+  if (btn) {
+    btn.textContent = pendientes === 0
+      ? 'Ver cambios ›'
+      : `${pendientes} sin clasificar · Ver cambios ›`
+  }
+  if (pendientes === 0) render() // ahora sí, mostrar el estado "todo clasificado"
+}
+
+// Saca una fila del DOM y limpia la opción del datalist si estaba mapeada.
+function ocultarFila(nombreNorm, prodNombre) {
+  const tr = document.querySelector(`tr[data-norm="${CSS.escape(nombreNorm)}"]`)
+  if (tr) tr.remove()
+  if (prodNombre) {
+    const opt = document.querySelector(`#prod-dl option[value="${CSS.escape(prodNombre)}"]`)
+    if (opt) opt.remove()
+  }
 }
 
 function renderCambios() {
@@ -531,9 +550,21 @@ window._mapear = (nombreNorm, prodId) => {
   clasif[nombreNorm] = { estado: 'mapeado', producto_id: prodId, factor: factorDeFila(nombreNorm) }
   render()
 }
+
+// Igual que _mapear pero toma el NOMBRE del producto (viene del datalist/autocomplete).
+window._mapearPorNombre = (nombreNorm, nombreProd) => {
+  if (!nombreProd) return
+  const prod = productos.find(p => p.nombre === nombreProd)
+  if (!prod) return  // escrito a mano pero no coincide con ninguno
+  clasif[nombreNorm] = { estado: 'mapeado', producto_id: prod.id, factor: factorDeFila(nombreNorm) }
+  ocultarFila(nombreNorm, prod.nombre)
+  refrescarContadorPendientes()
+}
+
 window._ignorar = nombreNorm => {
   clasif[nombreNorm] = { estado: 'ignorado', producto_id: null, factor: 1 }
-  render()
+  ocultarFila(nombreNorm)
+  refrescarContadorPendientes()
 }
 
 window._armarCambios = () => {
