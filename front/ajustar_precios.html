@@ -105,6 +105,7 @@ let busquedaSel = ''
 let preview = []       // [{prodId, precioActual, precioNuevo, excluido}]
 let aplicando = false
 let precioSigueCosto = true   // ON: el precio sigue al costo manteniendo el margen
+let ordenPor = 'frescura'     // 'frescura' | 'alfa'
 
 const HOY = new Date()
 const diasDesde = s => s ? Math.floor((HOY - new Date(s)) / 86400000) : 9999
@@ -164,12 +165,18 @@ function productosFiltrados() {
   const map = new Map()
   for (const p of porFiltro) map.set(p.id, p)
   for (const p of porSel)    map.set(p.id, p)
-  // Orden: más días sin confirmar precio arriba, luego alfabético.
-  return [...map.values()].sort((a, b) => {
-    const da = diasDesde(a._frescura), db = diasDesde(b._frescura)
-    if (db !== da) return db - da
-    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-  })
+  const arr = [...map.values()]
+  if (ordenPor === 'alfa') {
+    arr.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+  } else {
+    // Más días sin confirmar precio arriba, desempate alfabético.
+    arr.sort((a, b) => {
+      const da = diasDesde(a._frescura), db = diasDesde(b._frescura)
+      if (db !== da) return db - da
+      return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+    })
+  }
+  return arr
 }
 
 function aplicarAjuste(valorActual, ajuste) {
@@ -415,7 +422,16 @@ function render() {
 
     ${preview.length ? `
     <section>
-      <div class="lbl">Vista previa — editá los precios manualmente o destildá para excluir</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <div class="lbl" style="margin-bottom:0">Vista previa — editá los precios manualmente o destildá para excluir</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)">
+          <span>Orden:</span>
+          <button class="btn-ghost" style="padding:5px 10px;font-size:12px;${ordenPor==='frescura'?'background:var(--gold-lt);color:var(--gold-dk);border-color:var(--gold)':''}"
+            onclick="window._setOrden('frescura')">Días sin tocar</button>
+          <button class="btn-ghost" style="padding:5px 10px;font-size:12px;${ordenPor==='alfa'?'background:var(--gold-lt);color:var(--gold-dk);border-color:var(--gold)':''}"
+            onclick="window._setOrden('alfa')">A-Z</button>
+        </div>
+      </div>
       <table>
         <thead>
           <tr>
@@ -591,6 +607,7 @@ function actualizarResumen() {
   if (btnTog) btnTog.textContent = (selectorOpen ? '× Cerrar selector' : '＋ Elegir productos')
     + (seleccionados.size ? ` (${seleccionados.size})` : '')
 }
+window._setOrden = v => { ordenPor = v; calcularPreview() }
 window._calcular = () => calcularPreview()
 window._toggleSigue = () => { precioSigueCosto = !precioSigueCosto; preview = []; render() }
 window._toggleExcl = i => { preview[i].excluido = !preview[i].excluido; render() }
