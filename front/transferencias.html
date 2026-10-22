@@ -130,6 +130,7 @@
   <div class="sel-info" id="bar-info"></div>
   <button class="clr" onclick="window._limpiarSel()">Limpiar</button>
   <button class="clr" onclick="window._marcarEnviadasSel()">📤 Enviadas</button>
+  <button class="clr" onclick="window._marcarConciliadasSel()">✓ Conciliadas</button>
   <button class="clr" onclick="window._exportarSel('zip')">📦 ZIP</button>
   <button class="exp" onclick="window._exportarSel('pdf')">📄 PDF</button>
 </div>
@@ -663,6 +664,23 @@ async function marcarEnviadas(ids) {
   if (error) { alert('Error al marcar como enviadas: ' + error.message); return }
   seleccionadas = new Set()
   await cargar()
+}
+
+window._marcarConciliadasSel = async () => {
+  const ids = [...seleccionadas]
+  if (!ids.length) return
+  // Filtrar las que ya estaban conciliadas: no se tocan.
+  const pendientes = transferencias.filter(t => ids.includes(t.id) && !t.conciliado).map(t => t.id)
+  if (!pendientes.length) { mostrarToast('Las seleccionadas ya estaban conciliadas'); return }
+  if (!confirm(`¿Marcar ${pendientes.length} transferencia${pendientes.length===1?'':'s'} como conciliada${pendientes.length===1?'':'s'}?`)) return
+  const { error } = await supabase.from('mov_cuenta')
+    .update({ conciliado: true, conciliado_en: new Date().toISOString(), conciliado_por: usuario.id })
+    .in('id', pendientes)
+  if (error) { alert('Error al marcar como conciliadas: ' + error.message); return }
+  mostrarToast(`✓ ${pendientes.length} marcada${pendientes.length===1?'':'s'} como conciliada${pendientes.length===1?'':'s'}`)
+  seleccionadas = new Set()
+  await cargar()
+  render()
 }
 
 async function exportarZip(bloques, totalGeneral, sel) {
