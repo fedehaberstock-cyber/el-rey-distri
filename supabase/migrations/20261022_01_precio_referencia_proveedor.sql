@@ -47,6 +47,12 @@ create index if not exists idx_nombre_ext_prov on public.nombre_externo_proveedo
 create index if not exists idx_nombre_ext_prod on public.nombre_externo_proveedor(producto_id)
   where producto_id is not null;
 
+alter table public.nombre_externo_proveedor enable row level security;
+drop policy if exists tenant on public.nombre_externo_proveedor;
+create policy tenant on public.nombre_externo_proveedor
+  using (empresa_id = public.empresa_actual())
+  with check (empresa_id = public.empresa_actual());
+
 -- Historial de importaciones (header con contadores).
 create table if not exists public.importacion_lista_proveedor (
   id               uuid primary key default gen_random_uuid(),
@@ -62,6 +68,12 @@ create table if not exists public.importacion_lista_proveedor (
   mapeados_sin_precio integer not null default 0
 );
 create index if not exists idx_imp_lista_prov on public.importacion_lista_proveedor(proveedor_id, fecha desc);
+
+alter table public.importacion_lista_proveedor enable row level security;
+drop policy if exists tenant on public.importacion_lista_proveedor;
+create policy tenant on public.importacion_lista_proveedor
+  using (empresa_id = public.empresa_actual())
+  with check (empresa_id = public.empresa_actual());
 
 -- Trigger: cuando se edita productos.precio (fuera o dentro de una importación),
 -- recalcula ratio_venta para todos los proveedores que tengan precio_referencia
