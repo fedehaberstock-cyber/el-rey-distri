@@ -27,15 +27,19 @@ comment on column public.producto_proveedor.ratio_venta is
 -- Nombres externos: cómo nombra cada proveedor sus productos.
 -- Estado: mapeado (asociado a un producto tuyo) o ignorado (no te interesa).
 create table if not exists public.nombre_externo_proveedor (
-  id              uuid primary key default gen_random_uuid(),
-  empresa_id      uuid not null references public.empresas(id) on delete cascade,
-  proveedor_id    uuid not null references public.proveedores(id) on delete cascade,
-  nombre_externo  text not null,
-  nombre_norm     text not null,
-  producto_id     uuid references public.productos(id) on delete set null,
-  estado          text not null check (estado in ('mapeado','ignorado')),
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now(),
+  id                uuid primary key default gen_random_uuid(),
+  empresa_id        uuid not null references public.empresas(id) on delete cascade,
+  proveedor_id      uuid not null references public.proveedores(id) on delete cascade,
+  nombre_externo    text not null,
+  nombre_norm       text not null,
+  producto_id       uuid references public.productos(id) on delete set null,
+  estado            text not null check (estado in ('mapeado','ignorado')),
+  -- Equivalencia entre la unidad de la lista y la unidad del stock.
+  -- precio_ref_tu_unidad = precio_lista × factor_conversion.
+  -- Ej: proveedor vende x10, vos tenés x20 → factor = 20/10 = 2.
+  factor_conversion numeric not null default 1 check (factor_conversion > 0),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
   unique (proveedor_id, nombre_norm)
 );
 

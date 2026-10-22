@@ -212,7 +212,7 @@ async function cargarInicial() {
 async function cargarProveedor(provId) {
   const [{ data: nombres, error: e1 }, { data: pps, error: e2 }] = await Promise.all([
     supabase.from('nombre_externo_proveedor')
-      .select('id, nombre_externo, nombre_norm, producto_id, estado')
+      .select('id, nombre_externo, nombre_norm, producto_id, estado, factor_conversion')
       .eq('proveedor_id', provId),
     supabase.from('producto_proveedor')
       .select('id, producto_id, precio_referencia, ratio_venta, costo')
@@ -313,6 +313,7 @@ function renderClasificar() {
     <div class="box">
       <h3>Clasificar nombres nuevos</h3>
       <p>Asociá cada línea a un producto tuyo o marcala como <b>ignorada</b> (no la trabajás). Lo que elijas acá queda guardado y en próximas listas se usa solo.</p>
+      <p style="font-size:12px;margin-top:4px"><b>Equivalencia</b>: si el proveedor vende en una cantidad distinta a la tuya, ajustá "Lista = Stock". Ej: proveedor x10, tu stock x20 → <code>1 = 2</code>.</p>
       <input class="field" placeholder="Buscar producto para asociar…" value="${busquedaProd.replace(/"/g,'&quot;')}"
         oninput="window._setBusqProd(this.value)" style="margin-top:8px">
     </div>
@@ -323,11 +324,14 @@ function renderClasificar() {
             <th>Nombre en la lista</th>
             <th class="r">Precio ref</th>
             <th>Mapear a producto</th>
+            <th style="width:140px">Equivalencia</th>
             <th style="width:80px;text-align:center">Ignorar</th>
           </tr>
         </thead>
         <tbody>
-          ${pendientes.map(l => `
+          ${pendientes.map(l => {
+            const eq = eqInputs[l.nombre_norm] || { l: '1', s: '1' }
+            return `
             <tr>
               <td>${l.nombre}</td>
               <td class="r">${arsCent(l.precio)}</td>
@@ -337,11 +341,22 @@ function renderClasificar() {
                   ${prodOpts.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')}
                 </select>
               </td>
+              <td>
+                <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">
+                  <span>Lista</span>
+                  <input type="number" step="any" min="0" value="${eq.l}" data-norm="${l.nombre_norm}" data-eq="l"
+                    oninput="window._setEq(this)" style="width:48px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;text-align:center">
+                  <span>=</span>
+                  <input type="number" step="any" min="0" value="${eq.s}" data-norm="${l.nombre_norm}" data-eq="s"
+                    oninput="window._setEq(this)" style="width:48px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;text-align:center">
+                  <span>Stock</span>
+                </div>
+              </td>
               <td style="text-align:center">
                 <button class="btn-ghost" style="padding:5px 10px;font-size:12px"
                   onclick="window._ignorar('${l.nombre_norm}')">Ignorar</button>
               </td>
-            </tr>`).join('')}
+            </tr>`}).join('')}
         </tbody>
       </table>
     </div>
@@ -416,7 +431,11 @@ function renderFila(c) {
   const nuevoVal = Number.isFinite(c.precio_sugerido) ? c.precio_sugerido.toFixed(2) : ''
   return `<tr class="${c.aplicar?'':'off'}">
     <td><input type="checkbox" class="cb" ${c.aplicar?'checked':''} onchange="window._togFila(${c.idx}, this.checked)"></td>
-    <td>${c.nombre_prod}<div style="font-size:11px;color:var(--ink-soft)">${c.nombre_externo}</div></td>
+    <td>${c.nombre_prod}
+      <div style="font-size:11px;color:var(--ink-soft)">
+        ${c.nombre_externo}${c.factor !== 1 ? ` · lista ${arsCent(c.precio_lista_crudo)} × ${c.factor}` : ''}
+      </div>
+    </td>
     <td class="r">${c.precio_ref_ant ? arsCent(c.precio_ref_ant) : '—'}</td>
     <td class="r">${arsCent(c.precio_ref_nuevo)}</td>
     <td class="r"><span class="${pctClass}">${c.precio_ref_ant ? fmtPct(pct) : 'nuevo'}</span></td>
@@ -459,7 +478,12 @@ window._procesarTexto = () => {
   const porNorm = new Map(nombresExt.map(n => [n.nombre_norm, n]))
   for (const l of lineasParseadas) {
     const n = porNorm.get(l.nombre_norm)
-    if (n) clasif[l.nombre_norm] = { estado: n.estado, producto_id: n.producto_id, dbId: n.id }
+    if (n) clasif[l.nombre_norm] = {
+      estado: n.estado,
+      producto_id: n.producto_id,
+      factor: Number(n.factor_conversion) || 1,
+      dbId: n.id,
+    }
   }
   paso = 'clasificar'
   busquedaProd = ''
@@ -467,13 +491,30 @@ window._procesarTexto = () => {
 }
 
 window._setBusqProd = v => { busquedaProd = v; render() }
+
+// Guardamos los valores "lista = stock" por fila mientras el usuario tipea;
+// cuando mapea, convertimos a factor = stock / lista. Default 1 = 1.
+const eqInputs = {}  // nombre_norm → { l: '1', s: '1' }
+window._setEq = (el) => {
+  const norm = el.dataset.norm
+  if (!eqInputs[norm]) eqInputs[norm] = { l: '1', s: '1' }
+  eqInputs[norm][el.dataset.eq] = el.value
+}
+
+function factorDeFila(nombreNorm) {
+  const eq = eqInputs[nombreNorm] || { l: '1', s: '1' }
+  const l = Number(eq.l), s = Number(eq.s)
+  if (!(l > 0) || !(s > 0)) return 1
+  return s / l
+}
+
 window._mapear = (nombreNorm, prodId) => {
   if (!prodId) return
-  clasif[nombreNorm] = { estado: 'mapeado', producto_id: prodId }
+  clasif[nombreNorm] = { estado: 'mapeado', producto_id: prodId, factor: factorDeFila(nombreNorm) }
   render()
 }
 window._ignorar = nombreNorm => {
-  clasif[nombreNorm] = { estado: 'ignorado', producto_id: null }
+  clasif[nombreNorm] = { estado: 'ignorado', producto_id: null, factor: 1 }
   render()
 }
 
@@ -493,9 +534,12 @@ window._armarCambios = () => {
     const precioRefAnt = Number(pp?.precio_referencia) || 0
     const ratio = Number(pp?.ratio_venta) || 0
     const precioVentaActual = Number(prod.precio) || 0
+    const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
+    // Precio del proveedor convertido a TU unidad
+    const precioRefNuevo = l.precio * factor
     // Ratio inicial = precio_venta / precio_ref_nuevo (si no había uno guardado)
-    const ratioUsado = ratio > 0 ? ratio : (precioVentaActual > 0 && l.precio > 0 ? precioVentaActual / l.precio : 1)
-    const sugerido = ratioUsado * l.precio
+    const ratioUsado = ratio > 0 ? ratio : (precioVentaActual > 0 && precioRefNuevo > 0 ? precioVentaActual / precioRefNuevo : 1)
+    const sugerido = ratioUsado * precioRefNuevo
     const hayCambio = precioRefAnt === 0 || Math.abs(sugerido - precioVentaActual) >= 0.01
     items.push({
       idx: idx++,
@@ -503,8 +547,10 @@ window._armarCambios = () => {
       nombre_norm: l.nombre_norm,
       producto_id: c.producto_id,
       nombre_prod: prod.nombre,
+      factor,
+      precio_lista_crudo: l.precio,
       precio_ref_ant: precioRefAnt,
-      precio_ref_nuevo: l.precio,
+      precio_ref_nuevo: precioRefNuevo,
       precio_venta_actual: precioVentaActual,
       precio_sugerido: Math.round(sugerido * 100) / 100,
       costo: Number(prod.costo) || 0,
@@ -548,6 +594,7 @@ async function guardarNombresExternos() {
   for (const l of lineasParseadas) {
     const c = clasif[l.nombre_norm]
     if (!c) continue
+    const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
     const existe = porNorm.get(l.nombre_norm)
     if (!existe) {
       inserts.push({
@@ -557,9 +604,16 @@ async function guardarNombresExternos() {
         nombre_norm: l.nombre_norm,
         producto_id: c.producto_id,
         estado: c.estado,
+        factor_conversion: factor,
       })
-    } else if (existe.estado !== c.estado || existe.producto_id !== c.producto_id) {
-      updates.push({ id: existe.id, producto_id: c.producto_id, estado: c.estado })
+    } else {
+      const factorAnt = Number(existe.factor_conversion) || 1
+      const cambio = existe.estado !== c.estado
+        || existe.producto_id !== c.producto_id
+        || Math.abs(factorAnt - factor) > 1e-9
+      if (cambio) {
+        updates.push({ id: existe.id, producto_id: c.producto_id, estado: c.estado, factor_conversion: factor })
+      }
     }
   }
   if (inserts.length) {
@@ -568,7 +622,12 @@ async function guardarNombresExternos() {
   }
   for (const u of updates) {
     const { error } = await supabase.from('nombre_externo_proveedor')
-      .update({ producto_id: u.producto_id, estado: u.estado, updated_at: new Date().toISOString() })
+      .update({
+        producto_id: u.producto_id,
+        estado: u.estado,
+        factor_conversion: u.factor_conversion,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', u.id)
     if (error) throw error
   }
@@ -577,6 +636,7 @@ async function guardarNombresExternos() {
 async function guardarPreciosReferencia() {
   // Para cada mapeado (haya o no cambio seleccionado), actualizar precio_referencia
   // en producto_proveedor. Si no existe la fila, insertarla.
+  // Importante: precio_referencia se guarda EN TU UNIDAD (ya convertido con factor).
   const porProd = new Map(producProv.map(pp => [pp.producto_id, pp]))
   const upserts = []
   for (const l of lineasParseadas) {
@@ -585,16 +645,17 @@ async function guardarPreciosReferencia() {
     const pp = porProd.get(c.producto_id)
     const prod = productos.find(p => p.id === c.producto_id)
     const precioVenta = Number(prod?.precio) || 0
+    const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
+    const precioRefConv = l.precio * factor
     // Si el usuario va a aplicar el cambio, el ratio se recalcula solo (trigger)
     // cuando actualicemos productos.precio. Si NO aplica, mantenemos el ratio
     // existente o lo seteamos usando el precio de venta actual.
-    const cambio = cambios.find(x => x.producto_id === c.producto_id)
     let ratio = pp?.ratio_venta
     if (!ratio || ratio <= 0) {
-      ratio = (precioVenta > 0 && l.precio > 0) ? precioVenta / l.precio : 1
+      ratio = (precioVenta > 0 && precioRefConv > 0) ? precioVenta / precioRefConv : 1
     }
     if (pp) {
-      upserts.push({ tipo: 'update', id: pp.id, precio_referencia: l.precio, ratio_venta: ratio })
+      upserts.push({ tipo: 'update', id: pp.id, precio_referencia: precioRefConv, ratio_venta: ratio })
     } else {
       upserts.push({
         tipo: 'insert',
@@ -603,7 +664,7 @@ async function guardarPreciosReferencia() {
           proveedor_id: proveedorId,
           producto_id: c.producto_id,
           costo: Number(prod?.costo) || 0,
-          precio_referencia: l.precio,
+          precio_referencia: precioRefConv,
           ratio_venta: ratio,
         }
       })
