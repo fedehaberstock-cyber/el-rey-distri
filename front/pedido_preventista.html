@@ -225,7 +225,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession, getUsuario, tienePermiso } from './src/auth.js'
-import { ars, mostrarError } from './src/utils.js?v=2'
+import { ars, mostrarError, comprimirImagen } from './src/utils.js?v=2'
 import { db } from './src/db.js'
 import { initSync, pushOp, mountStatusBadge } from './src/sync.js'
 
@@ -367,8 +367,9 @@ Object.assign(window, {
       if (btn) btn.textContent = 'Subiendo foto…';
       const ext = (cobroFotoFile.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `${clienteId}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
+      const archivo = await comprimirImagen(cobroFotoFile);
       const up = await supabase.storage.from('comprobantes')
-        .upload(path, cobroFotoFile, { upsert: false, contentType: cobroFotoFile.type || 'image/jpeg' });
+        .upload(path, archivo, { upsert: false, contentType: archivo.type || 'image/jpeg' });
       if (up.error) {
         cobroSaving = false;
         alert('Error subiendo foto: ' + up.error.message);

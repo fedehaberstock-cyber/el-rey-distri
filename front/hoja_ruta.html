@@ -210,7 +210,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession, tienePermiso } from './src/auth.js'
-import { ars, fechaCorta, mostrarError } from './src/utils.js?v=2'
+import { ars, fechaCorta, mostrarError, comprimirImagen } from './src/utils.js?v=2'
 
 const { usuario } = await requireSession()
 if (!tienePermiso('hoja_ruta')) { location.href = './login_home.html'; throw new Error('sin permiso') }
@@ -875,8 +875,9 @@ async function confirmarCierre() {
       if (c.anulado || c.noEntregado || !c.trFoto) continue
       const ext = (c.trFoto.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `${p.id}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`
+      const archivo = await comprimirImagen(c.trFoto)
       const up = await supabase.storage.from('comprobantes')
-        .upload(path, c.trFoto, { upsert: false, contentType: c.trFoto.type || 'image/jpeg' })
+        .upload(path, archivo, { upsert: false, contentType: archivo.type || 'image/jpeg' })
       if (up.error) throw new Error('Error subiendo foto de ' + (p.cliente || '') + ': ' + up.error.message)
       c.trFotoUrl = supabase.storage.from('comprobantes').getPublicUrl(path).data.publicUrl
     }

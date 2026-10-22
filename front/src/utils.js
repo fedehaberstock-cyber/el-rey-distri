@@ -21,6 +21,46 @@ export const ars = (n) => ARS_FMT.format(Number(n) || 0)
 // importan (listas de proveedor, sugerencias de precio).
 export const arsCent = (n) => ARS_FMT_CENT.format(Number(n) || 0)
 
+// Comprime una imagen antes de subirla a Storage. Reduce el lado más largo
+// a maxLado y re-encoda como JPEG con la calidad indicada. Si el archivo
+// ya es chico (< minSize) o si la compresión no mejora el tamaño, devuelve
+// el original. No es imagen → se devuelve tal cual. Nunca lanza: si algo
+// falla, usa el original.
+export async function comprimirImagen(file, opts = {}) {
+  const { maxLado = 1600, calidad = 0.8, minSize = 500 * 1024 } = opts
+  try {
+    if (!file || !file.type || !file.type.startsWith('image/')) return file
+    if (file.size <= minSize) return file
+
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image()
+      i.onload = () => resolve(i)
+      i.onerror = reject
+      i.src = URL.createObjectURL(file)
+    })
+
+    let w = img.width, h = img.height
+    if (w > maxLado || h > maxLado) {
+      if (w > h) { h = Math.round(h * maxLado / w); w = maxLado }
+      else       { w = Math.round(w * maxLado / h); h = maxLado }
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0, w, h)
+
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', calidad))
+    URL.revokeObjectURL(img.src)
+    if (!blob || blob.size >= file.size) return file
+
+    const nombre = (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg'
+    return new File([blob], nombre, { type: 'image/jpeg', lastModified: Date.now() })
+  } catch {
+    return file
+  }
+}
+
 // Fecha de hoy en Argentina (Córdoba, UTC-3) como YYYY-MM-DD.
 // Importante: NO usar new Date().toISOString().slice(0,10) porque
 // a las 21hs UTC ya es el día siguiente y se rompen los filtros de "hoy".

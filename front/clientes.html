@@ -131,7 +131,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js'
 import { requireSession, tienePermiso, getUsuario } from './src/auth.js'
-import { ars as arsFmt, fechaCorta, mostrarError } from './src/utils.js?v=2'
+import { ars as arsFmt, fechaCorta, mostrarError, comprimirImagen } from './src/utils.js?v=2'
 
 // expongo handlers a onclick inline
 Object.assign(window, {
@@ -778,8 +778,9 @@ async function confirmarCobro(){
     btn.textContent = 'Subiendo foto…';
     const ext = (cobroFotoFile.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `${cliSelId}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
+    const archivo = await comprimirImagen(cobroFotoFile);
     const up = await supabase.storage.from('comprobantes')
-      .upload(path, cobroFotoFile, { upsert: false, contentType: cobroFotoFile.type || 'image/jpeg' });
+      .upload(path, archivo, { upsert: false, contentType: archivo.type || 'image/jpeg' });
     if (up.error) {
       btn.disabled = false; btn.textContent = editandoMovId ? 'Guardar' : 'Confirmar cobro';
       if (errEl) { errEl.textContent = 'Error subiendo foto: ' + up.error.message; errEl.style.display='block'; }

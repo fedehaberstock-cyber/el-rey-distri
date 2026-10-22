@@ -320,6 +320,7 @@ function render() {
       </div>
       <div class="actions-inline">
         <button class="lnk" onclick="window._openBenef()">⚙ Beneficiarios</button>
+        <button class="lnk" onclick="window._liberarEspacio()">🗑 Liberar espacio</button>
         ${lista.length ? `<button class="lnk" onclick="window._selVisibles()">Seleccionar visibles (${lista.length})</button>` : ''}
       </div>
     </div>
@@ -530,6 +531,63 @@ window._setBenef = async (movId, val) => {
 }
 
 // ── CRUD BENEFICIARIOS ─────────────────────────────────────────────────────
+// Extrae el path dentro del bucket "comprobantes" a partir de una URL pública.
+// Ej: https://xxx.supabase.co/storage/v1/object/public/comprobantes/PATH → "PATH".
+function pathDesdeUrl(url) {
+  if (!url) return null
+  const marcadores = ['/object/public/comprobantes/', '/comprobantes/']
+  for (const m of marcadores) {
+    const i = url.indexOf(m)
+    if (i >= 0) return decodeURIComponent(url.slice(i + m.length))
+  }
+  return null
+}
+
+window._liberarEspacio = async () => {
+  // Candidatos: pagos por transferencia conciliados Y enviados Y con comprobante aún guardado.
+  const { data: cand, error } = await supabase.from('mov_cuenta')
+    .select('id, comprobante_url')
+    .eq('empresa_id', usuario.empresa_id)
+    .eq('tipo', 'pago')
+    .eq('forma_pago', 'transferencia')
+    .eq('conciliado', true)
+    .eq('enviado_al_beneficiario', true)
+    .not('comprobante_url', 'is', null)
+    .limit(5000)
+  if (error) { alert('Error: ' + error.message); return }
+  const items = (cand || []).filter(m => pathDesdeUrl(m.comprobante_url))
+  if (!items.length) { alert('No hay comprobantes para borrar: todas las transferencias conciliadas + enviadas ya están limpias.'); return }
+
+  const mbAprox = Math.round(items.length * 0.5)
+  if (!confirm(`${items.length} comprobante${items.length===1?'':'s'} listo${items.length===1?'':'s'} para borrar (~${mbAprox} MB estimado).
+
+Son transferencias ya conciliadas Y enviadas al beneficiario — la foto no vuelve, pero la transacción queda registrada igual.
+
+¿Continuar?`)) return
+
+  let ok = 0, fail = 0
+  const barraBtn = document.querySelector('.actions-inline button[onclick*="_liberarEspacio"]')
+  for (let i = 0; i < items.length; i++) {
+    const m = items[i]
+    if (barraBtn) barraBtn.textContent = `Borrando ${i+1}/${items.length}…`
+    const path = pathDesdeUrl(m.comprobante_url)
+    try {
+      const { error: eDel } = await supabase.storage.from('comprobantes').remove([path])
+      if (eDel) throw eDel
+      const { error: eUpd } = await supabase.from('mov_cuenta').update({ comprobante_url: null }).eq('id', m.id)
+      if (eUpd) throw eUpd
+      ok++
+    } catch (e) {
+      console.warn('[liberar] falló', path, e.message || e)
+      fail++
+    }
+  }
+  if (barraBtn) barraBtn.textContent = '🗑 Liberar espacio'
+  alert(`Listo. Borrados ${ok}${fail?`, fallaron ${fail}`:''}. Supabase actualiza el storage usage cada hora.`)
+  await cargar()
+  render()
+}
+
 window._openBenef = () => { benefPanelOpen = true; benefEditando = null; render() }
 window._cerrarBenef = () => { benefPanelOpen = false; benefEditando = null; render() }
 window._editBenef = id => {
