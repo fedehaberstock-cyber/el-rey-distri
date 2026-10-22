@@ -124,6 +124,8 @@ let producProv = []        // producto_proveedor del proveedor elegido (con prec
 let paso = 'elegir'        // 'elegir' | 'pegar' | 'clasificar' | 'cambios'
 let textoCrudo = ''
 let lineasParseadas = []   // [{idx, nombre, precio, nombre_norm}]
+let lineasDescartes = []   // [string] líneas con texto pero sin precio reconocido
+let verDescartes = false
 // Clasificación "live" durante el paso de clasificar: nombre_norm → {producto_id|null, estado:'mapeado'|'ignorado'}
 let clasif = {}
 // Items de cambio en el paso final: {idx, nombre_externo, producto_id, nombre_prod,
@@ -145,6 +147,7 @@ const normalizar = s => (s || '')
 // Soporta "$", separador miles con punto o coma, decimales con coma o punto.
 function parsearTexto(txt) {
   const lineas = []
+  const descartes = []
   const rows = (txt || '').split(/\r?\n/)
   let idx = 0
   for (const raw of rows) {
@@ -152,18 +155,18 @@ function parsearTexto(txt) {
     if (!line) continue
     // Buscar el ÚLTIMO token numérico. Admite: 1234, 1.234, 1.234,56, 1234.56
     const m = line.match(/(?:\$\s*)?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*$/)
-    if (!m) continue
+    if (!m) { descartes.push(line); continue }
     const numTxt = m[1]
     const precio = parsearNumero(numTxt)
-    if (!(precio > 0)) continue
+    if (!(precio > 0)) { descartes.push(line); continue }
     const nombre = line.slice(0, m.index).replace(/[\s;,\|\t\-–—]+$/, '').trim()
-    if (!nombre || nombre.length < 2) continue
+    if (!nombre || nombre.length < 2) { descartes.push(line); continue }
     lineas.push({ idx: idx++, nombre, precio, nombre_norm: normalizar(nombre) })
   }
   // Si hay nombres duplicados en la lista, nos quedamos con el último (lista actualizada).
   const vistos = new Map()
   for (const l of lineas) vistos.set(l.nombre_norm, l)
-  return [...vistos.values()]
+  return { ok: [...vistos.values()], descartes }
 }
 
 // "1.234,56" → 1234.56; "1234.56" → 1234.56; "1.234" → 1234 (3 dígitos = miles)
@@ -276,6 +279,18 @@ function renderPegar() {
       <p>Tip: podés usar un chat para convertir el PDF a texto y pegarlo acá.</p>
       <textarea class="field" placeholder="Pegá acá…" oninput="window._setTxt(this.value)">${textoCrudo.replace(/</g,'&lt;')}</textarea>
       ${lineasParseadas.length ? `<p style="margin-top:8px;color:var(--green-tx);font-weight:600">✓ Detectadas ${lineasParseadas.length} líneas con precio.</p>` : ''}
+      ${lineasDescartes.length ? `
+        <p style="margin-top:4px;color:var(--amber-tx);font-weight:600">
+          ⚠ ${lineasDescartes.length} línea${lineasDescartes.length===1?'':'s'} descartada${lineasDescartes.length===1?'':'s'} (sin precio reconocido).
+          <button class="btn-ghost" style="padding:3px 10px;font-size:12px;margin-left:6px"
+            onclick="window._toggleDescartes()">${verDescartes?'Ocultar':'Ver'}</button>
+        </p>
+        ${verDescartes ? `
+          <div style="margin-top:6px;max-height:180px;overflow:auto;background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:8px;padding:8px 10px">
+            ${lineasDescartes.slice(0, 100).map(l => `<div style="font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--amber-tx);padding:2px 0">${l.replace(/</g,'&lt;')}</div>`).join('')}
+            ${lineasDescartes.length > 100 ? `<div style="font-size:11px;color:var(--ink-soft);padding-top:4px">… y ${lineasDescartes.length-100} más</div>` : ''}
+          </div>` : ''}
+      ` : ''}
     </div>
     <div class="bar">
       <button class="btn-ghost" onclick="window._volverA('elegir')">‹ Volver</button>
@@ -455,24 +470,27 @@ window._setProv = async v => {
   }
   render()
 }
-window._irAPegar = () => { paso = 'pegar'; textoCrudo = ''; lineasParseadas = []; render() }
+window._irAPegar = () => { paso = 'pegar'; textoCrudo = ''; lineasParseadas = []; lineasDescartes = []; verDescartes = false; render() }
 window._volverA = p => { paso = p; render() }
+window._toggleDescartes = () => { verDescartes = !verDescartes; render() }
 window._setTxt = v => {
   textoCrudo = v
-  const n = parsearTexto(v).length
-  // Solo re-render si cambia el estado del botón (0 ↔ >0)
-  if ((n > 0) !== (lineasParseadas.length > 0)) {
-    lineasParseadas = parsearTexto(v)
+  const r = parsearTexto(v)
+  const estadoBtnCambia = (r.ok.length > 0) !== (lineasParseadas.length > 0)
+  const descartesCambia = r.descartes.length !== lineasDescartes.length
+  lineasParseadas = r.ok
+  lineasDescartes = r.descartes
+  if (estadoBtnCambia || descartesCambia) {
     render()
     const ta = document.querySelector('textarea.field')
     if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length) }
-  } else {
-    lineasParseadas = parsearTexto(v)
   }
 }
 
 window._procesarTexto = () => {
-  lineasParseadas = parsearTexto(textoCrudo)
+  const r = parsearTexto(textoCrudo)
+  lineasParseadas = r.ok
+  lineasDescartes = r.descartes
   // Pre-cargar clasificación según nombres_externos ya conocidos.
   clasif = {}
   const porNorm = new Map(nombresExt.map(n => [n.nombre_norm, n]))
