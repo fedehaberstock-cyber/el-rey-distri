@@ -729,13 +729,16 @@ async function guardarPreciosReferencia() {
     if (pp) {
       upserts.push({ tipo: 'update', id: pp.id, precio_referencia: precioRefConv, ratio_venta: ratio })
     } else {
+      // "Solo referencia": este proveedor te manda precio de lista pero no te
+      // vende este producto (todavía). costo queda NULL para que la UI de
+      // stock no lo muestre como proveedor alternativo real.
       upserts.push({
         tipo: 'insert',
         row: {
           empresa_id: usuario.empresa_id,
           proveedor_id: proveedorId,
           producto_id: c.producto_id,
-          costo: Number(prod?.costo) || 0,
+          costo: null,
           precio_referencia: precioRefConv,
           ratio_venta: ratio,
         }

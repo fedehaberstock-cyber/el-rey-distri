@@ -566,7 +566,9 @@ function renderStockList() {
 
 // ── PROVEEDORES ALTERNATIVOS ───────────────────────────────────────────────
 function renderProvAlt(p) {
-  const lista = (window._provProds || []).filter(x => x.producto_id === p.id);
+  // Las filas con costo NULL son "solo referencia" (vienen de importar lista
+  // sin que ese proveedor te venda realmente). No se muestran acá.
+  const lista = (window._provProds || []).filter(x => x.producto_id === p.id && x.costo != null);
   // marcar el preferido (productos.proveedor_id)
   const conPref = lista.map(x => ({ ...x, esPref: x.proveedor_id === p.proveedor_id }));
   const minCosto = lista.length ? Math.min(...lista.map(x => Number(x.costo))) : null;
