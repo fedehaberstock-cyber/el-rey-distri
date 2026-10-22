@@ -122,6 +122,7 @@ let proveedorId = ''       // seleccionado
 let nombresExt = []        // nombre_externo_proveedor del proveedor elegido
 let producProv = []        // producto_proveedor del proveedor elegido (con precio_referencia/ratio)
 let paso = 'elegir'        // 'elegir' | 'pegar' | 'clasificar' | 'cambios' | 'listo'
+let modoLista = 'referencia'  // 'referencia' = precios al público · 'costos' = lo que te cobran
 let resumenListo = null    // { aplicados, mapeados, ignorados, orfanos, provNombre }
 let textoCrudo = ''
 let lineasParseadas = []   // [{idx, nombre, precio, nombre_norm}]
@@ -262,10 +263,12 @@ function renderListo() {
       <h3 style="color:var(--green-tx);margin-top:8px">Lista importada</h3>
       <p style="color:var(--green-tx);margin-top:4px">${r.provNombre || ''}</p>
       <div style="display:flex;justify-content:center;gap:20px;margin-top:16px;flex-wrap:wrap">
-        <div><div style="font-size:28px;font-weight:700;color:var(--green-tx)">${r.aplicados || 0}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">precios actualizados</div></div>
+        <div><div style="font-size:28px;font-weight:700;color:var(--green-tx)">${r.aplicados || 0}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">${r.modo==='costos'?'costos actualizados':'precios actualizados'}</div></div>
+        ${r.modo==='costos' && r.venta ? `<div><div style="font-size:28px;font-weight:700;color:var(--green-tx)">${r.venta}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">precios de venta</div></div>` : ''}
+        ${r.modo==='costos' && r.fijados ? `<div><div style="font-size:28px;font-weight:700;color:var(--green-tx)">${r.fijados}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">fijados como preferido</div></div>` : ''}
         <div><div style="font-size:28px;font-weight:700">${r.mapeados || 0}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">mapeados</div></div>
         <div><div style="font-size:28px;font-weight:700;color:var(--ink-soft)">${r.ignorados || 0}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">ignorados</div></div>
-        ${r.orfanos ? `<div><div style="font-size:28px;font-weight:700;color:var(--amber-tx)">${r.orfanos}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">sin precio hoy</div></div>` : ''}
+        ${r.orfanos ? `<div><div style="font-size:28px;font-weight:700;color:var(--amber-tx)">${r.orfanos}</div><div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">sin ${r.modo==='costos'?'costo':'precio'} hoy</div></div>` : ''}
       </div>
     </div>
     <div class="bar">
@@ -285,6 +288,31 @@ function renderElegir() {
         <option value="">— Elegir —</option>
         ${proveedores.map(p => `<option value="${p.id}" ${proveedorId===p.id?'selected':''}>${p.nombre}</option>`).join('')}
       </select>
+    </div>
+    <div class="box">
+      <h3>¿Qué contiene esta lista?</h3>
+      <label style="display:flex;gap:10px;padding:12px;border:1px solid ${modoLista==='referencia'?'var(--gold)':'var(--line)'};
+        border-radius:10px;cursor:pointer;margin-bottom:8px;${modoLista==='referencia'?'background:var(--gold-lt)':''}">
+        <input type="radio" name="modoLista" value="referencia" ${modoLista==='referencia'?'checked':''}
+          onchange="window._setModoLista('referencia')" style="margin-top:3px">
+        <div>
+          <div style="font-weight:700">Precios al público (referencia de mercado)</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">
+            Lo que el proveedor publica como precio de venta al público. Se usa para sugerir cambios de tu precio de venta.
+          </div>
+        </div>
+      </label>
+      <label style="display:flex;gap:10px;padding:12px;border:1px solid ${modoLista==='costos'?'var(--gold)':'var(--line)'};
+        border-radius:10px;cursor:pointer;${modoLista==='costos'?'background:var(--gold-lt)':''}">
+        <input type="radio" name="modoLista" value="costos" ${modoLista==='costos'?'checked':''}
+          onchange="window._setModoLista('costos')" style="margin-top:3px">
+        <div>
+          <div style="font-weight:700">Costos directos (lo que te cobra este proveedor)</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">
+            Lo que te factura a vos. Actualiza el costo del producto donde este proveedor sea el preferido.
+          </div>
+        </div>
+      </label>
     </div>
     <div class="bar">
       <button class="btn-ghost" onclick="location.href='./catalogo_hub.html'">Cancelar</button>
@@ -427,27 +455,36 @@ function ocultarFila(nombreNorm, prodNombre) {
 }
 
 function renderCambios() {
-  const nMap = cambios.length
   const nIgn = lineasParseadas.filter(l => clasif[l.nombre_norm]?.estado==='ignorado').length
   const nNuevos = lineasParseadas.filter(l => !clasif[l.nombre_norm]).length
   const nCambios = cambios.filter(c => c.hayCambio).length
   const nSelec = cambios.filter(c => c.aplicar).length
+  const esCostos = modoLista === 'costos'
+  const nFijar = esCostos ? cambios.filter(c => c.fijar_preferido).length : 0
+  const nVenta = esCostos ? cambios.filter(c => c.actualizar_venta).length : 0
 
   return `<section>
     <div class="counters">
       <div class="counter ok"><div class="nro">${nCambios}</div><div class="lbl">con cambio</div></div>
       <div class="counter ign"><div class="nro">${nIgn}</div><div class="lbl">ignoradas</div></div>
       <div class="counter new"><div class="nro">${nNuevos}</div><div class="lbl">sin clasificar</div></div>
-      <div class="counter orf"><div class="nro">${orfanos.length}</div><div class="lbl">sin precio hoy</div></div>
+      <div class="counter orf"><div class="nro">${orfanos.length}</div><div class="lbl">sin ${esCostos?'costo':'precio'} hoy</div></div>
     </div>
 
     ${orfanos.length ? `
       <div class="box" style="background:var(--amber-bg);border-color:var(--amber-tx)">
         <h3 style="color:var(--amber-tx)">⚠ Productos mapeados que no vinieron en esta lista</h3>
-        <p style="color:var(--amber-tx)">Su precio de referencia quedó desactualizado. Puede ser que el proveedor los discontinuó o se olvidó de incluirlos.</p>
+        <p style="color:var(--amber-tx)">Su ${esCostos?'costo':'precio de referencia'} quedó desactualizado. Puede ser que el proveedor los discontinuó o se olvidó de incluirlos.</p>
         <ul style="margin:6px 0 0 20px;font-size:13px">
           ${orfanos.map(o => `<li>${o.nombre}</li>`).join('')}
         </ul>
+      </div>` : ''}
+
+    ${esCostos ? `
+      <div class="box" style="background:var(--blue-bg);border-color:var(--blue-tx);color:var(--blue-tx);font-size:13px">
+        Marcá <b>Aplicar</b> para actualizar el costo. Si querés, además:
+        <b>Venta</b> actualiza tu precio de venta manteniendo el margen,
+        y <b>Fijar</b> deja este proveedor como preferido del producto.
       </div>` : ''}
 
     <div class="box" style="padding:0;overflow:hidden">
@@ -457,16 +494,27 @@ function renderCambios() {
             <th style="width:30px"><input type="checkbox" class="cb" onchange="window._togAll(this.checked)"
               ${cambios.length && cambios.every(c => c.aplicar) ? 'checked' : ''}></th>
             <th>Producto</th>
-            <th class="r">Ref ant.</th>
-            <th class="r">Ref nuevo</th>
-            <th class="r">%</th>
-            <th class="r">Venta actual</th>
-            <th class="r">Sugerido</th>
-            <th class="r">Margen</th>
+            ${esCostos ? `
+              <th class="r">Costo ant.</th>
+              <th class="r">Costo nuevo</th>
+              <th class="r">%</th>
+              <th class="r">Venta actual</th>
+              <th class="r">Sugerido</th>
+              <th class="r">Margen</th>
+              <th style="width:50px;text-align:center">Venta</th>
+              <th style="width:50px;text-align:center">Fijar</th>
+            ` : `
+              <th class="r">Ref ant.</th>
+              <th class="r">Ref nuevo</th>
+              <th class="r">%</th>
+              <th class="r">Venta actual</th>
+              <th class="r">Sugerido</th>
+              <th class="r">Margen</th>
+            `}
           </tr>
         </thead>
         <tbody>
-          ${cambios.map(c => renderFila(c)).join('')}
+          ${cambios.map(c => esCostos ? renderFilaCosto(c) : renderFila(c)).join('')}
         </tbody>
       </table>
     </div>
@@ -474,10 +522,48 @@ function renderCambios() {
     <div class="bar">
       <button class="btn-ghost" onclick="window._volverA('clasificar')">‹ Volver</button>
       <button class="btn-gold" onclick="window._aplicar()" ${nSelec?'':'disabled'}>
-        Aplicar ${nSelec} cambio${nSelec===1?'':'s'}
+        Aplicar ${nSelec} cambio${nSelec===1?'':'s'}${esCostos && (nFijar||nVenta) ? ` · ${nVenta?nVenta+' venta ':''}${nFijar?nFijar+' preferido':''}` : ''}
       </button>
     </div>
   </section>`
+}
+
+function renderFilaCosto(c) {
+  const pct = c.costo_ant > 0 ? (c.costo_nuevo - c.costo_ant) / c.costo_ant * 100 : 0
+  const pctClass = Math.abs(pct) < 0.1 ? 'delta-flat' : pct > 0 ? 'delta-up' : 'delta-down'
+  const costoRefMargen = c.esPreferido ? c.costo_producto_ant : c.costo_ant
+  const margenAnt = c.precio_venta_actual > 0 ? (c.precio_venta_actual - costoRefMargen) / c.precio_venta_actual * 100 : 0
+  // Si "actualizar_venta" está marcado, el margen después usa el precio sugerido;
+  // caso contrario usa el precio actual. El costo que manda es siempre el nuevo
+  // (porque "aplicar" se asume marcado si el user va a actualizar venta).
+  const precioFin = c.actualizar_venta ? c.precio_sugerido : c.precio_venta_actual
+  const costoFin = c.aplicar && c.esPreferido ? c.costo_nuevo : (c.esPreferido ? c.costo_producto_ant : c.costo_nuevo)
+  const margenNvo = precioFin > 0 ? (precioFin - costoFin) / precioFin * 100 : 0
+  const nuevoVal = Number.isFinite(c.precio_sugerido) ? c.precio_sugerido.toFixed(2) : ''
+  return `<tr class="${c.aplicar?'':'off'}">
+    <td><input type="checkbox" class="cb" ${c.aplicar?'checked':''} onchange="window._togFila(${c.idx}, this.checked)"></td>
+    <td>${c.nombre_prod}
+      ${c.esPreferido ? '<span style="font-size:10px;background:var(--gold-lt);color:var(--gold-dk);padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">PREFERIDO</span>' : ''}
+      <div style="font-size:11px;color:var(--ink-soft)">
+        ${c.nombre_externo}${c.factor !== 1 ? ` · lista ${arsCent(c.precio_lista_crudo)} × ${c.factor}` : ''}
+      </div>
+    </td>
+    <td class="r">${c.costo_ant ? arsCent(c.costo_ant) : '—'}</td>
+    <td class="r">${arsCent(c.costo_nuevo)}</td>
+    <td class="r"><span class="${pctClass}">${c.costo_ant ? fmtPct(pct) : 'nuevo'}</span></td>
+    <td class="r">${arsCent(c.precio_venta_actual)}</td>
+    <td class="r"><input type="number" class="precio" step="0.01" min="0" value="${nuevoVal}"
+      oninput="window._editarSugerido(${c.idx}, this.value)"></td>
+    <td class="r"><span style="font-size:11px;color:var(--ink-soft)">${margenAnt.toFixed(0)}%</span>
+      <span style="color:var(--ink);font-weight:600;font-size:11px"> → ${margenNvo.toFixed(0)}%</span></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" ${c.actualizar_venta?'checked':''}
+      onchange="window._togVenta(${c.idx}, this.checked)"></td>
+    <td style="text-align:center">
+      ${c.esPreferido ? '<span style="font-size:10px;color:var(--ink-soft)">ya</span>'
+        : `<input type="checkbox" class="cb" ${c.fijar_preferido?'checked':''}
+            onchange="window._togFijar(${c.idx}, this.checked)">`}
+    </td>
+  </tr>`
 }
 
 function renderFila(c) {
@@ -512,6 +598,7 @@ window._setProv = async v => {
   }
   render()
 }
+window._setModoLista = v => { modoLista = v; render() }
 window._irAPegar = () => { paso = 'pegar'; textoCrudo = ''; lineasParseadas = []; lineasDescartes = []; verDescartes = false; render() }
 window._volverA = p => { paso = p; render() }
 window._toggleDescartes = () => { verDescartes = !verDescartes; render() }
@@ -603,45 +690,99 @@ window._armarCambios = () => {
     if (!prod) continue
     mapeadosHoy.add(c.producto_id)
     const pp = pps.get(c.producto_id)
-    const precioRefAnt = Number(pp?.precio_referencia) || 0
-    const ratio = Number(pp?.ratio_venta) || 0
-    const precioVentaActual = Number(prod.precio) || 0
     const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
-    // Precio del proveedor convertido a TU unidad
-    const precioRefNuevo = l.precio * factor
-    // Ratio inicial = precio_venta / precio_ref_nuevo (si no había uno guardado)
-    const ratioUsado = ratio > 0 ? ratio : (precioVentaActual > 0 && precioRefNuevo > 0 ? precioVentaActual / precioRefNuevo : 1)
-    const sugerido = ratioUsado * precioRefNuevo
-    const hayCambio = precioRefAnt === 0 || Math.abs(sugerido - precioVentaActual) >= 0.01
-    items.push({
-      idx: idx++,
-      nombre_externo: l.nombre,
-      nombre_norm: l.nombre_norm,
-      producto_id: c.producto_id,
-      nombre_prod: prod.nombre,
-      factor,
-      precio_lista_crudo: l.precio,
-      precio_ref_ant: precioRefAnt,
-      precio_ref_nuevo: precioRefNuevo,
-      precio_venta_actual: precioVentaActual,
-      precio_sugerido: Math.round(sugerido * 100) / 100,
-      costo: Number(prod.costo) || 0,
-      aplicar: hayCambio,
-      hayCambio,
-    })
+    const precioVentaActual = Number(prod.precio) || 0
+    const esPreferido = prod.proveedor_id === proveedorId
+
+    if (modoLista === 'costos') {
+      // El valor de la lista = COSTO (lo que el proveedor te cobra), ya en tu unidad.
+      const costoNuevo = l.precio * factor
+      const costoAnt = Number(pp?.costo) || 0
+      const costoProductoAnt = Number(prod.costo) || 0
+      const margenAnt = precioVentaActual > 0
+        ? (precioVentaActual - (esPreferido ? costoProductoAnt : costoAnt)) / precioVentaActual * 100
+        : 0
+      // Precio sugerido para MANTENER el margen: nuevo_precio = nuevo_costo / (1 - margen/100)
+      const sugeridoVenta = margenAnt < 99.9 && costoNuevo > 0
+        ? costoNuevo / (1 - margenAnt / 100)
+        : precioVentaActual
+      const hayCambio = costoAnt === 0 || Math.abs(costoNuevo - costoAnt) >= 0.01
+      items.push({
+        idx: idx++,
+        nombre_externo: l.nombre,
+        nombre_norm: l.nombre_norm,
+        producto_id: c.producto_id,
+        nombre_prod: prod.nombre,
+        factor,
+        precio_lista_crudo: l.precio,
+        esPreferido,
+        costo_ant: costoAnt,
+        costo_nuevo: costoNuevo,
+        costo_producto_ant: costoProductoAnt,
+        precio_venta_actual: precioVentaActual,
+        precio_sugerido: Math.round(sugeridoVenta * 100) / 100,
+        aplicar: hayCambio,         // actualizar costo
+        actualizar_venta: false,    // opt-in: aplicar sugerido al precio
+        fijar_preferido: false,     // opt-in: productos.proveedor_id = proveedorId
+        hayCambio,
+      })
+    } else {
+      // Modo "referencia" (comportamiento previo).
+      const precioRefAnt = Number(pp?.precio_referencia) || 0
+      const ratio = Number(pp?.ratio_venta) || 0
+      const precioRefNuevo = l.precio * factor
+      const ratioUsado = ratio > 0 ? ratio : (precioVentaActual > 0 && precioRefNuevo > 0 ? precioVentaActual / precioRefNuevo : 1)
+      const sugerido = ratioUsado * precioRefNuevo
+      const hayCambio = precioRefAnt === 0 || Math.abs(sugerido - precioVentaActual) >= 0.01
+      items.push({
+        idx: idx++,
+        nombre_externo: l.nombre,
+        nombre_norm: l.nombre_norm,
+        producto_id: c.producto_id,
+        nombre_prod: prod.nombre,
+        factor,
+        precio_lista_crudo: l.precio,
+        precio_ref_ant: precioRefAnt,
+        precio_ref_nuevo: precioRefNuevo,
+        precio_venta_actual: precioVentaActual,
+        precio_sugerido: Math.round(sugerido * 100) / 100,
+        costo: Number(prod.costo) || 0,
+        aplicar: hayCambio,
+        hayCambio,
+      })
+    }
   }
   cambios = items
-  // Mapeados que no vinieron en esta lista
-  orfanos = producProv
-    .filter(pp => pp.precio_referencia != null && !mapeadosHoy.has(pp.producto_id))
-    .map(pp => ({ producto_id: pp.producto_id, nombre: prods.get(pp.producto_id)?.nombre || '(sin nombre)' }))
-    .filter(o => o.nombre !== '(sin nombre)')
+  // Mapeados que no vinieron en esta lista (según el campo que corresponda)
+  if (modoLista === 'costos') {
+    orfanos = producProv
+      .filter(pp => pp.costo != null && !mapeadosHoy.has(pp.producto_id))
+      .map(pp => ({ producto_id: pp.producto_id, nombre: prods.get(pp.producto_id)?.nombre || '(sin nombre)' }))
+      .filter(o => o.nombre !== '(sin nombre)')
+  } else {
+    orfanos = producProv
+      .filter(pp => pp.precio_referencia != null && !mapeadosHoy.has(pp.producto_id))
+      .map(pp => ({ producto_id: pp.producto_id, nombre: prods.get(pp.producto_id)?.nombre || '(sin nombre)' }))
+      .filter(o => o.nombre !== '(sin nombre)')
+  }
   paso = 'cambios'
   render()
 }
 
 window._togFila = (idx, on) => { if (cambios[idx]) cambios[idx].aplicar = !!on; render() }
 window._togAll = on => { cambios.forEach(c => c.aplicar = !!on); render() }
+window._togVenta = (idx, on) => {
+  if (!cambios[idx]) return
+  cambios[idx].actualizar_venta = !!on
+  if (on) cambios[idx].aplicar = true  // actualizar venta solo tiene sentido si se actualiza el costo
+  render()
+}
+window._togFijar = (idx, on) => {
+  if (!cambios[idx]) return
+  cambios[idx].fijar_preferido = !!on
+  if (on) cambios[idx].aplicar = true
+  render()
+}
 window._editarSugerido = (idx, v) => {
   const n = Number(v)
   if (!cambios[idx]) return
@@ -771,6 +912,65 @@ async function aplicarPreciosVenta() {
   return seleccion.length
 }
 
+// Modo "costos": upsert producto_proveedor.costo, y según flags:
+//  - fijar_preferido → productos.proveedor_id = proveedorId
+//  - esPreferido (ya) o fijar_preferido → productos.costo = costo_nuevo
+//  - actualizar_venta → productos.precio = precio_sugerido
+async function guardarCostos() {
+  const pps = new Map(producProv.map(x => [x.producto_id, x]))
+  const nowISO = new Date().toISOString()
+  const prods = new Map(productos.map(p => [p.id, p]))
+  let nCostos = 0, nVenta = 0, nFijados = 0
+
+  for (const c of cambios) {
+    if (!c.aplicar) continue
+    const prod = prods.get(c.producto_id)
+    if (!prod) continue
+
+    // 1) Upsert costo del proveedor en producto_proveedor
+    const pp = pps.get(c.producto_id)
+    if (pp) {
+      const { error } = await supabase.from('producto_proveedor')
+        .update({ costo: c.costo_nuevo, actualizado_en: nowISO.slice(0,10) })
+        .eq('id', pp.id)
+      if (error) throw error
+    } else {
+      const { error } = await supabase.from('producto_proveedor').upsert({
+        empresa_id: usuario.empresa_id,
+        proveedor_id: proveedorId,
+        producto_id: c.producto_id,
+        costo: c.costo_nuevo,
+      }, { onConflict: 'producto_id,proveedor_id' })
+      if (error) throw error
+    }
+    nCostos++
+
+    // 2) Si fija como preferido, update productos.proveedor_id
+    const esAhoraPreferido = c.esPreferido || c.fijar_preferido
+    const prodUpdate = {}
+    if (c.fijar_preferido && !c.esPreferido) {
+      prodUpdate.proveedor_id = proveedorId
+      nFijados++
+    }
+    // 3) Si es el preferido (actual o nuevo), actualizar costo oficial del producto
+    if (esAhoraPreferido) {
+      prodUpdate.costo = c.costo_nuevo
+      prodUpdate.ultimo_cambio_costo = nowISO
+    }
+    // 4) Si pidió actualizar venta, el precio y su timestamp
+    if (c.actualizar_venta && c.precio_sugerido > 0) {
+      prodUpdate.precio = c.precio_sugerido
+      prodUpdate.ultimo_cambio_precio = nowISO
+      nVenta++
+    }
+    if (Object.keys(prodUpdate).length) {
+      const { error } = await supabase.from('productos').update(prodUpdate).eq('id', c.producto_id)
+      if (error) throw error
+    }
+  }
+  return { costos: nCostos, venta: nVenta, fijados: nFijados }
+}
+
 async function guardarImportacion(cambiosAplicados) {
   const nMap = Object.values(clasif).filter(c => c.estado==='mapeado').length
   const nIgn = Object.values(clasif).filter(c => c.estado==='ignorado').length
@@ -792,16 +992,26 @@ window._aplicar = async () => {
   try {
     document.querySelector('.bar .btn-gold').disabled = true
     await guardarNombresExternos()
-    await guardarPreciosReferencia()
-    const n = await aplicarPreciosVenta()
-    await guardarImportacion(n)
+    let aplicados = 0
+    let extraResumen = {}
+    if (modoLista === 'costos') {
+      const r = await guardarCostos()
+      aplicados = r.costos
+      extraResumen = { venta: r.venta, fijados: r.fijados }
+    } else {
+      await guardarPreciosReferencia()
+      aplicados = await aplicarPreciosVenta()
+    }
+    await guardarImportacion(aplicados)
     const provNombre = proveedores.find(p => p.id === proveedorId)?.nombre || ''
     resumenListo = {
-      aplicados: n,
+      aplicados,
       mapeados: Object.values(clasif).filter(c => c.estado === 'mapeado').length,
       ignorados: Object.values(clasif).filter(c => c.estado === 'ignorado').length,
       orfanos: orfanos.length,
       provNombre,
+      modo: modoLista,
+      ...extraResumen,
     }
     paso = 'listo'
     render()
@@ -815,6 +1025,7 @@ window._nuevaLista = () => {
   paso = 'elegir'; proveedorId = ''; textoCrudo = ''; lineasParseadas = []
   lineasDescartes = []; verDescartes = false
   clasif = {}; cambios = []; orfanos = []; nombresExt = []; producProv = []
+  modoLista = 'referencia'
   resumenListo = null
   render()
 }
