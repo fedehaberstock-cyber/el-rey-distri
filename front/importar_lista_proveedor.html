@@ -123,6 +123,7 @@ let nombresExt = []        // nombre_externo_proveedor del proveedor elegido
 let producProv = []        // producto_proveedor del proveedor elegido (con precio_referencia/ratio)
 let paso = 'elegir'        // 'elegir' | 'pegar' | 'clasificar' | 'cambios' | 'listo'
 let modoLista = 'referencia'  // 'referencia' = precios al público · 'costos' = lo que te cobran
+let cargosExtraPct = 0     // % adicional aplicado al costo (flete, impuesto, etc.)
 let resumenListo = null    // { aplicados, mapeados, ignorados, orfanos, provNombre }
 let textoCrudo = ''
 let lineasParseadas = []   // [{idx, nombre, precio, nombre_norm}]
@@ -482,9 +483,19 @@ function renderCambios() {
 
     ${esCostos ? `
       <div class="box" style="background:var(--blue-bg);border-color:var(--blue-tx);color:var(--blue-tx);font-size:13px">
-        Marcá <b>Aplicar</b> para actualizar el costo. Si querés, además:
-        <b>Venta</b> actualiza tu precio de venta manteniendo el margen,
-        y <b>Fijar</b> deja este proveedor como preferido del producto.
+        <div style="margin-bottom:8px">
+          Marcá <b>Aplicar</b> para actualizar el costo. Si querés, además:
+          <b>Venta</b> actualiza tu precio de venta manteniendo el margen,
+          y <b>Fijar</b> deja este proveedor como preferido del producto.
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;padding:8px 10px;border-radius:8px;border:1px solid var(--blue-tx)">
+          <span style="color:var(--ink);font-weight:600;font-size:12px">➕ Cargo adicional (flete, impuesto, etc.):</span>
+          <input type="number" step="0.1" min="0" value="${cargosExtraPct}"
+            onchange="window._setCargosExtra(this.value)"
+            style="width:70px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px;text-align:right">
+          <span style="color:var(--ink);font-weight:600">%</span>
+          <span style="color:var(--ink-soft);font-size:11px;margin-left:4px">se aplica a todos los costos nuevos</span>
+        </div>
       </div>` : ''}
 
     <div class="box" style="padding:0;overflow:hidden">
@@ -529,15 +540,18 @@ function renderCambios() {
 }
 
 function renderFilaCosto(c) {
+  // "Costo ant" = costo oficial del producto (lo que estás usando para margen).
+  // "Costo nuevo" = lo que te sale con este proveedor (ya con % adicional).
+  // % = diferencia entre ambos → indica si te vende MÁS BARATO (verde, "-X%")
+  // o MÁS CARO (rojo, "+X%") que tu costo registrado.
   const pct = c.costo_ant > 0 ? (c.costo_nuevo - c.costo_ant) / c.costo_ant * 100 : 0
   const pctClass = Math.abs(pct) < 0.1 ? 'delta-flat' : pct > 0 ? 'delta-up' : 'delta-down'
-  const costoRefMargen = c.esPreferido ? c.costo_producto_ant : c.costo_ant
-  const margenAnt = c.precio_venta_actual > 0 ? (c.precio_venta_actual - costoRefMargen) / c.precio_venta_actual * 100 : 0
-  // Si "actualizar_venta" está marcado, el margen después usa el precio sugerido;
-  // caso contrario usa el precio actual. El costo que manda es siempre el nuevo
-  // (porque "aplicar" se asume marcado si el user va a actualizar venta).
+  const margenAnt = c.precio_venta_actual > 0 ? (c.precio_venta_actual - c.costo_ant) / c.precio_venta_actual * 100 : 0
+  // Costo final en el margen "después": si aplica y es/será preferido, el nuevo manda;
+  // si no, usamos el costo del producto que no se toca.
+  const seraPreferido = c.esPreferido || c.fijar_preferido
   const precioFin = c.actualizar_venta ? c.precio_sugerido : c.precio_venta_actual
-  const costoFin = c.aplicar && c.esPreferido ? c.costo_nuevo : (c.esPreferido ? c.costo_producto_ant : c.costo_nuevo)
+  const costoFin = c.aplicar && seraPreferido ? c.costo_nuevo : c.costo_ant
   const margenNvo = precioFin > 0 ? (precioFin - costoFin) / precioFin * 100 : 0
   const nuevoVal = Number.isFinite(c.precio_sugerido) ? c.precio_sugerido.toFixed(2) : ''
   return `<tr class="${c.aplicar?'':'off'}">
@@ -696,17 +710,21 @@ window._armarCambios = () => {
 
     if (modoLista === 'costos') {
       // El valor de la lista = COSTO (lo que el proveedor te cobra), ya en tu unidad.
-      const costoNuevo = l.precio * factor
-      const costoAnt = Number(pp?.costo) || 0
+      // Aplico cargo extra (flete/impuestos) global al costo nuevo.
+      const costoLista = l.precio * factor
+      const costoNuevo = costoLista * (1 + (Number(cargosExtraPct) || 0) / 100)
+      // "Costo ant" = costo oficial del PRODUCTO (lo que usás para margen hoy),
+      // así ves claro si este proveedor te cobra más o menos de lo que tenés.
       const costoProductoAnt = Number(prod.costo) || 0
+      const costoProvAnt = Number(pp?.costo) || 0   // costo guardado de este proveedor (si existe)
       const margenAnt = precioVentaActual > 0
-        ? (precioVentaActual - (esPreferido ? costoProductoAnt : costoAnt)) / precioVentaActual * 100
+        ? (precioVentaActual - costoProductoAnt) / precioVentaActual * 100
         : 0
       // Precio sugerido para MANTENER el margen: nuevo_precio = nuevo_costo / (1 - margen/100)
       const sugeridoVenta = margenAnt < 99.9 && costoNuevo > 0
         ? costoNuevo / (1 - margenAnt / 100)
         : precioVentaActual
-      const hayCambio = costoAnt === 0 || Math.abs(costoNuevo - costoAnt) >= 0.01
+      const hayCambio = costoProvAnt === 0 || Math.abs(costoNuevo - costoProvAnt) >= 0.01
       items.push({
         idx: idx++,
         nombre_externo: l.nombre,
@@ -716,9 +734,10 @@ window._armarCambios = () => {
         factor,
         precio_lista_crudo: l.precio,
         esPreferido,
-        costo_ant: costoAnt,
-        costo_nuevo: costoNuevo,
-        costo_producto_ant: costoProductoAnt,
+        costo_lista: costoLista,        // sin % adicional
+        costo_ant: costoProductoAnt,    // costo oficial del producto (lo visible como "Costo ant.")
+        costo_nuevo: costoNuevo,        // ya con % adicional
+        costo_prov_ant: costoProvAnt,
         precio_venta_actual: precioVentaActual,
         precio_sugerido: Math.round(sugeridoVenta * 100) / 100,
         aplicar: hayCambio,         // actualizar costo
@@ -771,6 +790,17 @@ window._armarCambios = () => {
 
 window._togFila = (idx, on) => { if (cambios[idx]) cambios[idx].aplicar = !!on; render() }
 window._togAll = on => { cambios.forEach(c => c.aplicar = !!on); render() }
+window._setCargosExtra = v => {
+  cargosExtraPct = Math.max(0, Number(v) || 0)
+  // Recalcular todo manteniendo las elecciones (aplicar / venta / fijar) por fila.
+  const flagsPrev = new Map(cambios.map(c => [c.producto_id, { aplicar: c.aplicar, actualizar_venta: c.actualizar_venta, fijar_preferido: c.fijar_preferido }]))
+  window._armarCambios()
+  for (const c of cambios) {
+    const f = flagsPrev.get(c.producto_id)
+    if (f) { c.aplicar = f.aplicar; c.actualizar_venta = f.actualizar_venta; c.fijar_preferido = f.fijar_preferido }
+  }
+  render()
+}
 window._togVenta = (idx, on) => {
   if (!cambios[idx]) return
   cambios[idx].actualizar_venta = !!on
@@ -1026,6 +1056,7 @@ window._nuevaLista = () => {
   lineasDescartes = []; verDescartes = false
   clasif = {}; cambios = []; orfanos = []; nombresExt = []; producProv = []
   modoLista = 'referencia'
+  cargosExtraPct = 0
   resumenListo = null
   render()
 }
