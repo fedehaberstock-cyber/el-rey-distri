@@ -114,6 +114,11 @@
   .pop-btn.fijar{background:var(--gold-lt);border-color:var(--gold);color:var(--gold-dk)}
   .pop-cerrar{width:100%;margin-top:8px;padding:7px;background:none;border:1px solid var(--line);border-radius:6px;
     font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink-soft)}
+  .pop-add{width:100%;margin-top:8px;padding:8px;background:var(--gold-lt);border:1px dashed var(--gold);
+    border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--gold-dk)}
+  .prov-pop-add{margin-top:10px;padding:10px;background:var(--line-soft);border-radius:8px}
+  .pop-input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;
+    font-family:inherit;font-size:13px;background:#fff}
 
   .nota-ico{cursor:pointer;color:var(--gold);margin-left:4px}
   .nota-ico.ghost{color:var(--ink-soft);font-weight:400}
@@ -253,6 +258,7 @@ let filtroProv = null  // null = todos, sino proveedor_id
 let horizonte = HORIZONTE_DEFAULT  // null | 7 | 14 | 30 | 45
 let verSinProv = false        // en vista por proveedor, "— Sin proveedor —" colapsado por default
 let provPopover = null        // { prodId } para el popover de cambiar/fijar proveedor por fila
+let provPopoverAdd = null     // { provId:'', costo:'' } estado del formulario "agregar otro proveedor"
 let borrador = cargarBorrador()
 let agregadosManual = []      // [{producto_id, proveedor_id, nombre, categoria, costo, unidad_compra}]
 let historicoCache = null     // {total, mes, trim, anio, porProveedor: [...]}
@@ -1041,6 +1047,10 @@ function renderPopoverProv(it) {
   }
   const asignado = it.reasignado_a || it.proveedor_id
   const opts = [...uniq.values()].sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
+  const yaCargados = new Set([...uniq.keys()])
+  const provsDisponibles = Object.values(proveedoresInfo)
+    .filter(p => !yaCargados.has(p.id))
+    .sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
   return `<div class="prov-pop" onclick="event.stopPropagation()">
     <div class="prov-pop-title">Elegí proveedor</div>
     ${opts.map(o => `
@@ -1056,7 +1066,34 @@ function renderPopoverProv(it) {
           ${o.proveedor_id!==preferidoId ? `<button class="pop-btn fijar" onclick="window._fijarPreferido('${it.producto_id}','${o.proveedor_id}')">Fijar</button>` : ''}
         </div>
       </div>`).join('')}
+    ${provPopoverAdd
+      ? renderPopoverAddForm(it, provsDisponibles)
+      : (provsDisponibles.length
+          ? `<button class="pop-add" onclick="window._abrirAddProv('${it.producto_id}')">➕ Agregar otro proveedor</button>`
+          : '')}
     <button class="pop-cerrar" onclick="window._togglePopoverProv(null)">Cerrar</button>
+  </div>`
+}
+
+function renderPopoverAddForm(it, provsDisponibles) {
+  const f = provPopoverAdd
+  const prod = catalogoProds.find(p => p.id === it.producto_id)
+  return `<div class="prov-pop-add">
+    <div style="font-size:11px;font-weight:700;color:var(--gold-dk);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Nuevo proveedor</div>
+    <select class="pop-input" onchange="window._setAddProv(this.value)">
+      <option value="">— Elegir proveedor —</option>
+      ${provsDisponibles.map(p => `<option value="${p.id}" ${f.provId===p.id?'selected':''}>${p.nombre}</option>`).join('')}
+    </select>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+      <span style="font-size:12px;color:var(--ink-soft)">Costo estimado:</span>
+      <input class="pop-input" type="number" min="0" step="0.01" value="${f.costo || prod?.costo || 0}"
+        oninput="window._setAddCosto(this.value)" style="flex:1">
+    </div>
+    <div style="display:flex;gap:4px;margin-top:8px">
+      <button class="pop-btn" onclick="window._guardarAddProv('${it.producto_id}','esta')">Esta compra</button>
+      <button class="pop-btn fijar" onclick="window._guardarAddProv('${it.producto_id}','fijar')">Fijar como preferido</button>
+      <button class="pop-btn" style="color:var(--red-tx);border-color:var(--red-tx)" onclick="window._cancelarAddProv()">Cancelar</button>
+    </div>
   </div>`
 }
 
@@ -1420,6 +1457,7 @@ window._toggleSinProv = () => { verSinProv = !verSinProv; renderListaSugeridos()
 window._togglePopoverProv = prodId => {
   if (!prodId || (provPopover && provPopover.prodId === prodId)) provPopover = null
   else provPopover = { prodId }
+  provPopoverAdd = null
   renderListaSugeridos()
 }
 window._cambiarSoloCompra = (prodId, provId) => {
@@ -1432,6 +1470,38 @@ window._cambiarSoloCompra = (prodId, provId) => {
   provPopover = null
   render()
 }
+window._abrirAddProv = (prodId) => {
+  const prod = catalogoProds.find(p => p.id === prodId)
+  provPopoverAdd = { provId: '', costo: String(prod?.costo || '') }
+  renderListaSugeridos()
+}
+window._cancelarAddProv = () => { provPopoverAdd = null; renderListaSugeridos() }
+window._setAddProv = v => { if (provPopoverAdd) provPopoverAdd.provId = v }
+window._setAddCosto = v => { if (provPopoverAdd) provPopoverAdd.costo = v }
+window._guardarAddProv = async (prodId, modo) => {
+  const f = provPopoverAdd
+  if (!f || !f.provId) { alert('Elegí un proveedor.'); return }
+  const costo = Number(f.costo)
+  if (!(costo >= 0)) { alert('Costo inválido.'); return }
+  // Insert en producto_proveedor (upsert por (producto_id, proveedor_id))
+  const { error } = await supabase.from('producto_proveedor').upsert({
+    empresa_id: usuario.empresa_id,
+    producto_id: prodId,
+    proveedor_id: f.provId,
+    costo,
+  }, { onConflict: 'producto_id,proveedor_id' })
+  if (error) { alert('Error al guardar: ' + error.message); return }
+  // Reflejar en memoria para que el popover y el resto se actualicen sin recargar
+  const nombre = proveedoresInfo[f.provId]?.nombre || ''
+  const arr = (productoProveedores[prodId] ||= [])
+  const idx = arr.findIndex(x => x.proveedor_id === f.provId)
+  if (idx >= 0) arr[idx] = { ...arr[idx], costo, nombre }
+  else arr.push({ proveedor_id: f.provId, nombre, costo })
+  provPopoverAdd = null
+  if (modo === 'fijar') return window._fijarPreferido(prodId, f.provId)
+  return window._cambiarSoloCompra(prodId, f.provId)
+}
+
 window._fijarPreferido = async (prodId, provId) => {
   if (!confirm('¿Fijar este proveedor como preferido del producto? El cambio queda vigente a futuro.')) return
   const { error } = await supabase.from('productos').update({ proveedor_id: provId }).eq('id', prodId)
