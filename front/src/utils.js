@@ -8,7 +8,18 @@ const ARS_FMT = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0,
 })
 
+const ARS_FMT_CENT = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 export const ars = (n) => ARS_FMT.format(Number(n) || 0)
+
+// Mismo formato pero con 2 decimales. Usar en pantallas donde los centavos
+// importan (listas de proveedor, sugerencias de precio).
+export const arsCent = (n) => ARS_FMT_CENT.format(Number(n) || 0)
 
 // Fecha de hoy en Argentina (Córdoba, UTC-3) como YYYY-MM-DD.
 // Importante: NO usar new Date().toISOString().slice(0,10) porque

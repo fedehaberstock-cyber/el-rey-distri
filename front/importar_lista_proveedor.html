@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./src/logger.js"></script>
+<title>El Rey · Importar lista de proveedor</title>
+<style>
+  :root{
+    --paper:#FBF9F2; --ink:#1C2B27; --ink-soft:#5B665F;
+    --line:#E4DECF;  --line-soft:#EEEADD;
+    --gold:#A9760E;  --gold-dk:#8A5F09; --gold-lt:#F5E9D0;
+    --green-bg:#E7F0E8; --green-tx:#2C6B3F;
+    --amber-bg:#FDF2DC; --amber-tx:#8A5F09;
+    --red-bg:#F6E5E2;  --red-tx:#A8392B;
+    --blue-bg:#E8F0FB; --blue-tx:#2A4E9A;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior-y:contain;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.4}
+  body{max-width:820px;margin:0 auto;padding-bottom:120px}
+
+  .hdr{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);background:var(--paper);
+    position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600}
+  .crown{color:var(--gold);font-size:20px}
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);
+    letter-spacing:.06em;text-transform:uppercase}
+  .back{background:none;border:none;font-size:13px;color:var(--gold);font-weight:600;cursor:pointer;font-family:inherit}
+
+  section{padding:14px 18px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px}
+  .field{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);font-size:14px;font-family:inherit;color:var(--ink);appearance:none}
+  .field:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  textarea.field{min-height:220px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+  select.field{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%235B665F' stroke-width='2'><path d='M5 8l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+
+  .btn-gold{background:var(--gold);color:#fff;border:none;padding:12px 16px;border-radius:10px;
+    font-weight:600;cursor:pointer;font-family:inherit;font-size:14px}
+  .btn-gold:active{background:var(--gold-dk)}
+  .btn-gold:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:11px 16px;
+    border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-red{background:#fff;color:var(--red-tx);border:1px solid var(--red-tx);padding:11px 16px;
+    border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+
+  .steps{display:flex;gap:6px;padding:0 18px;margin-bottom:4px}
+  .step{flex:1;padding:7px 10px;border-radius:999px;background:var(--line-soft);
+    color:var(--ink-soft);font-size:11px;font-weight:600;text-align:center;letter-spacing:.03em}
+  .step.on{background:var(--gold);color:#fff}
+  .step.done{background:var(--green-bg);color:var(--green-tx)}
+
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .box h3{font-size:14px;margin-bottom:8px}
+  .box p{font-size:13px;color:var(--ink-soft);margin-bottom:6px}
+
+  .counters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .counter{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 10px;text-align:center}
+  .counter .nro{font-size:20px;font-weight:700;line-height:1}
+  .counter .lbl{font-size:10px;color:var(--ink-soft);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+  .counter.ok  .nro{color:var(--green-tx)}
+  .counter.ign .nro{color:var(--ink-soft)}
+  .counter.new .nro{color:var(--blue-tx)}
+  .counter.orf .nro{color:var(--amber-tx)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{padding:8px 6px;text-align:left;font-size:11px;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);
+    border-bottom:1px solid var(--line);background:var(--paper);position:sticky;top:60px;z-index:10}
+  tbody td{padding:8px 6px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  tbody tr.off{opacity:.4}
+  tbody tr.off td{text-decoration:line-through}
+  td.r{text-align:right}
+  td input.precio{width:100px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;
+    text-align:right;font-family:inherit;font-size:13px;font-weight:600;background:#fff}
+  td input.precio:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
+  td select.mini{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:inherit;background:#fff;max-width:220px}
+  .cb{width:18px;height:18px;accent-color:var(--gold);cursor:pointer}
+  .delta-up{color:var(--green-tx);font-weight:600;font-size:11px}
+  .delta-down{color:var(--red-tx);font-weight:600;font-size:11px}
+  .delta-flat{color:var(--ink-soft);font-size:11px}
+
+  .chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.03em}
+  .chip.map{background:var(--green-bg);color:var(--green-tx)}
+  .chip.ign{background:var(--line-soft);color:var(--ink-soft)}
+  .chip.new{background:var(--blue-bg);color:var(--blue-tx)}
+  .chip.orf{background:var(--amber-bg);color:var(--amber-tx)}
+
+  .empty{text-align:center;padding:40px 18px;color:var(--ink-soft)}
+  .loading{text-align:center;padding:48px 18px;color:var(--ink-soft)}
+  .err-box{margin:14px 18px;padding:12px;background:var(--red-bg);color:var(--red-tx);border-radius:10px;font-size:13px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;z-index:50}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;max-width:820px;margin:0 auto;
+    background:var(--paper);border-top:1px solid var(--line);padding:12px 18px 18px;z-index:20;display:flex;gap:10px}
+  .bar button{flex:1;padding:13px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading">Cargando…</div></div>
+
+<script type="module">
+import { supabase } from './src/supabase.js'
+import { requireSession, tienePermiso } from './src/auth.js'
+import { ars, arsCent } from './src/utils.js?v=2'
+
+const { usuario } = await requireSession()
+if (!tienePermiso('catalogo', 'editar')) { location.href = './login_home.html'; throw new Error('sin permiso') }
+
+// ── ESTADO ─────────────────────────────────────────────────────────────
+let proveedores = []       // activos
+let productos = []         // todos los activos
+let proveedorId = ''       // seleccionado
+let nombresExt = []        // nombre_externo_proveedor del proveedor elegido
+let producProv = []        // producto_proveedor del proveedor elegido (con precio_referencia/ratio)
+let paso = 'elegir'        // 'elegir' | 'pegar' | 'clasificar' | 'cambios'
+let textoCrudo = ''
+let lineasParseadas = []   // [{idx, nombre, precio, nombre_norm}]
+// Clasificación "live" durante el paso de clasificar: nombre_norm → {producto_id|null, estado:'mapeado'|'ignorado'}
+let clasif = {}
+// Items de cambio en el paso final: {idx, nombre_externo, producto_id, nombre_prod,
+//   precio_ref_ant, precio_ref_nuevo, precio_venta_actual, precio_sugerido, costo, aplicar}
+let cambios = []
+let orfanos = []           // productos mapeados que NO vinieron en la lista
+let busquedaProd = ''      // filtro en select de producto durante clasificación
+
+// ── HELPERS ────────────────────────────────────────────────────────────
+const normalizar = s => (s || '')
+  .toString()
+  .toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+
+// Parsea texto pegado. Cada línea = producto. Detecta nombre y precio.
+// Reglas: busca el último número en la línea como precio. Lo demás es nombre.
+// Soporta "$", separador miles con punto o coma, decimales con coma o punto.
+function parsearTexto(txt) {
+  const lineas = []
+  const rows = (txt || '').split(/\r?\n/)
+  let idx = 0
+  for (const raw of rows) {
+    const line = raw.trim()
+    if (!line) continue
+    // Buscar el ÚLTIMO token numérico. Admite: 1234, 1.234, 1.234,56, 1234.56
+    const m = line.match(/(?:\$\s*)?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*$/)
+    if (!m) continue
+    const numTxt = m[1]
+    const precio = parsearNumero(numTxt)
+    if (!(precio > 0)) continue
+    const nombre = line.slice(0, m.index).replace(/[\s;,\|\t\-–—]+$/, '').trim()
+    if (!nombre || nombre.length < 2) continue
+    lineas.push({ idx: idx++, nombre, precio, nombre_norm: normalizar(nombre) })
+  }
+  // Si hay nombres duplicados en la lista, nos quedamos con el último (lista actualizada).
+  const vistos = new Map()
+  for (const l of lineas) vistos.set(l.nombre_norm, l)
+  return [...vistos.values()]
+}
+
+// "1.234,56" → 1234.56; "1234.56" → 1234.56; "1.234" → 1234 (3 dígitos = miles)
+function parsearNumero(s) {
+  if (!s) return 0
+  s = s.replace(/\$/g, '').trim()
+  // Si tiene coma Y punto, el último es decimal
+  const tieneComa = s.includes(',')
+  const tienePto  = s.includes('.')
+  if (tieneComa && tienePto) {
+    const ultCom = s.lastIndexOf(','), ultPto = s.lastIndexOf('.')
+    if (ultCom > ultPto) { s = s.replace(/\./g, '').replace(',', '.') }
+    else                 { s = s.replace(/,/g, '') }
+  } else if (tieneComa) {
+    const partes = s.split(',')
+    // Si lo que queda después de la coma tiene 1-2 dígitos → es decimal
+    if (partes[partes.length-1].length <= 2 && partes.length === 2) s = s.replace(',', '.')
+    else s = s.replace(/,/g, '')
+  } else if (tienePto) {
+    const partes = s.split('.')
+    // 3 dígitos después del último punto = separador de miles (ej. "1.234")
+    if (partes[partes.length-1].length === 3 && partes.length >= 2) s = s.replace(/\./g, '')
+    // else: punto decimal, lo dejamos
+  }
+  return Number(s) || 0
+}
+
+const fmtPct = p => {
+  if (!isFinite(p) || p === 0) return '0%'
+  const s = p > 0 ? '+' : ''
+  return s + p.toFixed(1).replace(/\.0$/, '') + '%'
+}
+
+// ── CARGA ──────────────────────────────────────────────────────────────
+async function cargarInicial() {
+  const [{ data: provs, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
+    supabase.from('proveedores').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    supabase.from('productos').select('id, nombre, categoria, costo, precio')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+  ])
+  if (e1 || e2) throw e1 || e2
+  proveedores = provs || []
+  productos = prods || []
+}
+
+async function cargarProveedor(provId) {
+  const [{ data: nombres, error: e1 }, { data: pps, error: e2 }] = await Promise.all([
+    supabase.from('nombre_externo_proveedor')
+      .select('id, nombre_externo, nombre_norm, producto_id, estado')
+      .eq('proveedor_id', provId),
+    supabase.from('producto_proveedor')
+      .select('id, producto_id, precio_referencia, ratio_venta, costo')
+      .eq('proveedor_id', provId),
+  ])
+  if (e1 || e2) throw e1 || e2
+  nombresExt = nombres || []
+  producProv = pps || []
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────
+const root = () => document.getElementById('root')
+
+function render() {
+  const r = root()
+  const hdr = `
+    <div class="hdr">
+      <div class="brand"><span class="crown">&#9818;</span>
+        <div>El Rey<small>Importar lista de proveedor</small></div>
+      </div>
+      <button class="back" onclick="location.href='./catalogo_hub.html'">Volver ›</button>
+    </div>
+    <div class="steps" style="margin-top:12px">
+      <div class="step ${paso==='elegir'?'on':'done'}">1 · Proveedor</div>
+      <div class="step ${paso==='pegar'?'on':paso==='clasificar'||paso==='cambios'?'done':''}">2 · Pegar lista</div>
+      <div class="step ${paso==='clasificar'?'on':paso==='cambios'?'done':''}">3 · Clasificar</div>
+      <div class="step ${paso==='cambios'?'on':''}">4 · Cambios</div>
+    </div>`
+  r.innerHTML = hdr
+    + (paso === 'elegir'     ? renderElegir()
+    : paso === 'pegar'       ? renderPegar()
+    : paso === 'clasificar'  ? renderClasificar()
+    : paso === 'cambios'     ? renderCambios()
+    : '')
+}
+
+function renderElegir() {
+  return `<section>
+    <div class="box">
+      <h3>¿De qué proveedor es esta lista?</h3>
+      <p>Elegí el proveedor que publicó la lista. Los nombres externos se guardan por proveedor.</p>
+      <label class="lbl">Proveedor</label>
+      <select class="field" onchange="window._setProv(this.value)">
+        <option value="">— Elegir —</option>
+        ${proveedores.map(p => `<option value="${p.id}" ${proveedorId===p.id?'selected':''}>${p.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="bar">
+      <button class="btn-ghost" onclick="location.href='./catalogo_hub.html'">Cancelar</button>
+      <button class="btn-gold" onclick="window._irAPegar()" ${proveedorId?'':'disabled'}>Siguiente ›</button>
+    </div>
+  </section>`
+}
+
+function renderPegar() {
+  const prov = proveedores.find(p => p.id === proveedorId)
+  return `<section>
+    <div class="box">
+      <h3>Pegá la lista de ${prov?.nombre || ''}</h3>
+      <p>Un producto por línea, con el precio al final de la línea. Ejemplos: <code>Ibupirac 400 x10 1234,56</code> · <code>Actron 400 X10; $ 2.275</code>.</p>
+      <p>Tip: podés usar un chat para convertir el PDF a texto y pegarlo acá.</p>
+      <textarea class="field" placeholder="Pegá acá…" oninput="window._setTxt(this.value)">${textoCrudo.replace(/</g,'&lt;')}</textarea>
+      ${lineasParseadas.length ? `<p style="margin-top:8px;color:var(--green-tx);font-weight:600">✓ Detectadas ${lineasParseadas.length} líneas con precio.</p>` : ''}
+    </div>
+    <div class="bar">
+      <button class="btn-ghost" onclick="window._volverA('elegir')">‹ Volver</button>
+      <button class="btn-gold" onclick="window._procesarTexto()" ${lineasParseadas.length?'':'disabled'}>Procesar ›</button>
+    </div>
+  </section>`
+}
+
+function renderClasificar() {
+  const pendientes = lineasParseadas.filter(l => {
+    const c = clasif[l.nombre_norm]
+    return !c // sin clasificar aún
+  })
+  const total = lineasParseadas.length
+  const nMap = Object.values(clasif).filter(c => c.estado === 'mapeado').length
+  const nIgn = Object.values(clasif).filter(c => c.estado === 'ignorado').length
+
+  if (!pendientes.length) {
+    // Nada por clasificar: pasar directo a cambios.
+    return `<section>
+      <div class="box"><p>Todas las líneas están clasificadas. ${nMap} mapeadas · ${nIgn} ignoradas.</p></div>
+      <div class="bar">
+        <button class="btn-ghost" onclick="window._volverA('pegar')">‹ Volver</button>
+        <button class="btn-gold" onclick="window._armarCambios()">Ver cambios ›</button>
+      </div>
+    </section>`
+  }
+
+  const yaMapeadosIds = new Set(Object.values(clasif).filter(c => c.estado==='mapeado' && c.producto_id).map(c => c.producto_id))
+  const prodOpts = productos
+    .filter(p => !yaMapeadosIds.has(p.id))
+    .filter(p => !busquedaProd || normalizar(p.nombre).includes(normalizar(busquedaProd)))
+
+  return `<section>
+    <div class="box">
+      <h3>Clasificar nombres nuevos</h3>
+      <p>Asociá cada línea a un producto tuyo o marcala como <b>ignorada</b> (no la trabajás). Lo que elijas acá queda guardado y en próximas listas se usa solo.</p>
+      <input class="field" placeholder="Buscar producto para asociar…" value="${busquedaProd.replace(/"/g,'&quot;')}"
+        oninput="window._setBusqProd(this.value)" style="margin-top:8px">
+    </div>
+    <div class="box" style="padding:0;overflow:hidden">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre en la lista</th>
+            <th class="r">Precio ref</th>
+            <th>Mapear a producto</th>
+            <th style="width:80px;text-align:center">Ignorar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pendientes.map(l => `
+            <tr>
+              <td>${l.nombre}</td>
+              <td class="r">${arsCent(l.precio)}</td>
+              <td>
+                <select class="mini" onchange="window._mapear('${l.nombre_norm}', this.value)">
+                  <option value="">— Elegir producto —</option>
+                  ${prodOpts.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')}
+                </select>
+              </td>
+              <td style="text-align:center">
+                <button class="btn-ghost" style="padding:5px 10px;font-size:12px"
+                  onclick="window._ignorar('${l.nombre_norm}')">Ignorar</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="bar">
+      <button class="btn-ghost" onclick="window._volverA('pegar')">‹ Volver</button>
+      <button class="btn-gold" onclick="window._armarCambios()">
+        ${pendientes.length} sin clasificar · Ver cambios ›
+      </button>
+    </div>
+  </section>`
+}
+
+function renderCambios() {
+  const nMap = cambios.length
+  const nIgn = lineasParseadas.filter(l => clasif[l.nombre_norm]?.estado==='ignorado').length
+  const nNuevos = lineasParseadas.filter(l => !clasif[l.nombre_norm]).length
+  const nCambios = cambios.filter(c => c.hayCambio).length
+  const nSelec = cambios.filter(c => c.aplicar).length
+
+  return `<section>
+    <div class="counters">
+      <div class="counter ok"><div class="nro">${nCambios}</div><div class="lbl">con cambio</div></div>
+      <div class="counter ign"><div class="nro">${nIgn}</div><div class="lbl">ignoradas</div></div>
+      <div class="counter new"><div class="nro">${nNuevos}</div><div class="lbl">sin clasificar</div></div>
+      <div class="counter orf"><div class="nro">${orfanos.length}</div><div class="lbl">sin precio hoy</div></div>
+    </div>
+
+    ${orfanos.length ? `
+      <div class="box" style="background:var(--amber-bg);border-color:var(--amber-tx)">
+        <h3 style="color:var(--amber-tx)">⚠ Productos mapeados que no vinieron en esta lista</h3>
+        <p style="color:var(--amber-tx)">Su precio de referencia quedó desactualizado. Puede ser que el proveedor los discontinuó o se olvidó de incluirlos.</p>
+        <ul style="margin:6px 0 0 20px;font-size:13px">
+          ${orfanos.map(o => `<li>${o.nombre}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+    <div class="box" style="padding:0;overflow:hidden">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px"><input type="checkbox" class="cb" onchange="window._togAll(this.checked)"
+              ${cambios.length && cambios.every(c => c.aplicar) ? 'checked' : ''}></th>
+            <th>Producto</th>
+            <th class="r">Ref ant.</th>
+            <th class="r">Ref nuevo</th>
+            <th class="r">%</th>
+            <th class="r">Venta actual</th>
+            <th class="r">Sugerido</th>
+            <th class="r">Margen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cambios.map(c => renderFila(c)).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bar">
+      <button class="btn-ghost" onclick="window._volverA('clasificar')">‹ Volver</button>
+      <button class="btn-gold" onclick="window._aplicar()" ${nSelec?'':'disabled'}>
+        Aplicar ${nSelec} cambio${nSelec===1?'':'s'}
+      </button>
+    </div>
+  </section>`
+}
+
+function renderFila(c) {
+  const pct = c.precio_ref_ant > 0 ? (c.precio_ref_nuevo - c.precio_ref_ant) / c.precio_ref_ant * 100 : 0
+  const pctClass = Math.abs(pct) < 0.1 ? 'delta-flat' : pct > 0 ? 'delta-up' : 'delta-down'
+  const margenAnt = c.costo > 0 ? (c.precio_venta_actual - c.costo) / c.precio_venta_actual * 100 : 0
+  const margenNvo = c.costo > 0 && c.precio_sugerido > 0 ? (c.precio_sugerido - c.costo) / c.precio_sugerido * 100 : 0
+  const nuevoVal = Number.isFinite(c.precio_sugerido) ? c.precio_sugerido.toFixed(2) : ''
+  return `<tr class="${c.aplicar?'':'off'}">
+    <td><input type="checkbox" class="cb" ${c.aplicar?'checked':''} onchange="window._togFila(${c.idx}, this.checked)"></td>
+    <td>${c.nombre_prod}<div style="font-size:11px;color:var(--ink-soft)">${c.nombre_externo}</div></td>
+    <td class="r">${c.precio_ref_ant ? arsCent(c.precio_ref_ant) : '—'}</td>
+    <td class="r">${arsCent(c.precio_ref_nuevo)}</td>
+    <td class="r"><span class="${pctClass}">${c.precio_ref_ant ? fmtPct(pct) : 'nuevo'}</span></td>
+    <td class="r">${arsCent(c.precio_venta_actual)}</td>
+    <td class="r"><input type="number" class="precio" step="0.01" min="0" value="${nuevoVal}"
+      oninput="window._editarSugerido(${c.idx}, this.value)"></td>
+    <td class="r"><span style="font-size:11px;color:var(--ink-soft)">${margenAnt.toFixed(0)}%</span>
+      <span style="color:var(--ink);font-weight:600;font-size:11px"> → ${margenNvo.toFixed(0)}%</span></td>
+  </tr>`
+}
+
+// ── EVENTOS ────────────────────────────────────────────────────────────
+window._setProv = async v => {
+  proveedorId = v
+  if (v) {
+    try { await cargarProveedor(v) } catch (e) { alert('Error: ' + e.message) }
+  }
+  render()
+}
+window._irAPegar = () => { paso = 'pegar'; textoCrudo = ''; lineasParseadas = []; render() }
+window._volverA = p => { paso = p; render() }
+window._setTxt = v => {
+  textoCrudo = v
+  const n = parsearTexto(v).length
+  // Solo re-render si cambia el estado del botón (0 ↔ >0)
+  if ((n > 0) !== (lineasParseadas.length > 0)) {
+    lineasParseadas = parsearTexto(v)
+    render()
+    const ta = document.querySelector('textarea.field')
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length) }
+  } else {
+    lineasParseadas = parsearTexto(v)
+  }
+}
+
+window._procesarTexto = () => {
+  lineasParseadas = parsearTexto(textoCrudo)
+  // Pre-cargar clasificación según nombres_externos ya conocidos.
+  clasif = {}
+  const porNorm = new Map(nombresExt.map(n => [n.nombre_norm, n]))
+  for (const l of lineasParseadas) {
+    const n = porNorm.get(l.nombre_norm)
+    if (n) clasif[l.nombre_norm] = { estado: n.estado, producto_id: n.producto_id, dbId: n.id }
+  }
+  paso = 'clasificar'
+  busquedaProd = ''
+  render()
+}
+
+window._setBusqProd = v => { busquedaProd = v; render() }
+window._mapear = (nombreNorm, prodId) => {
+  if (!prodId) return
+  clasif[nombreNorm] = { estado: 'mapeado', producto_id: prodId }
+  render()
+}
+window._ignorar = nombreNorm => {
+  clasif[nombreNorm] = { estado: 'ignorado', producto_id: null }
+  render()
+}
+
+window._armarCambios = () => {
+  const pps = new Map(producProv.map(x => [x.producto_id, x]))
+  const prods = new Map(productos.map(p => [p.id, p]))
+  const items = []
+  const mapeadosHoy = new Set()
+  let idx = 0
+  for (const l of lineasParseadas) {
+    const c = clasif[l.nombre_norm]
+    if (!c || c.estado !== 'mapeado' || !c.producto_id) continue
+    const prod = prods.get(c.producto_id)
+    if (!prod) continue
+    mapeadosHoy.add(c.producto_id)
+    const pp = pps.get(c.producto_id)
+    const precioRefAnt = Number(pp?.precio_referencia) || 0
+    const ratio = Number(pp?.ratio_venta) || 0
+    const precioVentaActual = Number(prod.precio) || 0
+    // Ratio inicial = precio_venta / precio_ref_nuevo (si no había uno guardado)
+    const ratioUsado = ratio > 0 ? ratio : (precioVentaActual > 0 && l.precio > 0 ? precioVentaActual / l.precio : 1)
+    const sugerido = ratioUsado * l.precio
+    const hayCambio = precioRefAnt === 0 || Math.abs(sugerido - precioVentaActual) >= 0.01
+    items.push({
+      idx: idx++,
+      nombre_externo: l.nombre,
+      nombre_norm: l.nombre_norm,
+      producto_id: c.producto_id,
+      nombre_prod: prod.nombre,
+      precio_ref_ant: precioRefAnt,
+      precio_ref_nuevo: l.precio,
+      precio_venta_actual: precioVentaActual,
+      precio_sugerido: Math.round(sugerido * 100) / 100,
+      costo: Number(prod.costo) || 0,
+      aplicar: hayCambio,
+      hayCambio,
+    })
+  }
+  cambios = items
+  // Mapeados que no vinieron en esta lista
+  orfanos = producProv
+    .filter(pp => pp.precio_referencia != null && !mapeadosHoy.has(pp.producto_id))
+    .map(pp => ({ producto_id: pp.producto_id, nombre: prods.get(pp.producto_id)?.nombre || '(sin nombre)' }))
+    .filter(o => o.nombre !== '(sin nombre)')
+  paso = 'cambios'
+  render()
+}
+
+window._togFila = (idx, on) => { if (cambios[idx]) cambios[idx].aplicar = !!on; render() }
+window._togAll = on => { cambios.forEach(c => c.aplicar = !!on); render() }
+window._editarSugerido = (idx, v) => {
+  const n = Number(v)
+  if (!cambios[idx]) return
+  cambios[idx].precio_sugerido = isFinite(n) ? n : 0
+  // Refresca solo la fila (margen); render completo evita volver a construir todo.
+  const row = document.querySelectorAll('tbody tr')[idx]
+  if (row) {
+    const nuevo = row.querySelector('td:last-child')
+    const c = cambios[idx]
+    const margenAnt = c.costo > 0 ? (c.precio_venta_actual - c.costo) / c.precio_venta_actual * 100 : 0
+    const margenNvo = c.costo > 0 && c.precio_sugerido > 0 ? (c.precio_sugerido - c.costo) / c.precio_sugerido * 100 : 0
+    nuevo.innerHTML = `<span style="font-size:11px;color:var(--ink-soft)">${margenAnt.toFixed(0)}%</span>
+      <span style="color:var(--ink);font-weight:600;font-size:11px"> → ${margenNvo.toFixed(0)}%</span>`
+  }
+}
+
+async function guardarNombresExternos() {
+  // Inserts/updates para los nombres_externos que faltan o cambiaron.
+  const porNorm = new Map(nombresExt.map(n => [n.nombre_norm, n]))
+  const inserts = []
+  const updates = []
+  for (const l of lineasParseadas) {
+    const c = clasif[l.nombre_norm]
+    if (!c) continue
+    const existe = porNorm.get(l.nombre_norm)
+    if (!existe) {
+      inserts.push({
+        empresa_id: usuario.empresa_id,
+        proveedor_id: proveedorId,
+        nombre_externo: l.nombre,
+        nombre_norm: l.nombre_norm,
+        producto_id: c.producto_id,
+        estado: c.estado,
+      })
+    } else if (existe.estado !== c.estado || existe.producto_id !== c.producto_id) {
+      updates.push({ id: existe.id, producto_id: c.producto_id, estado: c.estado })
+    }
+  }
+  if (inserts.length) {
+    const { error } = await supabase.from('nombre_externo_proveedor').insert(inserts)
+    if (error) throw error
+  }
+  for (const u of updates) {
+    const { error } = await supabase.from('nombre_externo_proveedor')
+      .update({ producto_id: u.producto_id, estado: u.estado, updated_at: new Date().toISOString() })
+      .eq('id', u.id)
+    if (error) throw error
+  }
+}
+
+async function guardarPreciosReferencia() {
+  // Para cada mapeado (haya o no cambio seleccionado), actualizar precio_referencia
+  // en producto_proveedor. Si no existe la fila, insertarla.
+  const porProd = new Map(producProv.map(pp => [pp.producto_id, pp]))
+  const upserts = []
+  for (const l of lineasParseadas) {
+    const c = clasif[l.nombre_norm]
+    if (!c || c.estado !== 'mapeado' || !c.producto_id) continue
+    const pp = porProd.get(c.producto_id)
+    const prod = productos.find(p => p.id === c.producto_id)
+    const precioVenta = Number(prod?.precio) || 0
+    // Si el usuario va a aplicar el cambio, el ratio se recalcula solo (trigger)
+    // cuando actualicemos productos.precio. Si NO aplica, mantenemos el ratio
+    // existente o lo seteamos usando el precio de venta actual.
+    const cambio = cambios.find(x => x.producto_id === c.producto_id)
+    let ratio = pp?.ratio_venta
+    if (!ratio || ratio <= 0) {
+      ratio = (precioVenta > 0 && l.precio > 0) ? precioVenta / l.precio : 1
+    }
+    if (pp) {
+      upserts.push({ tipo: 'update', id: pp.id, precio_referencia: l.precio, ratio_venta: ratio })
+    } else {
+      upserts.push({
+        tipo: 'insert',
+        row: {
+          empresa_id: usuario.empresa_id,
+          proveedor_id: proveedorId,
+          producto_id: c.producto_id,
+          costo: Number(prod?.costo) || 0,
+          precio_referencia: l.precio,
+          ratio_venta: ratio,
+        }
+      })
+    }
+  }
+  for (const u of upserts) {
+    if (u.tipo === 'update') {
+      const { error } = await supabase.from('producto_proveedor')
+        .update({ precio_referencia: u.precio_referencia, ratio_venta: u.ratio_venta })
+        .eq('id', u.id)
+      if (error) throw error
+    } else {
+      // Upsert por (producto_id, proveedor_id) — por si ya existe sin precio_ref.
+      const { error } = await supabase.from('producto_proveedor')
+        .upsert(u.row, { onConflict: 'producto_id,proveedor_id' })
+      if (error) throw error
+    }
+  }
+}
+
+async function aplicarPreciosVenta() {
+  const seleccion = cambios.filter(c => c.aplicar && c.precio_sugerido > 0)
+  for (const c of seleccion) {
+    const { error } = await supabase.from('productos')
+      .update({ precio: c.precio_sugerido, ultimo_cambio_precio: new Date().toISOString() })
+      .eq('id', c.producto_id)
+    if (error) throw error
+  }
+  return seleccion.length
+}
+
+async function guardarImportacion(cambiosAplicados) {
+  const nMap = Object.values(clasif).filter(c => c.estado==='mapeado').length
+  const nIgn = Object.values(clasif).filter(c => c.estado==='ignorado').length
+  const nNuevos = lineasParseadas.filter(l => !clasif[l.nombre_norm]).length
+  await supabase.from('importacion_lista_proveedor').insert({
+    empresa_id: usuario.empresa_id,
+    proveedor_id: proveedorId,
+    usuario_id: usuario.id,
+    lineas_total: lineasParseadas.length,
+    lineas_mapeadas: nMap,
+    lineas_ignoradas: nIgn,
+    lineas_nuevas: nNuevos,
+    cambios_aplicados: cambiosAplicados,
+    mapeados_sin_precio: orfanos.length,
+  })
+}
+
+window._aplicar = async () => {
+  try {
+    document.querySelector('.bar .btn-gold').disabled = true
+    await guardarNombresExternos()
+    await guardarPreciosReferencia()
+    const n = await aplicarPreciosVenta()
+    await guardarImportacion(n)
+    toast(`✓ ${n} precio${n===1?'':'s'} actualizado${n===1?'':'s'}`)
+    // Reset
+    paso = 'elegir'; proveedorId = ''; textoCrudo = ''; lineasParseadas = []
+    clasif = {}; cambios = []; orfanos = []; nombresExt = []; producProv = []
+    setTimeout(() => { render() }, 600)
+  } catch (e) {
+    alert('Error al aplicar: ' + (e.message || e))
+    document.querySelector('.bar .btn-gold').disabled = false
+  }
+}
+
+function toast(msg) {
+  const t = document.createElement('div')
+  t.className = 'toast'; t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 2400)
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────
+try {
+  await cargarInicial()
+} catch (e) {
+  root().innerHTML = `<div class="err-box">Error al cargar: ${e.message || e}</div>`
+  throw e
+}
+render()
+</script>
+</body>
+</html>
