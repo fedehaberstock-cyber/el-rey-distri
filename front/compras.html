@@ -49,6 +49,75 @@
   .stat.amb .nro{color:var(--amber-tx)}
   .stat.red .nro{color:var(--red-tx)}
 
+  /* Nuevos KPIs: dos tarjetas grandes (total / pendiente) + mini al costado */
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:12px}
+  .kpi-main{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px}
+  .kpi-main-v{font-size:22px;font-weight:800;color:var(--gold-dk);line-height:1.05;letter-spacing:-.01em}
+  .kpi-main-l{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-top:4px}
+  .kpi-main.amb .kpi-main-v{color:var(--amber-tx)}
+  .kpi-mini-wrap{display:flex;flex-direction:column;gap:6px;justify-content:center}
+  .kpi-mini{background:var(--line-soft);border-radius:10px;padding:7px 10px;font-size:11px;color:var(--ink-soft);white-space:nowrap}
+  .kpi-mini b{color:var(--ink);font-weight:700;font-size:13px;margin-right:4px}
+  .kpi-mini.red b{color:var(--red-tx)}
+  @media (max-width:520px){
+    .kpi-grid{grid-template-columns:1fr 1fr;grid-template-rows:auto auto}
+    .kpi-mini-wrap{flex-direction:row;grid-column:1/-1}
+    .kpi-mini{flex:1;text-align:center}
+  }
+
+  .borrador-bar{background:var(--blue-bg);border:1px solid var(--blue-tx);border-radius:10px;
+    padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--blue-tx);
+    display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .borrador-bar button{background:none;border:1px solid var(--blue-tx);color:var(--blue-tx);
+    padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;font-size:11px}
+
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .toolbar .search-input{flex:1;margin-bottom:0}
+  .horiz-sel,.prov-sel{appearance:none;padding:10px 32px 10px 12px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-size:13px;font-weight:600;font-family:inherit;color:var(--ink);
+    cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235B665F' stroke-width='2'><path d='M4 6l4 4 4-4'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  .prov-sel{width:100%}
+
+  .group-toggle{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .gchip{padding:8px 12px;border-radius:999px;font-size:13px;font-weight:600;
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;font-family:inherit;white-space:nowrap}
+  .gchip.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+
+  .sin-prov-box{background:var(--amber-bg);border:1px solid var(--amber-tx);border-radius:12px;padding:12px 14px}
+  .sin-prov-top{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;color:var(--amber-tx)}
+
+  .resumen-prov-wrap{background:var(--card);border:2px solid var(--gold);border-radius:14px;padding:12px 14px}
+  .resumen-prov-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--gold-dk);margin-bottom:10px}
+  .resumen-prov-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+  .resumen-prov-row:last-child{border-bottom:none}
+  .resumen-prov-row .btns{display:flex;gap:4px}
+  .resumen-prov-row .btns button{padding:6px 10px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:12px;border:none}
+  .resumen-prov-row .btns .wa{background:#25D366;color:#fff}
+  .resumen-prov-row .btns .alt{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+
+  /* Popover de proveedor por fila */
+  .prov-cog{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;
+    padding:0 4px;margin-left:4px;line-height:1;vertical-align:middle}
+  .prov-cog:hover{color:var(--gold)}
+  .prov-pop{margin-top:8px;background:var(--card);border:1px solid var(--gold);border-radius:10px;padding:10px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  .prov-pop-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px}
+  .prov-pop-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
+  .prov-pop-row:last-child{border-bottom:none}
+  .prov-pop-row.is-sel{background:var(--gold-lt);border-radius:6px;padding:7px 8px;margin:0 -4px;border-bottom-color:transparent}
+  .pop-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:4px}
+  .pop-badge.pref{background:var(--gold);color:#fff}
+  .pop-btn{padding:5px 9px;border:1px solid var(--line);background:var(--card);border-radius:6px;
+    font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .pop-btn.fijar{background:var(--gold-lt);border-color:var(--gold);color:var(--gold-dk)}
+  .pop-cerrar{width:100%;margin-top:8px;padding:7px;background:none;border:1px solid var(--line);border-radius:6px;
+    font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink-soft)}
+
+  .nota-ico{cursor:pointer;color:var(--gold);margin-left:4px}
+  .nota-ico.ghost{color:var(--ink-soft);font-weight:400}
+
   .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
   .chip{padding:6px 11px;border-radius:999px;font-size:12px;font-weight:600;
     border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
@@ -178,10 +247,12 @@ let ordenesAbiertas = []      // ordenes_compra estado=enviada|recibida_parcial 
 let ultimoCostoMap = {}       // `${prod_id}_${prov_id}` → ultimo_costo_anterior
 let catalogoProds = []        // para "+ agregar producto" — productos activos
 let tab = 'sugeridos'         // 'sugeridos' | 'pendientes' | 'historial'
-let vista = 'agrupado'        // 'agrupado' | 'urgentes'
+let agrupar = 'proveedor'     // 'proveedor' | 'categoria' | 'urgentes'
 let busqueda = ''
 let filtroProv = null  // null = todos, sino proveedor_id
 let horizonte = HORIZONTE_DEFAULT  // null | 7 | 14 | 30 | 45
+let verSinProv = false        // en vista por proveedor, "— Sin proveedor —" colapsado por default
+let provPopover = null        // { prodId } para el popover de cambiar/fijar proveedor por fila
 let borrador = cargarBorrador()
 let agregadosManual = []      // [{producto_id, proveedor_id, nombre, categoria, costo, unidad_compra}]
 let historicoCache = null     // {total, mes, trim, anio, porProveedor: [...]}
@@ -322,6 +393,21 @@ function porProveedor() {
     map.get(provId).items.push(s)
   }
   return [...map.values()].sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
+}
+
+// Agrupar por categoría de producto. Dentro de cada categoría los items van
+// ordenados por urgencia (menos días de stock primero).
+function porCategoria() {
+  const map = new Map()
+  for (const s of todosLosItems()) {
+    const cat = s.categoria || '— Sin categoría —'
+    if (!map.has(cat)) map.set(cat, { categoria: cat, items: [] })
+    map.get(cat).items.push(s)
+  }
+  for (const g of map.values()) {
+    g.items.sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999))
+  }
+  return [...map.values()].sort((a, b) => a.categoria.localeCompare(b.categoria, 'es', { sensitivity: 'base' }))
 }
 
 function diasUrgencia() {
@@ -628,44 +714,56 @@ function renderSugeridos() {
   const comprometido = comprometidoEnPendientes()
   const hayBorrador = Object.keys(borrador.cantidades).length + Object.keys(borrador.excluidos).length + Object.keys(borrador.reasignados).length > 0
 
-  // Proveedores únicos para chips de filtro (orden alfabético)
   const provsConItems = porProveedor()
-  const provChips = provsConItems.map(g => ({ id: g.proveedor_id, nombre: g.nombre, count: g.items.length }))
+  const horizOpts = [[null,'Default'],[7,'7d'],[14,'14d'],[30,'30d'],[45,'45d']]
 
   box.innerHTML = `
     <section>
-      ${hayBorrador ? `<div style="background:var(--blue-bg);border:1px solid var(--blue-tx);border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--blue-tx);display:flex;justify-content:space-between;align-items:center;gap:8px">
+      ${hayBorrador ? `<div class="borrador-bar">
         📝 Hay un borrador guardado.
-        <button onclick="window._descartarBorrador()" style="background:none;border:1px solid var(--blue-tx);color:var(--blue-tx);padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;font-size:11px">Descartar</button>
+        <button onclick="window._descartarBorrador()">Descartar</button>
       </div>` : ''}
-      <div class="stats">
-        <div class="stat"><div class="nro">${cantConDatos}</div><div class="desc">Productos</div></div>
-        <div class="stat ${urgentes?'red':''}"><div class="nro">${urgentes}</div><div class="desc">Urgentes ≤3d</div></div>
-        <div class="stat"><div class="nro">${ars(tot)}</div><div class="desc">Total</div></div>
-        <div class="stat ${comprometido?'amb':''}"><div class="nro">${ars(comprometido)}</div><div class="desc">Pendiente</div></div>
+
+      <div class="kpi-grid">
+        <div class="kpi-main">
+          <div class="kpi-main-v">${ars(tot)}</div>
+          <div class="kpi-main-l">Total a comprar</div>
+        </div>
+        <div class="kpi-main ${comprometido?'amb':''}">
+          <div class="kpi-main-v">${ars(comprometido)}</div>
+          <div class="kpi-main-l">Pendiente de recibir</div>
+        </div>
+        <div class="kpi-mini-wrap">
+          <div class="kpi-mini"><b>${cantConDatos}</b> productos</div>
+          <div class="kpi-mini ${urgentes?'red':''}"><b>${urgentes}</b> urgentes ≤3d</div>
+        </div>
       </div>
-      <div class="lbl">Horizonte de compra (días objetivo)</div>
-      <div class="filters">
-        ${[[null,'Default'],[7,'7d'],[14,'14d'],[30,'30d'],[45,'45d']].map(([v,l]) =>
-          `<div class="chip ${horizonte===v?'active':''}" onclick="window._setHorizonte(${v===null?'null':v})">${l}</div>`).join('')}
+
+      <div class="toolbar">
+        <input class="search-input" id="busq-prod" placeholder="Buscar producto…" value="${busqueda}" oninput="window._setBusq(this.value)">
+        <select class="horiz-sel" onchange="window._setHorizonte(this.value==='null'?null:parseInt(this.value))">
+          ${horizOpts.map(([v,l]) => `<option value="${v===null?'null':v}" ${horizonte===v?'selected':''}>Horizonte: ${l}</option>`).join('')}
+        </select>
       </div>
-      <input class="search-input" id="busq-prod" placeholder="Buscar producto…" value="${busqueda}" oninput="window._setBusq(this.value)">
-      <div class="filters">
-        <div class="chip ${vista==='agrupado'?'active':''}" onclick="window._setVista('agrupado')">Por proveedor</div>
-        <div class="chip ${vista==='urgentes'?'active':''}" onclick="window._setVista('urgentes')">Solo urgentes</div>
+
+      <div class="group-toggle">
+        <button class="gchip ${agrupar==='proveedor'?'active':''}" onclick="window._setAgrupar('proveedor')">🏭 Por proveedor</button>
+        <button class="gchip ${agrupar==='categoria'?'active':''}" onclick="window._setAgrupar('categoria')">📂 Por categoría</button>
+        <button class="gchip ${agrupar==='urgentes'?'active':''}" onclick="window._setAgrupar('urgentes')">⚡ Solo urgentes</button>
       </div>
-      ${provChips.length > 1 ? `
-        <div class="lbl" style="margin-top:6px">Filtrar por proveedor</div>
-        <div class="filters" style="overflow-x:auto;flex-wrap:nowrap">
-          <div class="chip ${filtroProv===null?'active':''}" onclick="window._setFiltroProv(null)">Todos (${allItems.length})</div>
-          ${provChips.map(p => `<div class="chip ${filtroProv===p.id?'active':''}" onclick="window._setFiltroProv('${p.id}')">${p.nombre} (${p.count})</div>`).join('')}
+
+      ${agrupar==='proveedor' && provsConItems.length > 1 ? `
+        <div class="toolbar" style="margin-top:4px">
+          <select class="prov-sel" onchange="window._setFiltroProv(this.value==='null'?null:this.value)">
+            <option value="null" ${filtroProv===null?'selected':''}>Todos los proveedores (${allItems.length})</option>
+            ${provsConItems.map(p => `<option value="${p.proveedor_id}" ${filtroProv===p.proveedor_id?'selected':''}>${p.nombre} (${p.items.length})</option>`).join('')}
+          </select>
         </div>` : ''}
     </section>
     <div id="lista-compras"></div>`
 
   renderListaSugeridos()
 
-  // sticky bar (se vuelve a colocar si no existe)
   document.querySelector('.sticky-bar')?.remove()
   if (cantConDatos > 0) {
     const bar = document.createElement('div')
@@ -686,7 +784,8 @@ function renderListaSugeridos() {
     lista.innerHTML = `<div class="empty">🎉 Nada para comprar.<br><small>Todos los productos están por encima del umbral de reorden.</small></div>`
     return
   }
-  if (vista === 'urgentes') {
+
+  if (agrupar === 'urgentes') {
     const items = filtroBusqueda(aplanarUrgentes()).filter(it =>
       !filtroProv || (it.reasignado_a || it.proveedor_id || 'sin') === filtroProv)
     lista.innerHTML = items.length
@@ -694,10 +793,27 @@ function renderListaSugeridos() {
       : `<div class="empty">Sin urgentes que coincidan.</div>`
     return
   }
+
+  if (agrupar === 'categoria') {
+    const grupos = porCategoria()
+      .map(g => ({ ...g, items: filtroBusqueda(g.items) }))
+      .filter(g => g.items.length)
+    lista.innerHTML = (grupos.length
+      ? grupos.map(renderGrupoCategoria).join('')
+      : `<div class="empty">Sin resultados.</div>`) + renderResumenPorProv()
+    return
+  }
+
+  // Por proveedor
   const grupos = porProveedor()
     .filter(g => !filtroProv || g.proveedor_id === filtroProv)
     .map(g => ({ ...g, items: filtroBusqueda(g.items) }))
     .filter(g => g.items.length)
+
+  // "Sin proveedor" se extrae y se renderiza al final, colapsado por default.
+  const sinProvIdx = grupos.findIndex(g => g.proveedor_id === 'sin' || !g.proveedor_id)
+  let gSin = null
+  if (sinProvIdx >= 0) { gSin = grupos.splice(sinProvIdx, 1)[0] }
 
   // También agregar grupos "vacíos" para proveedores que solo tienen productos
   // alternativos (sin sugerencia), así se ven al final.
@@ -722,9 +838,77 @@ function renderListaSugeridos() {
     })
   }
 
-  lista.innerHTML = grupos.length
-    ? grupos.map(g => renderGrupo(g)).join('')
-    : `<div class="empty">Sin resultados.</div>`
+  const html = []
+  if (grupos.length) html.push(grupos.map(g => renderGrupo(g)).join(''))
+  else if (!gSin) html.push(`<div class="empty">Sin resultados.</div>`)
+
+  if (gSin) {
+    const n = gSin.items.length
+    html.push(`<section style="padding:0 18px 14px">
+      <div class="sin-prov-box">
+        <div class="sin-prov-top" onclick="window._toggleSinProv()">
+          <div>
+            <div style="font-weight:700">⚠ ${n} ítem${n===1?'':'s'} sin proveedor asignado</div>
+            <div style="font-size:11px;color:var(--ink-soft);margin-top:2px">Click para ${verSinProv?'ocultar':'ver y asignar'}</div>
+          </div>
+          <span style="font-size:18px">${verSinProv?'▴':'▾'}</span>
+        </div>
+        ${verSinProv ? `<div style="margin-top:10px">${renderGrupo(gSin)}</div>` : ''}
+      </div>
+    </section>`)
+  }
+
+  lista.innerHTML = html.join('')
+}
+
+// Grupo por categoría: cabecera con nombre + totales + items (sin botones de proveedor,
+// esos se arman en el "Resumen por proveedor" al final).
+function renderGrupoCategoria(g) {
+  const totG = g.items.filter(it => !it.excluido).reduce((s, it) => s + cantidadEfectiva(it) * Number(it.ultimo_costo || 0), 0)
+  const cant = g.items.filter(it => !it.excluido && cantidadEfectiva(it) > 0).length
+  return `<section style="padding:0 18px 14px">
+    <div class="prov-card">
+      <div class="prov-hdr">
+        <div class="top">
+          <div style="flex:1">
+            <div class="nm">${g.categoria}</div>
+            <div class="meta">${cant} de ${g.items.length} ítem${g.items.length===1?'':'s'} · ${ars(totG)}</div>
+          </div>
+        </div>
+      </div>
+      ${g.items.map(renderItem).join('')}
+    </div>
+  </section>`
+}
+
+// Resumen por proveedor que aparece al final de la vista "Por categoría":
+// agrupa todo lo marcado por proveedor y expone los botones de envío.
+function renderResumenPorProv() {
+  const grupos = porProveedor().map(g => ({
+    ...g,
+    items: g.items.filter(it => !it.excluido && cantidadEfectiva(it) > 0),
+  })).filter(g => g.items.length)
+  if (!grupos.length) return ''
+  return `<section style="padding:0 18px 14px">
+    <div class="resumen-prov-wrap">
+      <div class="resumen-prov-title">📬 Resumen por proveedor — enviar pedidos</div>
+      ${grupos.map(g => {
+        const totG = g.items.reduce((s, it) => s + cantidadEfectiva(it) * Number(it.ultimo_costo || 0), 0)
+        return `<div class="resumen-prov-row">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px">${g.nombre}</div>
+            <div style="font-size:12px;color:var(--ink-soft)">${g.items.length} ítem${g.items.length===1?'':'s'} · ${ars(totG)}</div>
+          </div>
+          <div class="btns">
+            <button class="wa" onclick="window._waProv('${g.proveedor_id}')">📤 WA</button>
+            <button class="alt" onclick="window._copiarProv('${g.proveedor_id}')">📋</button>
+            <button class="alt" onclick="window._emailProv('${g.proveedor_id}')">✉</button>
+            <button class="alt" onclick="window._imprimirProv('${g.proveedor_id}')">🖨</button>
+          </div>
+        </div>`
+      }).join('')}
+    </div>
+  </section>`
 }
 
 function renderGrupo(g) {
@@ -805,20 +989,30 @@ function renderItem(it) {
   const mp = mejorPrecio(it)
   const vp = variacionPrecio(it)
   const pend = Number(it.pendiente_compra) || 0
-  const um = it.unidad_compra > 1 ? `<span class="mini-chip mult">×${it.unidad_compra}</span>` : ''
+  const stockActual = Number(it.stock_actual || 0)
+  const stockLbl = dRest !== null ? `${stockActual}u · ${dRest}d` : `${stockActual}u`
+  const stockCls = urg ? 'urg' : baja ? 'baja' : 'ok'
+  const notaIcon = it.notas_compra
+    ? `<span class="nota-ico" title="${(it.notas_compra||'').replace(/"/g,'&quot;')}" onclick="window._editarNotas('${it.producto_id}')">📝</span>`
+    : `<span class="nota-ico ghost" title="Agregar nota" onclick="window._editarNotas('${it.producto_id}')">＋</span>`
+  // Botón ⚙ solo si hay más de un proveedor conocido para este producto
+  const altsCount = (productoProveedores[it.producto_id] || []).length
+  const puedeCambiarProv = altsCount >= 1 && it.producto_id
   return `<div class="item-row ${it.excluido?'excluido':''}">
     <input class="cb" type="checkbox" ${it.excluido?'':'checked'} onchange="window._toggleExcl('${it.producto_id}')">
     <div class="item-info">
-      <div class="nm">${it.nombre}</div>
-      <div class="sub">${it.categoria || '—'}${it.subcategoria?` · ${it.subcategoria}`:''} · costo ${ars(Number(it.ultimo_costo)||0)}${it.notas_compra?` · 📝 ${it.notas_compra}`:''} <span style="cursor:pointer;color:var(--gold)" onclick="window._editarNotas('${it.producto_id}')">${it.notas_compra?'✏':'+ notas'}</span></div>
+      <div class="nm">${it.nombre}
+        ${puedeCambiarProv ? `<button class="prov-cog" title="Cambiar proveedor" onclick="window._togglePopoverProv('${it.producto_id}')">⚙</button>` : ''}
+      </div>
+      <div class="sub">${it.categoria || '—'}${it.subcategoria?` · ${it.subcategoria}`:''} · costo ${ars(Number(it.ultimo_costo)||0)} ${notaIcon}</div>
       <div class="chips-line">
-        ${dRest !== null ? `<span class="mini-chip ${urg?'urg':baja?'baja':'ok'}">${dRest}d stock</span>` : ''}
-        <span class="mini-chip" style="background:var(--line-soft);color:var(--ink)">${Number(it.stock_actual || 0)}u en stock</span>
+        <span class="mini-chip ${stockCls}">${stockLbl}</span>
         ${pend > 0 ? `<span class="mini-chip pend">${pend}u en camino</span>` : ''}
-        ${um}
+        ${it.unidad_compra > 1 ? `<span class="mini-chip mult">×${it.unidad_compra}</span>` : ''}
         ${vp ? `<span class="mini-chip ${vp.pct>0?'up':'down'}">${vp.pct>0?'▲':'▼'} ${Math.abs(vp.pct).toFixed(0)}%</span>` : ''}
         ${mp ? `<span class="mini-chip cheap" onclick="window._reasignar('${it.producto_id}','${mp.proveedor_id}')">💡 ${mp.nombre} ${ars(mp.costo)} (ahorrás ${ars(mp.ahorroUnit)}/u)</span>` : ''}
       </div>
+      ${provPopover && provPopover.prodId === it.producto_id ? renderPopoverProv(it) : ''}
     </div>
     <div class="item-cant">
       <div class="stepper">
@@ -827,8 +1021,42 @@ function renderItem(it) {
         <button onclick="window._stepper('${it.producto_id}',1)">+</button>
       </div>
       <div class="subtotal">${ars(subtotal)}</div>
-      ${cob !== null ? `<div class="cob ${cobClass}">${cob}d cobertura</div>` : ''}
+      ${cob !== null ? `<div class="cob ${cobClass}">${cob}d cob.</div>` : ''}
     </div>
+  </div>`
+}
+
+// Popover inline con proveedores conocidos del producto, con dos acciones:
+// cambiar solo para esta compra (reasignar en el borrador) o fijar como
+// preferido (update en productos.proveedor_id).
+function renderPopoverProv(it) {
+  const prod = catalogoProds.find(p => p.id === it.producto_id)
+  const preferidoId = prod?.proveedor_id
+  const alts = (productoProveedores[it.producto_id] || [])
+  const uniq = new Map()
+  for (const a of alts) uniq.set(a.proveedor_id, a)
+  // Asegurar que el preferido actual esté en la lista aunque no esté en producto_proveedor
+  if (preferidoId && !uniq.has(preferidoId)) {
+    uniq.set(preferidoId, { proveedor_id: preferidoId, nombre: proveedoresInfo[preferidoId]?.nombre || '?', costo: Number(prod?.costo) || 0 })
+  }
+  const asignado = it.reasignado_a || it.proveedor_id
+  const opts = [...uniq.values()].sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
+  return `<div class="prov-pop" onclick="event.stopPropagation()">
+    <div class="prov-pop-title">Elegí proveedor</div>
+    ${opts.map(o => `
+      <div class="prov-pop-row ${o.proveedor_id===asignado?'is-sel':''}">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${o.nombre}
+            ${o.proveedor_id===preferidoId?'<span class="pop-badge pref">PREFERIDO</span>':''}
+          </div>
+          <div style="font-size:11px;color:var(--ink-soft)">costo ${ars(Number(o.costo)||0)}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="pop-btn" onclick="window._cambiarSoloCompra('${it.producto_id}','${o.proveedor_id}')">Esta compra</button>
+          ${o.proveedor_id!==preferidoId ? `<button class="pop-btn fijar" onclick="window._fijarPreferido('${it.producto_id}','${o.proveedor_id}')">Fijar</button>` : ''}
+        </div>
+      </div>`).join('')}
+    <button class="pop-cerrar" onclick="window._togglePopoverProv(null)">Cerrar</button>
   </div>`
 }
 
@@ -1186,8 +1414,43 @@ window._verIngreso = async id => {
   await cargarItemsIngreso(id); renderHistorico()
 }
 window._cerrarIngreso = () => { ingresoDetalle = null; document.querySelector('.overlay')?.remove() }
-window._setVista = v => { vista = v; render() }
+window._setAgrupar = v => { agrupar = v; provPopover = null; render() }
 window._setHorizonte = v => { horizonte = v; render() }
+window._toggleSinProv = () => { verSinProv = !verSinProv; renderListaSugeridos() }
+window._togglePopoverProv = prodId => {
+  if (!prodId || (provPopover && provPopover.prodId === prodId)) provPopover = null
+  else provPopover = { prodId }
+  renderListaSugeridos()
+}
+window._cambiarSoloCompra = (prodId, provId) => {
+  // Reasignar solo en el borrador, no toca productos.proveedor_id
+  const it = todosLosItems().find(s => s.producto_id === prodId)
+  if (!it) return
+  it.reasignado_a = provId
+  borrador.reasignados[prodId] = provId
+  guardarBorrador()
+  provPopover = null
+  render()
+}
+window._fijarPreferido = async (prodId, provId) => {
+  if (!confirm('¿Fijar este proveedor como preferido del producto? El cambio queda vigente a futuro.')) return
+  const { error } = await supabase.from('productos').update({ proveedor_id: provId }).eq('id', prodId)
+  if (error) { alert('Error: ' + error.message); return }
+  // Reflejar en memoria sin recargar todo
+  const prod = catalogoProds.find(p => p.id === prodId)
+  if (prod) prod.proveedor_id = provId
+  // Quitar reasignación del borrador si existía — el preferido ahora manda
+  delete borrador.reasignados[prodId]
+  // Y en el item vigente, limpiar reasignado_a y actualizar proveedor_id para que
+  // la vista refleje el cambio inmediatamente.
+  for (const s of sugerencias) {
+    if (s.producto_id === prodId) { s.reasignado_a = null; s.proveedor_id = provId; s.proveedor_nombre = proveedoresInfo[provId]?.nombre || s.proveedor_nombre }
+  }
+  guardarBorrador()
+  provPopover = null
+  toast('✓ Proveedor preferido actualizado')
+  render()
+}
 window._setBusq = v => { busqueda = v; renderListaSugeridos() }
 window._setFiltroProv = v => { filtroProv = v; renderSugeridos() }
 window._descartarBorrador = () => {
