@@ -522,7 +522,7 @@ async function persistirOrden(grupo, canal) {
     total_estimado: totalEst,
     enviada_por_usuario_id: usuario.id,
   }).select('id').single()
-  if (error) { console.error('orden insert error', error); toast('⚠ No se grabó la orden: ' + error.message); return null }
+  if (error) { console.error('orden insert error', error); alert('⚠ No se grabó la orden: ' + error.message); return null }
 
   const itemsPayload = items.map(it => ({
     empresa_id: usuario.empresa_id,
@@ -532,7 +532,13 @@ async function persistirOrden(grupo, canal) {
     costo_unit_estimado: Number(it.ultimo_costo) || 0,
   }))
   const { error: errItems } = await supabase.from('orden_compra_items').insert(itemsPayload)
-  if (errItems) { console.error('orden items error', errItems); toast('⚠ Items no grabados: ' + errItems.message); return null }
+  if (errItems) {
+    console.error('orden items error', errItems, 'payload:', itemsPayload)
+    alert('⚠ Items no grabados: ' + errItems.message + '\n\nDetalle (código: ' + (errItems.code||'—') + '): ' + (errItems.details||errItems.hint||'ninguno') + '\n\nSe borra la orden vacía.')
+    // Deshacer la orden huérfana
+    await supabase.from('ordenes_compra').delete().eq('id', orden.id)
+    return null
+  }
 
   // Limpiar borrador del proveedor (todos los items de este grupo)
   for (const it of items) {
