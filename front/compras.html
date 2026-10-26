@@ -292,7 +292,6 @@ async function cargar() {
     { data: provs },
     { data: pp },
     { data: ord },
-    { data: ordItems },
     { data: cat },
   ] = await Promise.all([
     supabase.from('sugerencia_compra').select('*')
@@ -308,13 +307,23 @@ async function cargar() {
       .eq('empresa_id', usuario.empresa_id)
       .in('estado', ['enviada','recibida_parcial'])
       .order('fecha_enviada', { ascending: false }),
-    supabase.from('orden_compra_items')
-      .select('id, orden_id, producto_id, cantidad, cantidad_recibida, costo_unit_estimado, productos(nombre)')
-      .eq('empresa_id', usuario.empresa_id),
     supabase.from('productos')
       .select('id, nombre, categoria, costo, proveedor_id, unidad_compra, notas_compra')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
   ])
+
+  // Items solo de las órdenes abiertas (sin esto el .select traía TODOS los
+  // items históricos y PostgREST corta en 1000; las órdenes nuevas quedaban
+  // "sin items" en pantalla aunque la DB las tuviera).
+  let ordItems = []
+  const ordIds = (ord || []).map(o => o.id)
+  if (ordIds.length) {
+    const { data } = await supabase.from('orden_compra_items')
+      .select('id, orden_id, producto_id, cantidad, cantidad_recibida, costo_unit_estimado, productos(nombre)')
+      .eq('empresa_id', usuario.empresa_id)
+      .in('orden_id', ordIds)
+    ordItems = data || []
+  }
   if (errSug) {
     document.getElementById('root').innerHTML =
       `<div style="margin:18px;padding:14px;background:var(--red-bg);border:1px solid var(--red-tx);border-radius:12px;color:var(--red-tx)">Error: ${errSug.message}</div>`
