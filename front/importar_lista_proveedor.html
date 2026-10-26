@@ -353,18 +353,11 @@ function renderPegar() {
 
 function renderClasificar() {
   const pendientes = lineasParseadas.filter(l => !clasif[l.nombre_norm])
-  const nMap = Object.values(clasif).filter(c => c.estado === 'mapeado').length
-  const nIgn = Object.values(clasif).filter(c => c.estado === 'ignorado').length
-
-  if (!pendientes.length) {
-    return `<section>
-      <div class="box"><p>Todas las líneas están clasificadas. ${nMap} mapeadas · ${nIgn} ignoradas.</p></div>
-      <div class="bar">
-        <button class="btn-ghost" onclick="window._volverA('pegar')">‹ Volver</button>
-        <button class="btn-gold" onclick="window._armarCambios()">Ver cambios ›</button>
-      </div>
-    </section>`
-  }
+  const mapeadas = lineasParseadas.filter(l => clasif[l.nombre_norm]?.estado === 'mapeado')
+  const ignoradas = lineasParseadas.filter(l => clasif[l.nombre_norm]?.estado === 'ignorado')
+  const nMap = mapeadas.length
+  const nIgn = ignoradas.length
+  const prodById = new Map(productos.map(p => [p.id, p]))
 
   // Datalist compartido con todos los productos no mapeados aún.
   const yaMapeados = new Set(Object.values(clasif).filter(c => c.estado==='mapeado' && c.producto_id).map(c => c.producto_id))
@@ -373,36 +366,93 @@ function renderClasificar() {
     ${prodDisponibles.map(p => `<option value="${p.nombre.replace(/"/g,'&quot;')}"></option>`).join('')}
   </datalist>`
 
-  return `<section>
-    <div class="box">
-      <h3>Clasificar nombres nuevos</h3>
-      <p>Escribí para buscar el producto tuyo que corresponde, o marcala como <b>ignorada</b>. Lo que elijas queda guardado y en próximas listas se usa solo.</p>
-      <p style="font-size:12px;margin-top:4px;color:var(--ink-soft)"><b>Equivalencia</b>: si el proveedor vende en otra cantidad, ajustá "L = S". Ej: proveedor x10, tu stock x20 → <code>1 = 2</code>.</p>
-    </div>
-    ${datalist}
-    <div class="box" style="padding:0;overflow:hidden">
+  const pendientesHtml = !pendientes.length
+    ? `<div class="box"><p>Todas las líneas están clasificadas. ${nMap} mapeadas · ${nIgn} ignoradas.</p></div>`
+    : `<div class="box">
+        <h3>Clasificar nombres nuevos</h3>
+        <p>Escribí para buscar el producto tuyo que corresponde, o marcala como <b>ignorada</b>. Lo que elijas queda guardado y en próximas listas se usa solo.</p>
+        <p style="font-size:12px;margin-top:4px;color:var(--ink-soft)"><b>Equivalencia</b>: si el proveedor vende en otra cantidad, ajustá "L = S". Ej: proveedor x10, tu stock x20 → <code>1 = 2</code>.</p>
+      </div>
+      <div class="box" style="padding:0;overflow:hidden">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:180px">Nombre en la lista</th>
+              <th class="r" style="width:90px">Precio ref</th>
+              <th style="min-width:200px">Buscar y mapear</th>
+              <th style="width:120px">Equivalencia</th>
+              <th style="width:70px;text-align:center">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-clas">
+            ${pendientes.map(l => renderFilaClas(l)).join('')}
+          </tbody>
+        </table>
+      </div>`
+
+  const yaClasHtml = (nMap + nIgn) > 0 ? `
+    <div class="box" style="padding:0;overflow:hidden;margin-top:12px">
+      <div style="padding:10px 14px;background:var(--line-soft);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)">
+        Ya clasificadas · ${nMap} mapeadas · ${nIgn} ignoradas
+      </div>
       <table>
         <thead>
           <tr>
             <th style="min-width:180px">Nombre en la lista</th>
-            <th class="r" style="width:90px">Precio ref</th>
-            <th style="min-width:200px">Buscar y mapear</th>
-            <th style="width:120px">Equivalencia</th>
-            <th style="width:70px;text-align:center">Acción</th>
+            <th class="r" style="width:90px">Precio</th>
+            <th>Clasificación</th>
+            <th style="width:90px;text-align:center">Acción</th>
           </tr>
         </thead>
-        <tbody id="tbody-clas">
-          ${pendientes.map(l => renderFilaClas(l)).join('')}
+        <tbody>
+          ${mapeadas.concat(ignoradas).map(l => renderFilaYaClas(l, prodById)).join('')}
         </tbody>
       </table>
-    </div>
+    </div>` : ''
+
+  return `<section>
+    ${datalist}
+    ${pendientesHtml}
+    ${yaClasHtml}
     <div class="bar">
       <button class="btn-ghost" onclick="window._volverA('pegar')">‹ Volver</button>
       <button class="btn-gold" id="btn-ver-cambios" onclick="window._armarCambios()">
-        ${pendientes.length} sin clasificar · Ver cambios ›
+        ${pendientes.length ? `${pendientes.length} sin clasificar · Ver cambios ›` : 'Ver cambios ›'}
       </button>
     </div>
   </section>`
+}
+
+// Fila para la tabla "Ya clasificadas" (debajo de las pendientes).
+// Muestra el estado actual con el producto + factor y permite deshacer
+// (vuelve esa línea a la zona de pendientes para re-clasificar).
+function renderFilaYaClas(l, prodById) {
+  const c = clasif[l.nombre_norm]
+  const normAttr = l.nombre_norm.replace(/"/g,'&quot;')
+  if (c.estado === 'ignorado') {
+    return `<tr style="opacity:.7">
+      <td style="font-size:13px">${l.nombre}</td>
+      <td class="r">${arsCent(l.precio)}</td>
+      <td><span class="chip ign">⊘ ignorada</span></td>
+      <td style="text-align:center">
+        <button class="btn-ghost" style="padding:4px 10px;font-size:12px" onclick="window._deshacerClasif('${normAttr}')">Cambiar</button>
+      </td>
+    </tr>`
+  }
+  const prod = prodById.get(c.producto_id)
+  const factor = Number(c.factor) || 1
+  const factorTxt = Math.abs(factor - 1) > 0.0001 ? ` × ${factor}` : ''
+  return `<tr>
+    <td style="font-size:13px">${l.nombre}</td>
+    <td class="r">${arsCent(l.precio)}</td>
+    <td>
+      <span class="chip map">✓ mapeada</span>
+      <span style="font-weight:600;font-size:13px;margin-left:4px">${prod?.nombre || '(?)'}${factorTxt}</span>
+    </td>
+    <td style="text-align:center">
+      <button class="btn-ghost" style="padding:4px 10px;font-size:12px" onclick="window._deshacerClasif('${normAttr}')">Cambiar</button>
+    </td>
+  </tr>`
 }
 
 function renderFilaClas(l) {
@@ -689,6 +739,14 @@ window._ignorar = nombreNorm => {
   clasif[nombreNorm] = { estado: 'ignorado', producto_id: null, factor: 1 }
   ocultarFila(nombreNorm)
   refrescarContadorPendientes()
+}
+
+// Deshace la clasificación de una línea (de "Ya clasificadas" vuelve a pendientes).
+// Reset del factor y de la clasificación completa; re-render para mostrarla arriba.
+window._deshacerClasif = (nombreNorm) => {
+  delete clasif[nombreNorm]
+  delete eqInputs[nombreNorm]
+  render()
 }
 
 window._armarCambios = () => {
