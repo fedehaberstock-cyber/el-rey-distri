@@ -531,13 +531,19 @@ async function persistirOrden(grupo, canal) {
     cantidad: it.cantidadFinal,
     costo_unit_estimado: Number(it.ultimo_costo) || 0,
   }))
-  const { error: errItems } = await supabase.from('orden_compra_items').insert(itemsPayload)
+  console.log('[persistirOrden] items a grabar:', itemsPayload.length, itemsPayload)
+  const { data: rowsIns, error: errItems } = await supabase.from('orden_compra_items').insert(itemsPayload).select('id')
   if (errItems) {
     console.error('orden items error', errItems, 'payload:', itemsPayload)
     alert('⚠ Items no grabados: ' + errItems.message + '\n\nDetalle (código: ' + (errItems.code||'—') + '): ' + (errItems.details||errItems.hint||'ninguno') + '\n\nSe borra la orden vacía.')
     // Deshacer la orden huérfana
     await supabase.from('ordenes_compra').delete().eq('id', orden.id)
     return null
+  }
+  const grabados = (rowsIns || []).length
+  if (grabados !== items.length) {
+    console.warn('[persistirOrden] grabado parcial — esperado:', items.length, 'grabado:', grabados, 'payload:', itemsPayload)
+    alert(`⚠ Grabado parcial: se esperaban ${items.length} ítems y la base confirmó ${grabados}.\n\nAbrí la consola (F12) para ver los datos.`)
   }
 
   // Limpiar borrador del proveedor (todos los items de este grupo)
