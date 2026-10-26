@@ -812,7 +812,10 @@ window._armarCambios = () => {
         costo_prov_ant: costoProvAnt,
         precio_venta_actual: precioVentaActual,
         precio_sugerido: sugeridoVenta,  // ya redondeado a 50
-        aplicar: hayCambio,         // actualizar costo
+        // Default marcado SOLO si este proveedor ya es el preferido del producto
+        // (y hay cambio real). Para los alternativos no marca por default — vos
+        // decidís explícitamente si querés guardar su costo esta vez.
+        aplicar: esPreferido && hayCambio,
         actualizar_venta: false,    // opt-in: aplicar sugerido al precio
         fijar_preferido: false,     // opt-in: productos.proveedor_id = proveedorId
         hayCambio,
