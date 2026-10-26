@@ -219,7 +219,7 @@ const fmtPct = p => {
 async function cargarInicial() {
   const [{ data: provs, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
     supabase.from('proveedores').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
-    supabase.from('productos').select('id, nombre, categoria, costo, precio')
+    supabase.from('productos').select('id, nombre, categoria, costo, precio, proveedor_id')
       .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
   ])
   if (e1 || e2) throw e1 || e2
