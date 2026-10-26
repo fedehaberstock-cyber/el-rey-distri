@@ -197,6 +197,18 @@ function parsearNumero(s) {
   return Number(s) || 0
 }
 
+// Redondea al múltiplo de 50 más cercano hacia arriba (00 o 50).
+// Mismo criterio que ajustar_precios.html para mantener consistencia.
+function redondear50(p) {
+  if (!p || p <= 0) return 0
+  const base = Math.ceil(p)
+  const ult2 = base % 100
+  const cien = base - ult2
+  if (ult2 === 0) return base
+  if (ult2 <= 50) return cien + 50
+  return cien + 100
+}
+
 const fmtPct = p => {
   if (!isFinite(p) || p === 0) return '0%'
   const s = p > 0 ? '+' : ''
@@ -779,9 +791,11 @@ window._armarCambios = () => {
         ? (precioVentaActual - costoProductoAnt) / precioVentaActual * 100
         : 0
       // Precio sugerido para MANTENER el margen: nuevo_precio = nuevo_costo / (1 - margen/100)
-      const sugeridoVenta = margenAnt < 99.9 && costoNuevo > 0
+      // Redondeado al múltiplo de 50 (mismo criterio que Ajustar precios).
+      const sugeridoCrudo = margenAnt < 99.9 && costoNuevo > 0
         ? costoNuevo / (1 - margenAnt / 100)
         : precioVentaActual
+      const sugeridoVenta = redondear50(sugeridoCrudo)
       const hayCambio = costoProvAnt === 0 || Math.abs(costoNuevo - costoProvAnt) >= 0.01
       items.push({
         idx: idx++,
@@ -797,7 +811,7 @@ window._armarCambios = () => {
         costo_nuevo: costoNuevo,        // ya con % adicional
         costo_prov_ant: costoProvAnt,
         precio_venta_actual: precioVentaActual,
-        precio_sugerido: Math.round(sugeridoVenta * 100) / 100,
+        precio_sugerido: sugeridoVenta,  // ya redondeado a 50
         aplicar: hayCambio,         // actualizar costo
         actualizar_venta: false,    // opt-in: aplicar sugerido al precio
         fijar_preferido: false,     // opt-in: productos.proveedor_id = proveedorId
@@ -809,7 +823,7 @@ window._armarCambios = () => {
       const ratio = Number(pp?.ratio_venta) || 0
       const precioRefNuevo = l.precio * factor
       const ratioUsado = ratio > 0 ? ratio : (precioVentaActual > 0 && precioRefNuevo > 0 ? precioVentaActual / precioRefNuevo : 1)
-      const sugerido = ratioUsado * precioRefNuevo
+      const sugerido = redondear50(ratioUsado * precioRefNuevo)
       const hayCambio = precioRefAnt === 0 || Math.abs(sugerido - precioVentaActual) >= 0.01
       items.push({
         idx: idx++,
@@ -822,7 +836,7 @@ window._armarCambios = () => {
         precio_ref_ant: precioRefAnt,
         precio_ref_nuevo: precioRefNuevo,
         precio_venta_actual: precioVentaActual,
-        precio_sugerido: Math.round(sugerido * 100) / 100,
+        precio_sugerido: sugerido,
         costo: Number(prod.costo) || 0,
         aplicar: hayCambio,
         hayCambio,
