@@ -435,9 +435,9 @@ function renderClasificar() {
   </section>`
 }
 
-// Fila para la tabla "Ya clasificadas" (debajo de las pendientes).
-// Muestra el estado actual con el producto + factor y permite deshacer
-// (vuelve esa línea a la zona de pendientes para re-clasificar).
+// Fila para la tabla "Ya clasificadas". Soporta 1:N: cuando un nombre externo
+// está mapeado a varios productos, se renderiza una sub-fila por asociación +
+// una fila al final con botón "+ otro producto".
 function renderFilaYaClas(l, prodById) {
   const c = clasif[l.nombre_norm]
   const normAttr = l.nombre_norm.replace(/"/g,'&quot;')
@@ -451,20 +451,48 @@ function renderFilaYaClas(l, prodById) {
       </td>
     </tr>`
   }
-  const prod = prodById.get(c.producto_id)
-  const factor = Number(c.factor) || 1
-  const factorTxt = Math.abs(factor - 1) > 0.0001 ? ` × ${factor}` : ''
-  return `<tr>
-    <td style="font-size:13px">${l.nombre}</td>
-    <td class="r">${arsCent(l.precio)}</td>
-    <td>
-      <span class="chip map">✓ mapeada</span>
-      <span style="font-weight:600;font-size:13px;margin-left:4px">${prod?.nombre || '(?)'}${factorTxt}</span>
+  const asocs = c.asociaciones || []
+  const yaAsignados = new Set(asocs.map(a => a.producto_id))
+  const filas = asocs.map((a, i) => {
+    const prod = prodById.get(a.producto_id)
+    const factor = Number(a.factor) || 1
+    const esPrimera = i === 0
+    const nombreCel = esPrimera
+      ? `<td style="font-size:13px"><b>${l.nombre}</b></td>`
+      : `<td style="font-size:12px;color:var(--ink-soft);padding-left:14px">↳ ${l.nombre}</td>`
+    const precioCel = esPrimera ? `<td class="r">${arsCent(l.precio)}</td>` : `<td class="r">—</td>`
+    return `<tr>
+      ${nombreCel}
+      ${precioCel}
+      <td>
+        <span class="chip map">✓</span>
+        <span style="font-weight:600;font-size:13px;margin-left:4px">${prod?.nombre || '(?)'}</span>
+        <span style="color:var(--ink-soft);font-size:11px;margin-left:6px">×</span>
+        <input type="number" step="any" min="0" value="${factor}" style="width:48px;padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-family:inherit;font-size:12px;text-align:center;margin-left:4px"
+          onchange="window._setFactorAsoc('${normAttr}', ${i}, this.value)">
+      </td>
+      <td style="text-align:center">
+        ${esPrimera
+          ? `<button class="btn-ghost" style="padding:4px 10px;font-size:12px" onclick="window._deshacerClasif('${normAttr}')">Cambiar</button>`
+          : `<button class="btn-ghost" style="padding:4px 10px;font-size:12px;color:var(--red-tx);border-color:var(--red-tx)" onclick="window._quitarAsoc('${normAttr}', ${i})">Quitar</button>`}
+      </td>
+    </tr>`
+  }).join('')
+  // Fila "+ otro producto": datalist filtrando los ya asignados.
+  const prodsLibres = productos.filter(p => !yaAsignados.has(p.id))
+  const dlId = 'dl-' + l.nombre_norm.replace(/[^a-z0-9]/gi, '_').slice(0, 30)
+  const addRow = `<tr>
+    <td colspan="3" style="padding:6px 20px;background:var(--line-soft)">
+      <datalist id="${dlId}">
+        ${prodsLibres.slice(0, 400).map(p => `<option value="${p.nombre.replace(/"/g,'&quot;')}"></option>`).join('')}
+      </datalist>
+      <input list="${dlId}" placeholder="+ Agregar otro producto para este mismo nombre…"
+        style="width:100%;padding:5px 10px;border:1px dashed var(--gold);border-radius:6px;font-family:inherit;font-size:12px;background:#fff"
+        onchange="window._agregarAsoc('${normAttr}', this.value); this.value=''">
     </td>
-    <td style="text-align:center">
-      <button class="btn-ghost" style="padding:4px 10px;font-size:12px" onclick="window._deshacerClasif('${normAttr}')">Cambiar</button>
-    </td>
+    <td></td>
   </tr>`
+  return filas + addRow
 }
 
 function renderFilaClas(l) {
@@ -696,16 +724,31 @@ window._procesarTexto = () => {
   const r = parsearTexto(textoCrudo)
   lineasParseadas = r.ok
   lineasDescartes = r.descartes
-  // Pre-cargar clasificación según nombres_externos ya conocidos.
+  // Pre-cargar clasificación agrupando por nombre_norm (soporta 1:N).
   clasif = {}
-  const porNorm = new Map(nombresExt.map(n => [n.nombre_norm, n]))
+  const porNorm = new Map()
+  for (const n of nombresExt) {
+    if (!porNorm.has(n.nombre_norm)) porNorm.set(n.nombre_norm, [])
+    porNorm.get(n.nombre_norm).push(n)
+  }
   for (const l of lineasParseadas) {
-    const n = porNorm.get(l.nombre_norm)
-    if (n) clasif[l.nombre_norm] = {
-      estado: n.estado,
-      producto_id: n.producto_id,
-      factor: Number(n.factor_conversion) || 1,
-      dbId: n.id,
+    const regs = porNorm.get(l.nombre_norm)
+    if (!regs?.length) continue
+    // Si la primera fila es ignorada, todo es ignorado.
+    if (regs[0].estado === 'ignorado') {
+      clasif[l.nombre_norm] = { estado: 'ignorado', producto_id: null, factor: 1, asociaciones: [] }
+    } else {
+      const asocs = regs
+        .filter(r => r.estado === 'mapeado' && r.producto_id)
+        .map(r => ({ producto_id: r.producto_id, factor: Number(r.factor_conversion) || 1, dbId: r.id }))
+      if (asocs.length) {
+        clasif[l.nombre_norm] = {
+          estado: 'mapeado',
+          producto_id: asocs[0].producto_id,
+          factor: asocs[0].factor,
+          asociaciones: asocs,
+        }
+      }
     }
   }
   paso = 'clasificar'
@@ -733,7 +776,13 @@ function factorDeFila(nombreNorm) {
 
 window._mapear = (nombreNorm, prodId) => {
   if (!prodId) return
-  clasif[nombreNorm] = { estado: 'mapeado', producto_id: prodId, factor: factorDeFila(nombreNorm) }
+  const factor = factorDeFila(nombreNorm)
+  clasif[nombreNorm] = {
+    estado: 'mapeado',
+    producto_id: prodId,
+    factor,
+    asociaciones: [{ producto_id: prodId, factor }],
+  }
   render()
 }
 
@@ -742,23 +791,67 @@ window._mapearPorNombre = (nombreNorm, nombreProd) => {
   if (!nombreProd) return
   const prod = productos.find(p => p.nombre === nombreProd)
   if (!prod) return  // escrito a mano pero no coincide con ninguno
-  clasif[nombreNorm] = { estado: 'mapeado', producto_id: prod.id, factor: factorDeFila(nombreNorm) }
+  const factor = factorDeFila(nombreNorm)
+  clasif[nombreNorm] = {
+    estado: 'mapeado',
+    producto_id: prod.id,
+    factor,
+    asociaciones: [{ producto_id: prod.id, factor }],
+  }
   ocultarFila(nombreNorm, prod.nombre)
   refrescarContadorPendientes()
 }
 
 window._ignorar = nombreNorm => {
-  clasif[nombreNorm] = { estado: 'ignorado', producto_id: null, factor: 1 }
+  clasif[nombreNorm] = { estado: 'ignorado', producto_id: null, factor: 1, asociaciones: [] }
   ocultarFila(nombreNorm)
   refrescarContadorPendientes()
 }
 
 // Deshace la clasificación de una línea (de "Ya clasificadas" vuelve a pendientes).
-// Reset del factor y de la clasificación completa; re-render para mostrarla arriba.
 window._deshacerClasif = (nombreNorm) => {
   delete clasif[nombreNorm]
   delete eqInputs[nombreNorm]
   render()
+}
+
+// Agrega otra asociación (otro producto) al mismo nombre externo.
+// Se dispara desde el datalist que aparece en el bloque de ya-clasificadas.
+window._agregarAsoc = (nombreNorm, nombreProd) => {
+  if (!nombreProd) return
+  const prod = productos.find(p => p.nombre === nombreProd)
+  if (!prod) return
+  const c = clasif[nombreNorm]
+  if (!c || c.estado !== 'mapeado') return
+  // Evitar duplicar
+  if (c.asociaciones.some(a => a.producto_id === prod.id)) return
+  c.asociaciones.push({ producto_id: prod.id, factor: 1 })
+  render()
+}
+
+// Quita una asociación del mismo nombre externo (por índice).
+// Si queda sin ninguna, el nombre vuelve a pendientes.
+window._quitarAsoc = (nombreNorm, idx) => {
+  const c = clasif[nombreNorm]
+  if (!c || c.estado !== 'mapeado') return
+  c.asociaciones.splice(idx, 1)
+  if (!c.asociaciones.length) {
+    delete clasif[nombreNorm]
+  } else {
+    c.producto_id = c.asociaciones[0].producto_id
+    c.factor = c.asociaciones[0].factor
+  }
+  render()
+}
+
+// Edita el factor de una asociación específica (0-indexed en asociaciones).
+window._setFactorAsoc = (nombreNorm, idx, valor) => {
+  const c = clasif[nombreNorm]
+  if (!c || c.estado !== 'mapeado') return
+  const n = Number(valor)
+  if (!(n > 0)) return
+  c.asociaciones[idx].factor = n
+  if (idx === 0) c.factor = n
 }
 
 window._armarCambios = () => {
@@ -767,14 +860,24 @@ window._armarCambios = () => {
   const items = []
   const mapeadosHoy = new Set()
   let idx = 0
+  // Expandir cada línea de la lista a 1 fila por asociación (producto mapeado).
+  // Si un nombre externo mapea a 3 productos, genera 3 cambios con el mismo
+  // costo base pero factor y producto distintos.
+  const expandido = []
   for (const l of lineasParseadas) {
     const c = clasif[l.nombre_norm]
-    if (!c || c.estado !== 'mapeado' || !c.producto_id) continue
-    const prod = prods.get(c.producto_id)
+    if (!c || c.estado !== 'mapeado') continue
+    const asocs = c.asociaciones?.length ? c.asociaciones : (c.producto_id ? [{ producto_id: c.producto_id, factor: c.factor }] : [])
+    for (const asoc of asocs) {
+      expandido.push({ l, producto_id: asoc.producto_id, factor: asoc.factor })
+    }
+  }
+  for (const { l, producto_id, factor: factorAsoc } of expandido) {
+    const prod = prods.get(producto_id)
     if (!prod) continue
-    mapeadosHoy.add(c.producto_id)
-    const pp = pps.get(c.producto_id)
-    const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
+    mapeadosHoy.add(producto_id)
+    const pp = pps.get(producto_id)
+    const factor = Number(factorAsoc) > 0 ? Number(factorAsoc) : 1
     const precioVentaActual = Number(prod.precio) || 0
     const esPreferido = prod.proveedor_id === proveedorId
 
@@ -801,7 +904,7 @@ window._armarCambios = () => {
         idx: idx++,
         nombre_externo: l.nombre,
         nombre_norm: l.nombre_norm,
-        producto_id: c.producto_id,
+        producto_id: producto_id,
         nombre_prod: prod.nombre,
         factor,
         precio_lista_crudo: l.precio,
@@ -832,7 +935,7 @@ window._armarCambios = () => {
         idx: idx++,
         nombre_externo: l.nombre,
         nombre_norm: l.nombre_norm,
-        producto_id: c.producto_id,
+        producto_id: producto_id,
         nombre_prod: prod.nombre,
         factor,
         precio_lista_crudo: l.precio,
@@ -905,34 +1008,87 @@ window._editarSugerido = (idx, v) => {
 }
 
 async function guardarNombresExternos() {
-  // Inserts/updates para los nombres_externos que faltan o cambiaron.
-  const porNorm = new Map(nombresExt.map(n => [n.nombre_norm, n]))
+  // Sincronizar las asociaciones (1:N) con las filas de la DB:
+  // - Para cada nombre_norm, agrupar las filas existentes.
+  // - Si estado=ignorado: dejar UNA fila ignorada (producto_id=null) y borrar el resto.
+  // - Si estado=mapeado: una fila por asociación. Las existentes que ya cubren
+  //   un producto se actualizan si cambió el factor; las que ya no están se
+  //   borran; las nuevas se insertan.
+  const porNorm = new Map()
+  for (const n of nombresExt) {
+    if (!porNorm.has(n.nombre_norm)) porNorm.set(n.nombre_norm, [])
+    porNorm.get(n.nombre_norm).push(n)
+  }
   const inserts = []
-  const updates = []
+  const updates = []  // {id, producto_id, estado, factor_conversion}
+  const deletes = []
+
   for (const l of lineasParseadas) {
     const c = clasif[l.nombre_norm]
     if (!c) continue
-    const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
-    const existe = porNorm.get(l.nombre_norm)
-    if (!existe) {
-      inserts.push({
-        empresa_id: usuario.empresa_id,
-        proveedor_id: proveedorId,
-        nombre_externo: l.nombre,
-        nombre_norm: l.nombre_norm,
-        producto_id: c.producto_id,
-        estado: c.estado,
-        factor_conversion: factor,
-      })
-    } else {
-      const factorAnt = Number(existe.factor_conversion) || 1
-      const cambio = existe.estado !== c.estado
-        || existe.producto_id !== c.producto_id
-        || Math.abs(factorAnt - factor) > 1e-9
-      if (cambio) {
-        updates.push({ id: existe.id, producto_id: c.producto_id, estado: c.estado, factor_conversion: factor })
+    const existentes = porNorm.get(l.nombre_norm) || []
+
+    if (c.estado === 'ignorado') {
+      if (existentes.length === 0) {
+        inserts.push({
+          empresa_id: usuario.empresa_id,
+          proveedor_id: proveedorId,
+          nombre_externo: l.nombre,
+          nombre_norm: l.nombre_norm,
+          producto_id: null,
+          estado: 'ignorado',
+          factor_conversion: 1,
+        })
+      } else {
+        // Dejar sola la primera marcada como ignorada; borrar las demás.
+        const [primera, ...resto] = existentes
+        if (primera.estado !== 'ignorado' || primera.producto_id != null) {
+          updates.push({ id: primera.id, producto_id: null, estado: 'ignorado', factor_conversion: 1 })
+        }
+        for (const r of resto) deletes.push(r.id)
+      }
+      continue
+    }
+
+    // mapeado: una fila por asociación.
+    const asocs = c.asociaciones || []
+    const prodsEnAsocs = new Set(asocs.map(a => a.producto_id))
+    const porProd = new Map(existentes.map(e => [e.producto_id, e]))
+
+    for (const asoc of asocs) {
+      const factor = Number(asoc.factor) > 0 ? Number(asoc.factor) : 1
+      const existe = porProd.get(asoc.producto_id)
+      if (!existe) {
+        inserts.push({
+          empresa_id: usuario.empresa_id,
+          proveedor_id: proveedorId,
+          nombre_externo: l.nombre,
+          nombre_norm: l.nombre_norm,
+          producto_id: asoc.producto_id,
+          estado: 'mapeado',
+          factor_conversion: factor,
+        })
+      } else {
+        const factorAnt = Number(existe.factor_conversion) || 1
+        const cambio = existe.estado !== 'mapeado'
+          || Math.abs(factorAnt - factor) > 1e-9
+        if (cambio) {
+          updates.push({ id: existe.id, producto_id: asoc.producto_id, estado: 'mapeado', factor_conversion: factor })
+        }
       }
     }
+    // Borrar filas existentes que ya no están en las asociaciones.
+    for (const e of existentes) {
+      if (!prodsEnAsocs.has(e.producto_id) || e.estado !== 'mapeado') {
+        if (e.estado === 'mapeado' && !prodsEnAsocs.has(e.producto_id)) deletes.push(e.id)
+        else if (e.estado !== 'mapeado') deletes.push(e.id)
+      }
+    }
+  }
+
+  if (deletes.length) {
+    const { error } = await supabase.from('nombre_externo_proveedor').delete().in('id', deletes)
+    if (error) throw error
   }
   if (inserts.length) {
     const { error } = await supabase.from('nombre_externo_proveedor').insert(inserts)
@@ -959,36 +1115,33 @@ async function guardarPreciosReferencia() {
   const upserts = []
   for (const l of lineasParseadas) {
     const c = clasif[l.nombre_norm]
-    if (!c || c.estado !== 'mapeado' || !c.producto_id) continue
-    const pp = porProd.get(c.producto_id)
-    const prod = productos.find(p => p.id === c.producto_id)
-    const precioVenta = Number(prod?.precio) || 0
-    const factor = Number(c.factor) > 0 ? Number(c.factor) : 1
-    const precioRefConv = l.precio * factor
-    // Si el usuario va a aplicar el cambio, el ratio se recalcula solo (trigger)
-    // cuando actualicemos productos.precio. Si NO aplica, mantenemos el ratio
-    // existente o lo seteamos usando el precio de venta actual.
-    let ratio = pp?.ratio_venta
-    if (!ratio || ratio <= 0) {
-      ratio = (precioVenta > 0 && precioRefConv > 0) ? precioVenta / precioRefConv : 1
-    }
-    if (pp) {
-      upserts.push({ tipo: 'update', id: pp.id, precio_referencia: precioRefConv, ratio_venta: ratio })
-    } else {
-      // "Solo referencia": este proveedor te manda precio de lista pero no te
-      // vende este producto (todavía). costo queda NULL para que la UI de
-      // stock no lo muestre como proveedor alternativo real.
-      upserts.push({
-        tipo: 'insert',
-        row: {
-          empresa_id: usuario.empresa_id,
-          proveedor_id: proveedorId,
-          producto_id: c.producto_id,
-          costo: null,
-          precio_referencia: precioRefConv,
-          ratio_venta: ratio,
-        }
-      })
+    if (!c || c.estado !== 'mapeado') continue
+    const asocs = c.asociaciones?.length ? c.asociaciones : (c.producto_id ? [{ producto_id: c.producto_id, factor: c.factor }] : [])
+    for (const asoc of asocs) {
+      const pp = porProd.get(asoc.producto_id)
+      const prod = productos.find(p => p.id === asoc.producto_id)
+      const precioVenta = Number(prod?.precio) || 0
+      const factor = Number(asoc.factor) > 0 ? Number(asoc.factor) : 1
+      const precioRefConv = l.precio * factor
+      let ratio = pp?.ratio_venta
+      if (!ratio || ratio <= 0) {
+        ratio = (precioVenta > 0 && precioRefConv > 0) ? precioVenta / precioRefConv : 1
+      }
+      if (pp) {
+        upserts.push({ tipo: 'update', id: pp.id, precio_referencia: precioRefConv, ratio_venta: ratio })
+      } else {
+        upserts.push({
+          tipo: 'insert',
+          row: {
+            empresa_id: usuario.empresa_id,
+            proveedor_id: proveedorId,
+            producto_id: asoc.producto_id,
+            costo: null,
+            precio_referencia: precioRefConv,
+            ratio_venta: ratio,
+          }
+        })
+      }
     }
   }
   for (const u of upserts) {
