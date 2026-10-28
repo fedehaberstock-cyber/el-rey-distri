@@ -500,7 +500,7 @@ function renderFilaYaClas(l, prodById) {
   const addRow = `<tr>
     <td colspan="3" style="padding:6px 20px;background:var(--line-soft)">
       <datalist id="${dlId}">
-        ${prodsLibres.slice(0, 400).map(p => `<option value="${p.nombre.replace(/"/g,'&quot;')}"></option>`).join('')}
+        ${prodsLibres.map(p => `<option value="${p.nombre.replace(/"/g,'&quot;')}"></option>`).join('')}
       </datalist>
       <input list="${dlId}" placeholder="+ Agregar otro producto para este mismo nombre…"
         style="width:100%;padding:5px 10px;border:1px dashed var(--gold);border-radius:6px;font-family:inherit;font-size:12px;background:#fff"
