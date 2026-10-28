@@ -215,12 +215,28 @@ const fmtPct = p => {
   return s + p.toFixed(1).replace(/\.0$/, '') + '%'
 }
 
+// Paginado de a 1000 (PostgREST corta en 1000/request; sin paginar faltan
+// productos en el datalist cuando hay > 1000 activos y los últimos
+// alfabéticamente — ej. Suave, Tampones — quedan fuera).
+async function fetchAllPaginado(makeQuery) {
+  const pageSize = 1000
+  let from = 0, todos = []
+  while (true) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1)
+    if (error) return { error }
+    todos = todos.concat(data || [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+  return { data: todos }
+}
+
 // ── CARGA ──────────────────────────────────────────────────────────────
 async function cargarInicial() {
   const [{ data: provs, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
     supabase.from('proveedores').select('id, nombre').eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
-    supabase.from('productos').select('id, nombre, categoria, costo, precio, proveedor_id')
-      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre'),
+    fetchAllPaginado(() => supabase.from('productos').select('id, nombre, categoria, costo, precio, proveedor_id')
+      .eq('empresa_id', usuario.empresa_id).eq('activo', true).order('nombre')),
   ])
   if (e1 || e2) throw e1 || e2
   proveedores = provs || []
@@ -229,12 +245,12 @@ async function cargarInicial() {
 
 async function cargarProveedor(provId) {
   const [{ data: nombres, error: e1 }, { data: pps, error: e2 }] = await Promise.all([
-    supabase.from('nombre_externo_proveedor')
+    fetchAllPaginado(() => supabase.from('nombre_externo_proveedor')
       .select('id, nombre_externo, nombre_norm, producto_id, estado, factor_conversion')
-      .eq('proveedor_id', provId),
-    supabase.from('producto_proveedor')
+      .eq('proveedor_id', provId)),
+    fetchAllPaginado(() => supabase.from('producto_proveedor')
       .select('id, producto_id, precio_referencia, ratio_venta, costo')
-      .eq('proveedor_id', provId),
+      .eq('proveedor_id', provId)),
   ])
   if (e1 || e2) throw e1 || e2
   nombresExt = nombres || []
