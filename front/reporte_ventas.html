@@ -101,6 +101,30 @@
     color:var(--ink-soft);margin-bottom:4px}
   .prev-bar-track{height:8px;background:var(--line-soft);border-radius:999px;overflow:hidden}
   .prev-bar-fill{height:100%;border-radius:999px}
+  .prev-card{cursor:pointer;transition:border-color .15s}
+  .prev-card.open{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .prev-card .chev{float:right;color:var(--ink-soft);font-size:12px;margin-top:2px}
+
+  .prev-detail{grid-column:span 2;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:0;margin:0 0 4px;overflow:hidden}
+  .prev-detail .sub-tabs{display:flex;border-bottom:1px solid var(--line-soft);background:var(--paper)}
+  .prev-detail .sub-tab{flex:1;padding:10px 6px;text-align:center;font-size:12px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .prev-detail .sub-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .prev-detail .sub-body{padding:12px 14px;max-height:420px;overflow-y:auto}
+  .prev-detail .busq{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+    font-size:13px;font-family:inherit;margin-bottom:10px;background:#fff}
+  .prev-row{display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:8px 0;border-bottom:1px dashed var(--line-soft);font-size:13px}
+  .prev-row:last-child{border-bottom:none}
+  .prev-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prev-row .u{font-size:11px;color:var(--ink-soft);margin-left:4px}
+  .prev-row .mt{font-weight:700;white-space:nowrap}
+  .cat-bar{margin:8px 0}
+  .cat-bar .top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
+  .cat-bar .tr{height:7px;background:var(--line-soft);border-radius:999px;overflow:hidden}
+  .cat-bar .fl{height:100%;border-radius:999px}
+
   .share-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:14px 18px;margin:0 18px 14px}
   .share-title{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
@@ -164,15 +188,19 @@ let gastosCache  = []; // [{ fecha, total_gastos }]
 let gastosFijosCache = []; // [{ monto_mensual, vigente_desde, vigente_hasta, activo }]
 let comisionesCache = []; // [{ id, nombre, comision_tipo, comision_valor }]
 let comisionesHistCache = []; // [{ usuario_id, comision_tipo, comision_valor, vigente_desde, vigente_hasta }]
+let prevExpandido = null;   // nombre del preventista con detalle abierto
+let prevSubTab    = 'productos'; // 'productos' | 'categorias' | 'clientes'
+let prevBusqProd  = '';
 
 // ── CARGA ──────────────────────────────────────────────────────────────────
 // Paginación PARALELA: primero un count exact (head), después dispara todas las
 // páginas de 1000 con Promise.all en lugar de secuencial. 3-5x más rápido.
 async function fetchPedidosPaginado(desdeIso) {
   const baseSelect = `
-    id, fecha, estado, descuento, usuario_id,
+    id, fecha, estado, descuento, usuario_id, cliente_id,
     usuarios!pedidos_usuario_id_fkey(nombre),
-    pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, costo_unit_snapshot, productos(nombre, costo, proveedores(nombre)))
+    clientes(nombre),
+    pedido_items(cantidad, precio_unit, descuento, es_bulto, u_por_bulto, costo_unit_snapshot, productos(nombre, categoria, costo, proveedores(nombre)))
   `;
   const baseQuery = () => supabase.from('pedidos')
     .select(baseSelect, { count: 'exact' })
@@ -797,23 +825,137 @@ function renderPreventistas(pf, totalVentas) {
       </div>
     </div>
     <div class="prev-cards">
-      ${stats.map(s => `<div class="prev-card">
-        <div class="name">
-          <div class="prev-dot" style="background:${s.color}"></div>${s.nombre}
-        </div>
-        <div class="prev-stat"><div class="k">Vendido</div>
-          <div class="v" style="color:${s.color}">${ars(s.monto)}</div></div>
-        <div class="prev-stat"><div class="k">Pedidos</div><div class="v">${s.cant}</div></div>
-        <div class="prev-stat"><div class="k">Ticket prom.</div><div class="v">${ars(s.ticket)}</div></div>
-        <div class="prev-bar-wrap">
-          <div class="prev-bar-lbl"><span>Participación</span><span>${s.share}%</span></div>
-          <div class="prev-bar-track">
-            <div class="prev-bar-fill" style="width:${s.share}%;background:${s.color}"></div>
+      ${stats.map(s => {
+        const abierto = prevExpandido === s.nombre
+        const card = `<div class="prev-card ${abierto ? 'open' : ''}" onclick="window._togglePrev('${s.nombre.replace(/'/g,"\\'")}')">
+          <div class="name">
+            <div class="prev-dot" style="background:${s.color}"></div>${s.nombre}
+            <span class="chev">${abierto ? '▲' : '▼'}</span>
           </div>
-        </div>
-      </div>`).join('')}
+          <div class="prev-stat"><div class="k">Vendido</div>
+            <div class="v" style="color:${s.color}">${ars(s.monto)}</div></div>
+          <div class="prev-stat"><div class="k">Pedidos</div><div class="v">${s.cant}</div></div>
+          <div class="prev-stat"><div class="k">Ticket prom.</div><div class="v">${ars(s.ticket)}</div></div>
+          <div class="prev-bar-wrap">
+            <div class="prev-bar-lbl"><span>Participación</span><span>${s.share}%</span></div>
+            <div class="prev-bar-track">
+              <div class="prev-bar-fill" style="width:${s.share}%;background:${s.color}"></div>
+            </div>
+          </div>
+        </div>`
+        return card + (abierto ? renderPrevDetalle(pf, s) : '')
+      }).join('')}
     </div>`;
 }
+
+function renderPrevDetalle(pf, s) {
+  const mis = pf.filter(p => p.usuarios?.nombre === s.nombre);
+
+  // Agregados
+  const prodMap = {};   // nombre → { unidades, monto }
+  const catMap  = {};   // categoria → { monto, unidades }
+  const cliMap  = {};   // nombre → { monto, pedidos:Set }
+  let totalPrev = 0;
+  mis.forEach(ped => {
+    const descGral = 1 - (ped.descuento || 0) / 100;
+    const cliNom = ped.clientes?.nombre || '(sin cliente)';
+    let subtotalPed = 0;
+    (ped.pedido_items || []).forEach(it => {
+      const monto = it.cantidad * it.precio_unit * (1 - (it.descuento || 0) / 100) * descGral;
+      const nom = it.productos?.nombre || '(sin nombre)';
+      const cat = it.productos?.categoria || '(sin categoría)';
+      prodMap[nom] = prodMap[nom] || { unidades: 0, monto: 0 };
+      prodMap[nom].unidades += Number(it.cantidad) || 0;
+      prodMap[nom].monto    += monto;
+      catMap[cat] = catMap[cat] || { monto: 0, unidades: 0 };
+      catMap[cat].monto    += monto;
+      catMap[cat].unidades += Number(it.cantidad) || 0;
+      subtotalPed += monto;
+    });
+    cliMap[cliNom] = cliMap[cliNom] || { monto: 0, pedidos: new Set() };
+    cliMap[cliNom].monto += subtotalPed;
+    cliMap[cliNom].pedidos.add(ped.id);
+    totalPrev += subtotalPed;
+  });
+
+  const tabsInt = [['productos','Productos'],['categorias','Categorías'],['clientes','Clientes']];
+  const subTabHtml = `<div class="sub-tabs">
+    ${tabsInt.map(([id, lbl]) => `<div class="sub-tab ${prevSubTab===id?'active':''}" onclick="event.stopPropagation();window._setPrevSubTab('${id}')">${lbl}</div>`).join('')}
+  </div>`;
+
+  let body = '';
+  if (prevSubTab === 'productos') {
+    const q = (prevBusqProd || '').toLowerCase().trim();
+    const filas = Object.entries(prodMap)
+      .map(([nombre, v]) => ({ nombre, ...v, share: totalPrev ? v.monto / totalPrev * 100 : 0 }))
+      .filter(r => !q || r.nombre.toLowerCase().includes(q))
+      .sort((a,b) => b.monto - a.monto);
+    body = `
+      <input class="busq" type="text" placeholder="Buscar producto…" value="${prevBusqProd.replace(/"/g,'&quot;')}"
+        oninput="window._setPrevBusq(this.value)" onclick="event.stopPropagation()">
+      ${filas.length === 0 ? `<div style="text-align:center;color:var(--ink-soft);padding:14px;font-size:13px">Sin resultados.</div>`
+        : filas.slice(0, 200).map(r => `<div class="prev-row">
+            <div class="nm">${r.nombre}<span class="u">· ${r.unidades} u</span></div>
+            <div class="mt">${ars(Math.round(r.monto))} <span class="u">${r.share.toFixed(1)}%</span></div>
+          </div>`).join('')}
+      ${filas.length > 200 ? `<div style="text-align:center;color:var(--ink-soft);padding:8px;font-size:11px">Mostrando 200 de ${filas.length}. Refiná la búsqueda.</div>` : ''}`;
+  } else if (prevSubTab === 'categorias') {
+    const filas = Object.entries(catMap)
+      .map(([cat, v]) => ({ cat, ...v, share: totalPrev ? v.monto / totalPrev * 100 : 0 }))
+      .sort((a,b) => b.monto - a.monto);
+    body = filas.length === 0 ? `<div style="text-align:center;color:var(--ink-soft);padding:14px;font-size:13px">Sin categorías.</div>`
+      : filas.map(r => `<div class="cat-bar">
+          <div class="top"><span>${r.cat}</span><span style="font-weight:700">${ars(Math.round(r.monto))} · ${r.share.toFixed(1)}%</span></div>
+          <div class="tr"><div class="fl" style="width:${r.share}%;background:${s.color}"></div></div>
+          <div style="font-size:11px;color:var(--ink-soft);margin-top:2px">${r.unidades} u</div>
+        </div>`).join('');
+  } else {
+    const filas = Object.entries(cliMap)
+      .map(([nom, v]) => ({ nom, monto: v.monto, nped: v.pedidos.size }))
+      .sort((a,b) => b.monto - a.monto);
+    body = filas.length === 0 ? `<div style="text-align:center;color:var(--ink-soft);padding:14px;font-size:13px">Sin clientes.</div>`
+      : filas.slice(0, 200).map(r => `<div class="prev-row">
+          <div class="nm">${r.nom}<span class="u">· ${r.nped} ped</span></div>
+          <div class="mt">${ars(Math.round(r.monto))}</div>
+        </div>`).join('');
+  }
+
+  return `<div class="prev-detail" onclick="event.stopPropagation()">
+    ${subTabHtml}
+    <div class="sub-body">${body}</div>
+  </div>`;
+}
+
+window._togglePrev = (nombre) => {
+  prevExpandido = (prevExpandido === nombre) ? null : nombre;
+  prevBusqProd = '';
+  render();
+};
+window._setPrevSubTab = (id) => { prevSubTab = id; render(); };
+window._setPrevBusq = (v) => {
+  prevBusqProd = v;
+  // Re-renderizar solo el body de productos para no perder foco del input.
+  const body = document.querySelector('.prev-detail .sub-body');
+  if (!body || prevSubTab !== 'productos') { render(); return; }
+  const pf = pedidosFiltrados();
+  const s = { nombre: prevExpandido, color: COLORES_PREV[0] };
+  // Buscamos el color real en stats
+  const nombresSet = new Set(pf.map(p => p.usuarios?.nombre).filter(Boolean));
+  const idx = [...nombresSet].indexOf(prevExpandido);
+  if (idx >= 0) s.color = COLORES_PREV[idx % COLORES_PREV.length];
+  const html = renderPrevDetalle(pf, s);
+  // Reemplazar solo el body conservando el input (y su caret).
+  const wrap = document.createElement('div'); wrap.innerHTML = html;
+  const newBody = wrap.querySelector('.sub-body');
+  if (newBody) {
+    // conservamos el input: reemplazamos todo lo que NO sea el input
+    const input = body.querySelector('.busq');
+    const caret = input ? input.selectionStart : null;
+    body.innerHTML = newBody.innerHTML;
+    const newInput = body.querySelector('.busq');
+    if (newInput && input) { newInput.focus(); if (caret!=null) newInput.setSelectionRange(caret, caret); }
+  }
+};
 
 // ── WINDOW EXPOSURE ────────────────────────────────────────────────────────
 window._exportar = () => {
