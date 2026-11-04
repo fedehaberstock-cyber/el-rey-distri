@@ -256,6 +256,11 @@ let agrupar = 'proveedor'     // 'proveedor' | 'categoria' | 'urgentes'
 let busqueda = ''
 let filtroProv = null  // null = todos, sino proveedor_id
 let horizonte = HORIZONTE_DEFAULT  // null | 7 | 14 | 30 | 45
+const URG_DIAS_KEY = 'compras_urg_dias_v1'
+let urgDias = (() => {
+  try { const v = parseInt(localStorage.getItem(URG_DIAS_KEY), 10); return Number.isFinite(v) && v > 0 ? v : 3 }
+  catch { return 3 }
+})()
 let verSinProv = false        // en vista por proveedor, "— Sin proveedor —" colapsado por default
 let provPopover = null        // { prodId } para el popover de cambiar/fijar proveedor por fila
 let provPopoverAdd = null     // { provId:'', costo:'' } estado del formulario "agregar otro proveedor"
@@ -429,10 +434,14 @@ function diasUrgencia() {
   return horizonte != null ? horizonte : 7
 }
 function aplanarUrgentes() {
-  const lim = diasUrgencia()
   return todosLosItems()
-    .filter(s => s.dias_restantes !== null && s.dias_restantes <= lim)
+    .filter(s => s.dias_restantes !== null && s.dias_restantes <= urgDias)
     .sort((a,b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999))
+}
+function totalUrgentes() {
+  return aplanarUrgentes()
+    .filter(it => !it.excluido)
+    .reduce((s, it) => s + cantidadEfectiva(it) * Number(it.ultimo_costo || 0), 0)
 }
 
 function filtroBusqueda(items) {
@@ -736,7 +745,9 @@ function renderSugeridos() {
   const box = document.getElementById('body')
   const allItems = todosLosItems()
   const cantConDatos = allItems.filter(s => !s.excluido && cantidadEfectiva(s) > 0).length
-  const urgentes = allItems.filter(s => s.dias_restantes !== null && s.dias_restantes <= 3).length
+  const urgentes = allItems.filter(s => s.dias_restantes !== null && s.dias_restantes <= urgDias).length
+  const urgMonto = totalUrgentes()
+  const urgOpts = [1, 2, 3, 5, 7, 14, 21, 30]
   const tot = totalGeneral()
   const comprometido = comprometidoEnPendientes()
   const hayBorrador = Object.keys(borrador.cantidades).length + Object.keys(borrador.excluidos).length + Object.keys(borrador.reasignados).length > 0
@@ -762,7 +773,16 @@ function renderSugeridos() {
         </div>
         <div class="kpi-mini-wrap">
           <div class="kpi-mini"><b>${cantConDatos}</b> productos</div>
-          <div class="kpi-mini ${urgentes?'red':''}"><b>${urgentes}</b> urgentes ≤3d</div>
+          <div class="kpi-mini ${urgentes?'red':''}" style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+            <div style="display:flex;align-items:center;gap:6px">
+              <b>${urgentes}</b> urgentes ≤
+              <select onchange="window._setUrgDias(parseInt(this.value))"
+                style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:1px 4px;font-size:12px;font-family:inherit;color:inherit">
+                ${urgOpts.map(d => `<option value="${d}" ${urgDias===d?'selected':''}>${d}d</option>`).join('')}
+              </select>
+            </div>
+            ${urgentes ? `<div style="font-size:12px;font-weight:700">${ars(urgMonto)}</div>` : ''}
+          </div>
         </div>
       </div>
 
@@ -816,7 +836,7 @@ function renderListaSugeridos() {
     const items = filtroBusqueda(aplanarUrgentes()).filter(it =>
       !filtroProv || (it.reasignado_a || it.proveedor_id || 'sin') === filtroProv)
     lista.innerHTML = items.length
-      ? `<div class="prov-card"><div class="prov-hdr"><div class="top"><div class="nm">Solo urgentes (≤ ${diasUrgencia()} días)</div></div></div>${items.map(it => renderItem(it)).join('')}</div>`
+      ? `<div class="prov-card"><div class="prov-hdr"><div class="top"><div class="nm">Solo urgentes (≤ ${urgDias} días) · ${ars(totalUrgentes())}</div></div></div>${items.map(it => renderItem(it)).join('')}</div>`
       : `<div class="empty">Sin urgentes que coincidan.</div>`
     return
   }
@@ -1474,6 +1494,12 @@ window._verIngreso = async id => {
 window._cerrarIngreso = () => { ingresoDetalle = null; document.querySelector('.overlay')?.remove() }
 window._setAgrupar = v => { agrupar = v; provPopover = null; render() }
 window._setHorizonte = v => { horizonte = v; render() }
+window._setUrgDias = v => {
+  if (!Number.isFinite(v) || v <= 0) return
+  urgDias = v
+  try { localStorage.setItem(URG_DIAS_KEY, String(v)) } catch {}
+  render()
+}
 window._toggleSinProv = () => { verSinProv = !verSinProv; renderListaSugeridos() }
 window._togglePopoverProv = prodId => {
   if (!prodId || (provPopover && provPopover.prodId === prodId)) provPopover = null
