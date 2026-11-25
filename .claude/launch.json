@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "papelera-front",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5175", "--directory", "G:/papelera-trebol/front"],
+      "port": 5175
+    }
+  ]
+}

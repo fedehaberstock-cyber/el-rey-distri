@@ -184,7 +184,7 @@ async function cargarBoleta() {
   const { data, error } = await supabase
     .from('boletas')
     .select(`
-      id, total, saldo_anterior, total_a_cobrar, estado, fecha, condicion_pago,
+      id, total, saldo_anterior, total_a_cobrar, estado, fecha, condicion_pago, impresa_en,
       pedidos (
         id, descuento, observaciones, cliente_id, estado,
         usuarios!pedidos_usuario_id_fkey(nombre),
@@ -275,7 +275,9 @@ function render() {
         <div>El Rey<small>Boleta #${numCorto}</small></div>
       </div>
       <div class="hdr-right">
-        <button class="hdr-btn" onclick="location.href='./editar_boleta.html?id=${boleta.id}'">✏ Editar</button>
+        ${(usuario.rol === 'preventista' && boleta.impresa_en)
+          ? `<button class="hdr-btn" disabled title="Boleta ya impresa — pedile al admin que la reabra" style="opacity:.5;cursor:not-allowed">✏ Editar</button>`
+          : `<button class="hdr-btn" onclick="location.href='./editar_boleta.html?id=${boleta.id}'">✏ Editar</button>`}
         <button class="hdr-btn" onclick="window.print()">🖨 Imprimir</button>
       </div>
     </div>

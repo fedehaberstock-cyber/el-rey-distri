@@ -189,6 +189,7 @@
 <script type="module">
 import { supabase } from './src/supabase.js';
 import { requireSession, tienePermiso } from './src/auth.js';
+import { isoArg } from './src/utils.js';
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
 const { usuario } = await requireSession();
@@ -449,7 +450,7 @@ async function cargarMovs(prodId) {
     tipo: m.tipo,
     cant: Number(m.cantidad),
     desc: m.referencia_tipo || m.tipo,
-    fecha: (m.fecha || '').slice(0, 10),
+    fecha: m.fecha ? isoArg(m.fecha) : '',
   }));
 }
 

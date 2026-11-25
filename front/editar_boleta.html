@@ -121,7 +121,7 @@ let ofertaPickerOpen = false
 async function cargar() {
   const [bResp, cResp, pResp, sResp, oResp] = await Promise.all([
     supabase.from('boletas').select(`
-      id, total, saldo_anterior,
+      id, total, saldo_anterior, impresa_en,
       pedidos (
         id, descuento, fecha_reparto, observaciones, cliente_id, usuario_id, hoja_ruta_id,
         pedido_items(producto_id, cantidad, precio_unit, descuento, es_bulto, u_por_bulto, oferta_id,
@@ -148,6 +148,14 @@ async function cargar() {
 
   boleta = bResp.data
   pedido = boleta.pedidos
+
+  // El RPC también bloquea, pero cortamos antes de cargar el form para evitar
+  // que el preventista llene cambios que después van a ser rechazados.
+  if (usuario.rol === 'preventista' && boleta.impresa_en) {
+    document.getElementById('root').innerHTML =
+      `<div class="err-box">Esta boleta ya fue impresa (${new Date(boleta.impresa_en).toLocaleString('es-AR')}).<br>Pedile al admin que la reabra para editarla.</div>`
+    throw new Error('boleta impresa — edición bloqueada para preventistas')
+  }
   clientes = cResp.data || []
   productos = pResp.data || []
   stockMap = Object.fromEntries((sResp.data || []).map(s => [s.producto_id, Number(s.stock) || 0]))

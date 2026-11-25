@@ -137,7 +137,7 @@ if (!pedidoIds.length) {
 const { data: boletas, error } = await supabase
   .from('boletas')
   .select(`
-    id, total, saldo_anterior, total_a_cobrar, fecha, pedido_id,
+    id, total, saldo_anterior, total_a_cobrar, fecha, pedido_id, impresa_en,
     pedidos (
       id, descuento, observaciones, cliente_id,
       usuarios!pedidos_usuario_id_fkey(nombre),
@@ -150,6 +150,17 @@ const { data: boletas, error } = await supabase
 if (error) {
   document.getElementById('root').innerHTML = `<div class="err-box">Error: ${error.message}</div>`
   throw error
+}
+
+// Marcar como impresas las que todavía no lo estaban. A partir de este momento
+// los preventistas ya no podrán editarlas (necesitan pedir reapertura al admin).
+const sinImprimir = boletas.filter(b => !b.impresa_en).map(b => b.id)
+if (sinImprimir.length) {
+  const ahora = new Date().toISOString()
+  const { error: eUpd } = await supabase.from('boletas')
+    .update({ impresa_en: ahora })
+    .in('id', sinImprimir)
+  if (!eUpd) boletas.forEach(b => { if (sinImprimir.includes(b.id)) b.impresa_en = ahora })
 }
 
 // Recalcular saldo dinámicamente para cada boleta: pagos posteriores a la fecha
@@ -191,8 +202,16 @@ function renderBoleta(boleta) {
   const descMonto = desc > 0 ? subtotal * desc / 100 : 0
   const tieneSaldo = saldoAnt > 0
 
+  const impHora = boleta.impresa_en
+    ? (() => { const d = new Date(boleta.impresa_en)
+        return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` })()
+    : ''
   return `
     <div class="boleta-wrap">
+      ${boleta.impresa_en ? `<div class="imp-chip no-print" style="padding:6px 12px;background:var(--line-soft);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-soft)">
+        <span>🖨 Impresa ${impHora}</span>
+        <button onclick="window._deshacerImp('${boleta.id}')" style="padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:var(--ink-soft)">Deshacer marca</button>
+      </div>` : ''}
       <div class="bol-header">
         <div class="bol-empresa">Distribuidora El Rey</div>
         <div class="bol-sub">Alta Gracia, Córdoba</div>
@@ -242,6 +261,15 @@ function renderBoleta(boleta) {
 }
 
 document.getElementById('root').innerHTML = ordenadas.map(renderBoleta).join('')
+
+window._deshacerImp = async (bolId) => {
+  if (!confirm('¿Quitar la marca de impresa? El preventista podrá editar esta boleta de nuevo.')) return
+  const { error } = await supabase.from('boletas').update({ impresa_en: null }).eq('id', bolId)
+  if (error) { alert('Error: ' + error.message); return }
+  const b = boletas.find(x => x.id === bolId)
+  if (b) b.impresa_en = null
+  document.getElementById('root').innerHTML = ordenadas.map(renderBoleta).join('')
+}
 
 // Auto-print al cargar
 setTimeout(() => window.print(), 400)

@@ -335,7 +335,7 @@ async function cargarTodo() {
   const [{ data: boletas, error: e2 }, { data: pedsCli, error: ePC }] = await Promise.all([
     supabase
       .from('boletas')
-      .select('id, pedido_id, total, saldo_anterior, total_a_cobrar')
+      .select('id, pedido_id, total, saldo_anterior, total_a_cobrar, impresa_en')
       .in('pedido_id', pedidoIds),
     // Traer cliente_id por pedido (hoja_ruta_hoy no siempre lo expone).
     supabase.from('pedidos').select('id, cliente_id').in('id', pedidoIds),
@@ -366,6 +366,7 @@ async function cargarTodo() {
       tel:         r.telefono  || '',
       prev:        r.preventista_nombre || '',
       boletaId:    b.id || null,
+      boletaImpresa: !!b.impresa_en,
       totalPedido: Number(b.total)          || 0,
       saldoAnt:    Number(b.saldo_anterior) || 0,  // snapshot (se recalcula abajo)
       tacobrar:    Number(b.total_a_cobrar) || 0,  // snapshot (se recalcula abajo)
@@ -607,7 +608,11 @@ function renderCierre(el) {
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px">
           <span class="estado-chip ${chipCl}">${chipTxt}</span>
-          ${p.boletaId ? `<button class="hdr-btn" onclick="editarBoleta('${p.boletaId}')" style="font-size:12px;padding:5px 10px">✏ Editar boleta</button>` : ''}
+          ${p.boletaId ? (
+            (usuario.rol === 'preventista' && p.boletaImpresa)
+              ? `<span style="font-size:11px;color:var(--ink-soft);padding:5px 8px;background:var(--line-soft);border-radius:999px" title="Pedile al admin que la reabra">🖨 Impresa</span>`
+              : `<button class="hdr-btn" onclick="editarBoleta('${p.boletaId}')" style="font-size:12px;padding:5px 10px">✏ Editar boleta${p.boletaImpresa ? ' (impresa)' : ''}</button>`
+          ) : ''}
         </div>
       </div>
       <div class="cierre-body">
